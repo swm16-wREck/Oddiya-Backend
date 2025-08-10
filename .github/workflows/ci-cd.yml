@@ -109,9 +109,6 @@ jobs:
         run: ./gradlew test --no-daemon
         env:
           SPRING_PROFILES_ACTIVE: test
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/oddiya_test
-          SPRING_DATASOURCE_USERNAME: oddiya
-          SPRING_DATASOURCE_PASSWORD: oddiya123
           
       - name: Upload Test Results
         if: always()
