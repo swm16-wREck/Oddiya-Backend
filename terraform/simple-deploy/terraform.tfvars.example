@@ -1,0 +1,25 @@
+# Copy this file to terraform.tfvars and fill in your values
+
+# Environment Configuration
+environment = "dev"
+aws_region  = "ap-northeast-2"
+
+# Enable NAT Gateway (false for dev to save costs)
+enable_nat_gateway = false
+
+# ECS Configuration
+container_image   = "YOUR_ECR_REPO_URL/oddiya:latest"
+ecs_task_cpu      = "256"
+ecs_task_memory   = "512"
+ecs_desired_count = 1
+
+# RDS Configuration
+db_name     = "oddiya"
+db_username = "oddiya_admin"
+db_password = "CHANGE_THIS_PASSWORD"  # Use a strong password
+
+# For dev environment, use smallest instances
+db_instance_class = "db.t3.micro"
+
+# Backup retention (7 days for dev, 30 for prod)
+backup_retention_period = 7

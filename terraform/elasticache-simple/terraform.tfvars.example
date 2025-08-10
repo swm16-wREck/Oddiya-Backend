@@ -1,0 +1,64 @@
+# ElastiCache Redis Configuration Example
+# Copy to terraform.tfvars and customize
+
+# Basic Configuration
+aws_region   = "ap-northeast-2"
+name_prefix  = "my-app"
+environment  = "dev"
+
+# Network Configuration
+vpc_id     = "vpc-xxxxxxxxx"
+subnet_ids = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
+
+# Deployment Options
+# "single" = Single node (cheapest, ~$12/month)
+# "cluster" = Replication group (HA, ~$25-50/month)
+deployment_mode = "single"
+
+# Instance Configuration
+# Cheapest options (Graviton ARM-based):
+# cache.t4g.micro  = ~$12/month
+# cache.t4g.small  = ~$25/month
+# cache.t4g.medium = ~$50/month
+node_type = "cache.t4g.micro"
+
+# For cluster mode only
+num_cache_nodes = 2  # Minimum 2 for HA
+
+# Redis Configuration
+redis_version = "7.0"
+redis_family  = "redis7"
+redis_port    = 6379
+
+# Memory Management
+# allkeys-lru = Remove any key using LRU when memory is full
+# volatile-lru = Remove keys with TTL using LRU
+# noeviction = Return error when memory is full
+eviction_policy = "allkeys-lru"
+
+# Backup Configuration (minimal for cost)
+backup_retention_days = 1         # 0 to disable backups completely
+backup_window        = "03:00-04:00"  # UTC
+maintenance_window   = "sun:04:00-sun:05:00"
+
+# Security
+enable_encryption = false  # Set to true for sensitive data (adds slight cost)
+
+# Monitoring
+enable_logs       = false  # CloudWatch logs (adds cost)
+enable_monitoring = true   # CloudWatch alarms
+
+# Access Control
+allowed_security_groups = []  # Add your app security group IDs
+allowed_cidr_blocks    = []   # Or use CIDR blocks
+
+# Notifications (optional)
+sns_topic_arn = ""  # Add SNS topic ARN for alerts
+
+# Tags
+tags = {
+  Project     = "MyApp"
+  Environment = "dev"
+  ManagedBy   = "Terraform"
+  CostCenter  = "Engineering"
+}

@@ -1,0 +1,62 @@
+# AWS Resource Cleanup Configuration
+# Copy this file to terraform.tfvars and customize
+
+# AWS Region
+aws_region = "ap-northeast-2"  # Seoul
+
+# Resource naming prefix
+prefix = "aws-cleanup"
+
+# IMPORTANT: Set to false to actually delete resources
+# Keep as true for testing to see what would be deleted
+dry_run = true
+
+# How often to run cleanup (examples below)
+schedule_expression = "rate(1 day)"        # Daily
+# schedule_expression = "rate(7 days)"     # Weekly
+# schedule_expression = "cron(0 2 * * ? *)" # Daily at 2 AM UTC
+
+# Minimum age before considering resources for deletion
+resource_age_threshold_days = 30
+
+# Email addresses for notifications
+notification_emails = [
+  "your-email@example.com",
+  "team@example.com"
+]
+
+# What to clean up
+cleanup_config = {
+  ebs_volumes         = true   # Unattached EBS volumes
+  ebs_snapshots       = true   # Old EBS snapshots
+  elastic_ips         = true   # Unassociated Elastic IPs
+  load_balancers      = true   # Unused load balancers
+  nat_gateways        = true   # Unused NAT gateways
+  rds_snapshots       = true   # Old RDS snapshots
+  ami_images          = true   # Old AMI images
+  ecr_images          = true   # Old ECR images
+  cloudwatch_logs     = true   # Empty CloudWatch log groups
+  s3_buckets          = true   # Empty S3 buckets
+  security_groups     = true   # Unused security groups
+  old_lambda_versions = true   # Old Lambda function versions
+}
+
+# Resources with these tags will be protected
+whitelist_tags = [
+  "Environment:prod",
+  "Environment:production",
+  "Protected",
+  "DoNotDelete",
+  "Critical",
+  "Persistent"
+]
+
+# Resources with these name prefixes will be protected
+whitelist_name_prefixes = [
+  "prod-",
+  "production-",
+  "critical-",
+  "shared-",
+  "terraform-",
+  "backup-"
+]

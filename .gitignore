@@ -1,0 +1,290 @@
+# ===============================
+# Java & Spring Boot
+# ===============================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Build directories
+build/
+out/
+bin/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Class files
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# ===============================
+# Documentation (as requested)
+# ===============================
+*.md
+README.*
+CHANGELOG.*
+LICENSE.*
+docs/
+documentation/
+*.adoc
+*.rst
+*.txt
+
+# ===============================
+# IDE & Editor
+# ===============================
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.project
+.classpath
+.settings/
+.nb-gradle/
+
+# ===============================
+# Environment & Configuration
+# ===============================
+.env
+.env.*
+*.env
+!.env.example
+application-*.yml
+!application.yml
+!application-test.yml
+!application-h2.yml
+secrets/
+credentials/
+
+# ===============================
+# Logs & Temporary Files
+# ===============================
+logs/
+*.log
+*.log.*
+*.gz
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+hs_err_pid*
+replay_pid*
+app.log
+test-output/
+tmp/
+temp/
+
+# ===============================
+# OS Files
+# ===============================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# ===============================
+# Terraform
+# ===============================
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+!terraform.tfvars.example
+.terraform/
+.terraform.lock.hcl
+terraform.log
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+tfplan
+tfplan-*
+destroy.log
+terraform-plan.log
+
+# ===============================
+# Docker
+# ===============================
+docker-compose.override.yml
+.dockerignore
+
+# ===============================
+# AWS
+# ===============================
+.aws/
+aws-cost-report*.json
+*.pem
+*.key
+
+# ===============================
+# Testing & Coverage
+# ===============================
+coverage/
+.nyc_output/
+test-results/
+*.coverage
+htmlcov/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# ===============================
+# Node.js (if any frontend)
+# ===============================
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+.npm/
+
+# ===============================
+# Database
+# ===============================
+*.db
+*.sqlite
+*.sqlite3
+*.h2.db
+database/*.sql
+!database/oddiya_database_schema.sql
+
+# ===============================
+# Compiled files
+# ===============================
+*.com
+*.dll
+*.exe
+*.o
+*.so
+*.dylib
+
+# ===============================
+# Package files
+# ===============================
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# ===============================
+# Maven (if used)
+# ===============================
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# ===============================
+# Gradle
+# ===============================
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+.gradletasknamecache
+
+# ===============================
+# IntelliJ IDEA
+# ===============================
+.idea_modules/
+atlassian-ide-plugin.xml
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# ===============================
+# Task Master
+# ===============================
+.taskmaster/reports/
+.taskmaster/tasks/*.md
+.taskmaster/tasks/*.txt
+!.taskmaster/tasks/tasks.json
+!.taskmaster/config.json
+
+# ===============================
+# MacOS
+# ===============================
+._*
+.Spotlight-V100
+.Trashes
+
+# ===============================
+# Windows
+# ===============================
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# ===============================
+# Linux
+# ===============================
+.directory
+.Trash-*
+.nfs*
+
+# ===============================
+# Backup files
+# ===============================
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+*_backup
+*_old
+
+# ===============================
+# Static analysis
+# ===============================
+.sonar/
+.scannerwork/
+sonar-project.properties
+
+# ===============================
+# Others
+# ===============================
+*.pid
+*.seed
+*.pid.lock
+.grunt/
+bower_components/
+.lock-wscript
+.node_repl_history
+*.tgz
+.yarn-integrity
+.next/

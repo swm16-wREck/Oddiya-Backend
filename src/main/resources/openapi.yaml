@@ -1,0 +1,2497 @@
+openapi: 3.0.3
+info:
+  title: Oddiya Travel Planning API
+  description: |
+    AI-powered travel planning and video generation service API.
+    
+    ## Features
+    - OAuth2 authentication (Google, Apple)
+    - AI-powered travel plan generation using AWS Bedrock
+    - Photo to video shorts generation
+    - Place discovery and recommendations
+    - Real-time notifications
+    
+    ## Authentication
+    Most endpoints require Bearer token authentication.
+    Include the token in the Authorization header: `Bearer {accessToken}`
+  version: 1.0.0
+  contact:
+    name: Oddiya API Support
+    email: api-support@oddiya.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: https://api.oddiya.com/api/v1
+    description: Production server
+  - url: https://api-test.oddiya.com/api/v1
+    description: Test server
+  - url: http://localhost:8080/api/v1
+    description: Local development
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Users
+    description: User profile management
+  - name: Travel Plans
+    description: Travel plan creation and management
+  - name: Places
+    description: Place search and information
+  - name: Videos
+    description: Video generation from photos
+  - name: Media
+    description: Media upload and management
+  - name: Notifications
+    description: Push and in-app notifications
+  - name: Hashtags
+    description: Hashtag search and trending
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Register a new user using OAuth provider token
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user with OAuth provider token
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate user session and tokens
+      operationId: logoutUser
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get user profile
+      description: Retrieve current user's profile information
+      operationId: getUserProfile
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    patch:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Update current user's profile information
+      operationId: updateUserProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/profile/image:
+    post:
+      tags:
+        - Users
+      summary: Upload profile image
+      description: Upload user profile image
+      operationId: uploadProfileImage
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - image
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Profile image file (JPEG/PNG, max 5MB)
+      responses:
+        '200':
+          description: Image uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileImageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /travel-plans/generate:
+    post:
+      tags:
+        - Travel Plans
+      summary: Generate AI travel plan
+      description: Generate travel plan using AI based on user preferences
+      operationId: generateTravelPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneratePlanRequest'
+      responses:
+        '201':
+          description: Travel plan generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlanDetailed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /travel-plans:
+    get:
+      tags:
+        - Travel Plans
+      summary: List travel plans
+      description: Get list of user's travel plans
+      operationId: getTravelPlans
+      parameters:
+        - $ref: '#/components/parameters/StatusParam'
+        - $ref: '#/components/parameters/StartDateParam'
+        - $ref: '#/components/parameters/EndDateParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SortParam'
+        - $ref: '#/components/parameters/OrderParam'
+      responses:
+        '200':
+          description: Travel plans retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlanList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    post:
+      tags:
+        - Travel Plans
+      summary: Create travel plan
+      description: Create new travel plan manually
+      operationId: createTravelPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+      responses:
+        '201':
+          description: Travel plan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /travel-plans/{planId}:
+    get:
+      tags:
+        - Travel Plans
+      summary: Get travel plan details
+      description: Get detailed information of a specific travel plan
+      operationId: getTravelPlanById
+      parameters:
+        - $ref: '#/components/parameters/PlanIdParam'
+      responses:
+        '200':
+          description: Travel plan details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlanDetailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    put:
+      tags:
+        - Travel Plans
+      summary: Update travel plan
+      description: Update existing travel plan
+      operationId: updateTravelPlan
+      parameters:
+        - $ref: '#/components/parameters/PlanIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlanRequest'
+      responses:
+        '200':
+          description: Travel plan updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlanDetailed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - Travel Plans
+      summary: Delete travel plan
+      description: Delete existing travel plan
+      operationId: deleteTravelPlan
+      parameters:
+        - $ref: '#/components/parameters/PlanIdParam'
+      responses:
+        '204':
+          description: Travel plan deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /travel-plans/{planId}/regenerate:
+    post:
+      tags:
+        - Travel Plans
+      summary: Regenerate travel plan
+      description: Regenerate travel plan with feedback using AI
+      operationId: regenerateTravelPlan
+      parameters:
+        - $ref: '#/components/parameters/PlanIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegeneratePlanRequest'
+      responses:
+        '200':
+          description: Travel plan regenerated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TravelPlanDetailed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /travel-plans/{planId}/itinerary:
+    post:
+      tags:
+        - Travel Plans
+      summary: Add itinerary item
+      description: Add new itinerary item to travel plan
+      operationId: addItineraryItem
+      parameters:
+        - $ref: '#/components/parameters/PlanIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItineraryItemRequest'
+      responses:
+        '201':
+          description: Itinerary item added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItineraryItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /travel-plans/{planId}/itinerary/{itemId}:
+    patch:
+      tags:
+        - Travel Plans
+      summary: Update itinerary item
+      description: Update existing itinerary item
+      operationId: updateItineraryItem
+      parameters:
+        - $ref: '#/components/parameters/PlanIdParam'
+        - $ref: '#/components/parameters/ItemIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateItineraryItemRequest'
+      responses:
+        '200':
+          description: Itinerary item updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItineraryItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - Travel Plans
+      summary: Delete itinerary item
+      description: Delete existing itinerary item
+      operationId: deleteItineraryItem
+      parameters:
+        - $ref: '#/components/parameters/PlanIdParam'
+        - $ref: '#/components/parameters/ItemIdParam'
+      responses:
+        '204':
+          description: Itinerary item deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /travel-plans/{planId}/optimize-route:
+    post:
+      tags:
+        - Travel Plans
+      summary: Optimize travel route
+      description: Optimize route for a specific day using Google Maps
+      operationId: optimizeRoute
+      parameters:
+        - $ref: '#/components/parameters/PlanIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OptimizeRouteRequest'
+      responses:
+        '200':
+          description: Route optimized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptimizeRouteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /places/search:
+    get:
+      tags:
+        - Places
+      summary: Search places
+      description: Search for places by query and filters
+      operationId: searchPlaces
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+        - name: city
+          in: query
+          schema:
+            type: string
+          description: City filter
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [attraction, restaurant, accommodation, shopping]
+          description: Place category
+        - name: latitude
+          in: query
+          schema:
+            type: number
+            format: double
+          description: Center latitude for proximity search
+        - name: longitude
+          in: query
+          schema:
+            type: number
+            format: double
+          description: Center longitude for proximity search
+        - name: radius
+          in: query
+          schema:
+            type: integer
+            default: 5000
+          description: Search radius in meters
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Places found successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /places/{placeId}:
+    get:
+      tags:
+        - Places
+      summary: Get place details
+      description: Get detailed information about a specific place
+      operationId: getPlaceDetails
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Place ID
+      responses:
+        '200':
+          description: Place details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceDetails'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /places/trending:
+    get:
+      tags:
+        - Places
+      summary: Get trending places
+      description: Get list of trending places
+      operationId: getTrendingPlaces
+      parameters:
+        - name: city
+          in: query
+          schema:
+            type: string
+          description: City filter
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+            default: weekly
+          description: Trending period
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+          description: Number of results
+      responses:
+        '200':
+          description: Trending places retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendingPlacesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /videos/create:
+    post:
+      tags:
+        - Videos
+      summary: Create video from photos
+      description: Generate video shorts from uploaded photos
+      operationId: createVideo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVideoRequest'
+      responses:
+        '202':
+          description: Video creation started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateVideoResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /videos/{videoId}/status:
+    get:
+      tags:
+        - Videos
+      summary: Get video processing status
+      description: Check the processing status of a video
+      operationId: getVideoStatus
+      parameters:
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Video ID
+      responses:
+        '200':
+          description: Video status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /videos/{videoId}:
+    get:
+      tags:
+        - Videos
+      summary: Get video details
+      description: Get details of a generated video
+      operationId: getVideoDetails
+      parameters:
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Video ID
+      responses:
+        '200':
+          description: Video details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoDetails'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - Videos
+      summary: Delete video
+      description: Delete a generated video
+      operationId: deleteVideo
+      parameters:
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Video ID
+      responses:
+        '204':
+          description: Video deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /videos:
+    get:
+      tags:
+        - Videos
+      summary: List user videos
+      description: Get list of user's generated videos
+      operationId: getUserVideos
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [processing, completed, failed]
+          description: Video status filter
+        - name: travelPlanId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Travel plan ID filter
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Videos retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /videos/styles:
+    get:
+      tags:
+        - Videos
+      summary: Get available video styles
+      description: Get list of available video styles
+      operationId: getVideoStyles
+      responses:
+        '200':
+          description: Video styles retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoStylesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /videos/music:
+    get:
+      tags:
+        - Videos
+      summary: Get music library
+      description: Get available music for video creation
+      operationId: getMusicLibrary
+      parameters:
+        - name: genre
+          in: query
+          schema:
+            type: string
+            enum: [pop, jazz, classical, electronic]
+          description: Music genre filter
+        - name: mood
+          in: query
+          schema:
+            type: string
+            enum: [happy, calm, energetic, romantic]
+          description: Music mood filter
+      responses:
+        '200':
+          description: Music library retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MusicLibraryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /media/upload-url:
+    post:
+      tags:
+        - Media
+      summary: Get presigned upload URL
+      description: Get presigned URL for direct S3 upload
+      operationId: getUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Upload URL generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /media/confirm-upload:
+    post:
+      tags:
+        - Media
+      summary: Confirm file upload
+      description: Confirm successful file upload and process metadata
+      operationId: confirmUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmUploadRequest'
+      responses:
+        '200':
+          description: Upload confirmed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Get notifications
+      description: Get user's notifications
+      operationId: getNotifications
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [unread, read, all]
+            default: all
+          description: Notification status filter
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [video, plan, system]
+          description: Notification type filter
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/{notificationId}/read:
+    patch:
+      tags:
+        - Notifications
+      summary: Mark notification as read
+      description: Mark a specific notification as read
+      operationId: markNotificationRead
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Notification ID
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationReadResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/mark-all-read:
+    post:
+      tags:
+        - Notifications
+      summary: Mark all notifications as read
+      description: Mark all user's notifications as read
+      operationId: markAllNotificationsRead
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkAllReadResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/push-token:
+    post:
+      tags:
+        - Notifications
+      summary: Update push notification token
+      description: Update device push notification token
+      operationId: updatePushToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePushTokenRequest'
+      responses:
+        '200':
+          description: Push token updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /hashtags/search:
+    get:
+      tags:
+        - Hashtags
+      summary: Search by hashtags
+      description: Search content by hashtags
+      operationId: searchByHashtags
+      parameters:
+        - name: tags
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated hashtags
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [place, plan, video]
+          description: Content type filter
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Search results retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HashtagSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /hashtags/popular:
+    get:
+      tags:
+        - Hashtags
+      summary: Get popular hashtags
+      description: Get list of popular hashtags
+      operationId: getPopularHashtags
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [destination, activity, season]
+          description: Hashtag category
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: Number of results
+      responses:
+        '200':
+          description: Popular hashtags retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PopularHashtagsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login endpoint
+
+  parameters:
+    PlanIdParam:
+      name: planId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Travel plan ID
+    
+    ItemIdParam:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Itinerary item ID
+    
+    StatusParam:
+      name: status
+      in: query
+      schema:
+        type: string
+        enum: [draft, confirmed, completed, cancelled]
+      description: Plan status filter
+    
+    StartDateParam:
+      name: startDate
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Start date filter
+    
+    EndDateParam:
+      name: endDate
+      in: query
+      schema:
+        type: string
+        format: date
+      description: End date filter
+    
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Results per page
+    
+    SortParam:
+      name: sort
+      in: query
+      schema:
+        type: string
+        enum: [createdAt, startDate]
+        default: createdAt
+      description: Sort field
+    
+    OrderParam:
+      name: order
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+      description: Sort order
+
+  schemas:
+    # Request Schemas
+    RegisterRequest:
+      type: object
+      required:
+        - provider
+        - idToken
+        - deviceInfo
+      properties:
+        provider:
+          type: string
+          enum: [google, apple]
+          description: OAuth provider
+        idToken:
+          type: string
+          description: OAuth ID token
+        deviceInfo:
+          $ref: '#/components/schemas/DeviceInfo'
+    
+    LoginRequest:
+      type: object
+      required:
+        - provider
+        - idToken
+      properties:
+        provider:
+          type: string
+          enum: [google, apple]
+        idToken:
+          type: string
+    
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    
+    UpdateProfileRequest:
+      type: object
+      properties:
+        nickname:
+          type: string
+          maxLength: 50
+        travelStyle:
+          type: string
+          enum: [adventurous, relaxed, cultural, luxury]
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+    
+    GeneratePlanRequest:
+      type: object
+      required:
+        - destination
+        - startDate
+        - endDate
+        - budget
+      properties:
+        destination:
+          type: string
+          description: Travel destination
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        budget:
+          type: number
+          minimum: 0
+          description: Budget in KRW
+        companions:
+          $ref: '#/components/schemas/Companions'
+        preferences:
+          $ref: '#/components/schemas/TravelPreferences'
+        accommodationPreference:
+          type: string
+          enum: [hotel, guesthouse, airbnb]
+    
+    CreatePlanRequest:
+      type: object
+      required:
+        - title
+        - destination
+        - startDate
+        - endDate
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        destination:
+          type: string
+          maxLength: 100
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        budget:
+          type: number
+          minimum: 0
+        companions:
+          $ref: '#/components/schemas/Companions'
+        description:
+          type: string
+          maxLength: 1000
+    
+    UpdatePlanRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        budget:
+          type: number
+          minimum: 0
+        status:
+          type: string
+          enum: [draft, confirmed, completed, cancelled]
+    
+    RegeneratePlanRequest:
+      type: object
+      required:
+        - feedback
+      properties:
+        feedback:
+          type: string
+          description: User feedback for regeneration
+        adjustments:
+          type: object
+          properties:
+            themes:
+              type: array
+              items:
+                type: string
+            excludePlaces:
+              type: array
+              items:
+                type: string
+    
+    ItineraryItemRequest:
+      type: object
+      required:
+        - dayNumber
+        - sequence
+        - placeName
+      properties:
+        dayNumber:
+          type: integer
+          minimum: 1
+        sequence:
+          type: integer
+          minimum: 1
+        time:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+        placeName:
+          type: string
+          maxLength: 200
+        placeId:
+          type: string
+        category:
+          type: string
+          enum: [attraction, restaurant, accommodation, shopping, transport]
+        duration:
+          type: integer
+          minimum: 0
+          description: Duration in minutes
+        cost:
+          type: number
+          minimum: 0
+        description:
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+        notes:
+          type: string
+    
+    UpdateItineraryItemRequest:
+      type: object
+      properties:
+        time:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+        duration:
+          type: integer
+          minimum: 0
+        notes:
+          type: string
+    
+    OptimizeRouteRequest:
+      type: object
+      required:
+        - dayNumber
+      properties:
+        dayNumber:
+          type: integer
+          minimum: 1
+        optimizationMode:
+          type: string
+          enum: [distance, time, cost]
+          default: distance
+    
+    CreateVideoRequest:
+      type: object
+      required:
+        - images
+      properties:
+        travelPlanId:
+          type: string
+          format: uuid
+        images:
+          type: array
+          minItems: 3
+          maxItems: 10
+          items:
+            type: string
+            format: uri
+        style:
+          type: string
+          enum: [dynamic, calm, vintage, modern]
+          default: dynamic
+        musicId:
+          type: string
+        duration:
+          type: integer
+          enum: [15, 30, 60]
+          default: 30
+        aspectRatio:
+          type: string
+          enum: ['9:16', '16:9', '1:1']
+          default: '9:16'
+        includeSubtitles:
+          type: boolean
+          default: false
+        subtitleText:
+          type: string
+          maxLength: 100
+    
+    UploadUrlRequest:
+      type: object
+      required:
+        - fileName
+        - fileType
+        - fileSize
+        - purpose
+      properties:
+        fileName:
+          type: string
+        fileType:
+          type: string
+          enum: [image/jpeg, image/png, video/mp4]
+        fileSize:
+          type: integer
+          maximum: 52428800  # 50MB
+        purpose:
+          type: string
+          enum: [video, profile, plan]
+    
+    ConfirmUploadRequest:
+      type: object
+      required:
+        - fileUrl
+      properties:
+        fileUrl:
+          type: string
+          format: uri
+        metadata:
+          type: object
+          properties:
+            width:
+              type: integer
+            height:
+              type: integer
+            location:
+              $ref: '#/components/schemas/GeoLocation'
+    
+    UpdatePushTokenRequest:
+      type: object
+      required:
+        - token
+        - platform
+        - deviceId
+      properties:
+        token:
+          type: string
+        platform:
+          type: string
+          enum: [ios, android]
+        deviceId:
+          type: string
+
+    # Response Schemas
+    ApiResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          nullable: true
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+          nullable: true
+    
+    ErrorDetail:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+        timestamp:
+          type: string
+          format: date-time
+    
+    ResponseMeta:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+    
+    AuthResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+                tokens:
+                  $ref: '#/components/schemas/Tokens'
+    
+    TokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Tokens'
+    
+    ProfileImageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                profileImageUrl:
+                  type: string
+                  format: uri
+    
+    TravelPlanList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TravelPlanSummary'
+                pagination:
+                  $ref: '#/components/schemas/Pagination'
+    
+    PlaceSearchResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PlaceSummary'
+                pagination:
+                  $ref: '#/components/schemas/Pagination'
+    
+    TrendingPlacesResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                period:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TrendingPlace'
+                updatedAt:
+                  type: string
+                  format: date-time
+    
+    CreateVideoResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                videoId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [processing]
+                estimatedTime:
+                  type: integer
+                  description: Estimated processing time in seconds
+                message:
+                  type: string
+    
+    VideoStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                videoId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [processing, completed, failed]
+                progress:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                currentStep:
+                  type: string
+                estimatedTimeRemaining:
+                  type: integer
+                  description: Seconds
+    
+    VideoListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/VideoSummary'
+                pagination:
+                  $ref: '#/components/schemas/Pagination'
+    
+    VideoStylesResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                styles:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/VideoStyle'
+    
+    MusicLibraryResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MusicTrack'
+    
+    UploadUrlResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                uploadUrl:
+                  type: string
+                  format: uri
+                uploadMethod:
+                  type: string
+                  enum: [PUT, POST]
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+                fileUrl:
+                  type: string
+                  format: uri
+                expiresAt:
+                  type: string
+                  format: date-time
+    
+    ConfirmUploadResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                fileId:
+                  type: string
+                  format: uuid
+                permanentUrl:
+                  type: string
+                  format: uri
+                thumbnailUrl:
+                  type: string
+                  format: uri
+    
+    NotificationListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Notification'
+                pagination:
+                  $ref: '#/components/schemas/Pagination'
+                unreadCount:
+                  type: integer
+    
+    NotificationReadResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [read]
+                readAt:
+                  type: string
+                  format: date-time
+    
+    MarkAllReadResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                updatedCount:
+                  type: integer
+    
+    MessageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                message:
+                  type: string
+    
+    HashtagSearchResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/HashtagSearchResult'
+                pagination:
+                  $ref: '#/components/schemas/Pagination'
+    
+    PopularHashtagsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PopularHashtag'
+                updatedAt:
+                  type: string
+                  format: date-time
+    
+    OptimizeRouteResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                originalOrder:
+                  type: array
+                  items:
+                    type: integer
+                optimizedOrder:
+                  type: array
+                  items:
+                    type: integer
+                savings:
+                  type: object
+                  properties:
+                    distance:
+                      type: number
+                      description: Saved distance in km
+                    time:
+                      type: integer
+                      description: Saved time in minutes
+                    cost:
+                      type: number
+                      description: Saved cost in KRW
+                route:
+                  type: object
+                  properties:
+                    polyline:
+                      type: string
+                      description: Encoded polyline string
+                    totalDistance:
+                      type: number
+                      description: Total distance in km
+                    totalTime:
+                      type: integer
+                      description: Total time in minutes
+
+    # Entity Schemas
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        nickname:
+          type: string
+        profileImageUrl:
+          type: string
+          format: uri
+        travelStyle:
+          type: string
+          enum: [adventurous, relaxed, cultural, luxury]
+        createdAt:
+          type: string
+          format: date-time
+    
+    UserProfile:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            preferences:
+              $ref: '#/components/schemas/UserPreferences'
+            statistics:
+              $ref: '#/components/schemas/UserStatistics'
+            updatedAt:
+              type: string
+              format: date-time
+    
+    UserPreferences:
+      type: object
+      properties:
+        accommodationType:
+          type: array
+          items:
+            type: string
+            enum: [hotel, guesthouse, airbnb, hostel, resort]
+        transportationType:
+          type: array
+          items:
+            type: string
+            enum: [public, rental, taxi, walking]
+        budgetRange:
+          type: string
+          enum: [budget, moderate, luxury]
+    
+    UserStatistics:
+      type: object
+      properties:
+        totalTrips:
+          type: integer
+        visitedPlaces:
+          type: integer
+        totalVideos:
+          type: integer
+    
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          description: Expiration time in seconds
+    
+    DeviceInfo:
+      type: object
+      required:
+        - platform
+        - version
+        - deviceId
+      properties:
+        platform:
+          type: string
+          enum: [ios, android]
+        version:
+          type: string
+        deviceId:
+          type: string
+    
+    TravelPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        destination:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        budget:
+          type: number
+        status:
+          type: string
+          enum: [draft, confirmed, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+    
+    TravelPlanSummary:
+      allOf:
+        - $ref: '#/components/schemas/TravelPlan'
+        - type: object
+          properties:
+            thumbnailUrl:
+              type: string
+              format: uri
+            participantCount:
+              type: integer
+            completionRate:
+              type: number
+              minimum: 0
+              maximum: 1
+    
+    TravelPlanDetailed:
+      allOf:
+        - $ref: '#/components/schemas/TravelPlan'
+        - type: object
+          properties:
+            companions:
+              $ref: '#/components/schemas/Companions'
+            dailyPlans:
+              type: array
+              items:
+                $ref: '#/components/schemas/DailyPlan'
+            participants:
+              type: array
+              items:
+                $ref: '#/components/schemas/Participant'
+            statistics:
+              $ref: '#/components/schemas/PlanStatistics'
+            metadata:
+              $ref: '#/components/schemas/PlanMetadata'
+            updatedAt:
+              type: string
+              format: date-time
+    
+    Companions:
+      type: object
+      properties:
+        adults:
+          type: integer
+          minimum: 1
+          default: 1
+        children:
+          type: integer
+          minimum: 0
+          default: 0
+    
+    TravelPreferences:
+      type: object
+      properties:
+        themes:
+          type: array
+          items:
+            type: string
+            enum: [culture, food, shopping, nature, adventure, relaxation]
+        pace:
+          type: string
+          enum: [slow, moderate, fast]
+        mustVisit:
+          type: array
+          items:
+            type: string
+    
+    DailyPlan:
+      type: object
+      properties:
+        day:
+          type: integer
+        date:
+          type: string
+          format: date
+        title:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryItem'
+        estimatedCost:
+          type: number
+        totalDistance:
+          type: number
+          description: Total distance in km
+    
+    ItineraryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+        time:
+          type: string
+        placeName:
+          type: string
+        placeId:
+          type: string
+        category:
+          type: string
+        duration:
+          type: integer
+          description: Duration in minutes
+        cost:
+          type: number
+        description:
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+        tips:
+          type: string
+    
+    Location:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        address:
+          type: string
+    
+    GeoLocation:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+    
+    Participant:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        role:
+          type: string
+          enum: [owner, participant]
+        joinedAt:
+          type: string
+          format: date-time
+    
+    PlanStatistics:
+      type: object
+      properties:
+        totalPlaces:
+          type: integer
+        totalDistance:
+          type: number
+        estimatedCost:
+          type: number
+    
+    PlanMetadata:
+      type: object
+      properties:
+        generatedBy:
+          type: string
+          enum: [ai, manual]
+        modelVersion:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+    
+    PlaceSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        placeId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        rating:
+          type: number
+          minimum: 0
+          maximum: 5
+        reviewCount:
+          type: integer
+        priceLevel:
+          type: integer
+          minimum: 1
+          maximum: 4
+        location:
+          $ref: '#/components/schemas/Location'
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Photo'
+        openingHours:
+          $ref: '#/components/schemas/OpeningHours'
+        tags:
+          type: array
+          items:
+            type: string
+    
+    PlaceDetails:
+      allOf:
+        - $ref: '#/components/schemas/PlaceSummary'
+        - type: object
+          properties:
+            description:
+              type: string
+            contact:
+              $ref: '#/components/schemas/ContactInfo'
+            reviews:
+              type: array
+              items:
+                $ref: '#/components/schemas/Review'
+            tips:
+              type: array
+              items:
+                type: string
+            nearbyPlaces:
+              type: array
+              items:
+                $ref: '#/components/schemas/PlaceSummary'
+    
+    Photo:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        width:
+          type: integer
+        height:
+          type: integer
+    
+    OpeningHours:
+      type: object
+      properties:
+        isOpenNow:
+          type: boolean
+        periods:
+          type: array
+          items:
+            type: object
+            properties:
+              open:
+                type: object
+                properties:
+                  day:
+                    type: integer
+                    minimum: 0
+                    maximum: 6
+                  time:
+                    type: string
+              close:
+                type: object
+                properties:
+                  day:
+                    type: integer
+                    minimum: 0
+                    maximum: 6
+                  time:
+                    type: string
+        weekdayText:
+          type: array
+          items:
+            type: string
+    
+    ContactInfo:
+      type: object
+      properties:
+        phone:
+          type: string
+        website:
+          type: string
+          format: uri
+    
+    Review:
+      type: object
+      properties:
+        author:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        text:
+          type: string
+        time:
+          type: string
+          format: date-time
+    
+    TrendingPlace:
+      type: object
+      properties:
+        rank:
+          type: integer
+        placeId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        viewCount:
+          type: integer
+        changeRate:
+          type: number
+        thumbnailUrl:
+          type: string
+          format: uri
+    
+    VideoDetails:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        travelPlanId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [processing, completed, failed]
+        videoUrl:
+          type: string
+          format: uri
+        thumbnailUrl:
+          type: string
+          format: uri
+        style:
+          type: string
+        duration:
+          type: integer
+        fileSize:
+          type: integer
+        metadata:
+          $ref: '#/components/schemas/VideoMetadata'
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+    
+    VideoMetadata:
+      type: object
+      properties:
+        width:
+          type: integer
+        height:
+          type: integer
+        fps:
+          type: integer
+        codec:
+          type: string
+    
+    VideoSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        travelPlanTitle:
+          type: string
+        status:
+          type: string
+        thumbnailUrl:
+          type: string
+          format: uri
+        duration:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    
+    VideoStyle:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        previewUrl:
+          type: string
+          format: uri
+        recommended:
+          type: array
+          items:
+            type: string
+    
+    MusicTrack:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        artist:
+          type: string
+        genre:
+          type: string
+        mood:
+          type: string
+        duration:
+          type: integer
+        previewUrl:
+          type: string
+          format: uri
+        bpm:
+          type: integer
+    
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [video, plan, system]
+        title:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [unread, read]
+        data:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    
+    HashtagSearchResult:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [place, plan, video]
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        thumbnailUrl:
+          type: string
+          format: uri
+        relevanceScore:
+          type: number
+          minimum: 0
+          maximum: 1
+    
+    PopularHashtag:
+      type: object
+      properties:
+        tag:
+          type: string
+        count:
+          type: integer
+        trend:
+          type: string
+          enum: [up, down, stable]
+        trendPercentage:
+          type: number
+        category:
+          type: string
+    
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            data: null
+            error:
+              code: "ERR_VALIDATION"
+              message: "Validation failed"
+              details:
+                - field: "startDate"
+                  message: "Start date must be in the future"
+    
+    Unauthorized:
+      description: Unauthorized - Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            data: null
+            error:
+              code: "ERR_UNAUTHORIZED"
+              message: "Authentication required"
+    
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            data: null
+            error:
+              code: "ERR_FORBIDDEN"
+              message: "Insufficient permissions"
+    
+    NotFound:
+      description: Not found - Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            data: null
+            error:
+              code: "ERR_NOT_FOUND"
+              message: "Resource not found"
+    
+    Conflict:
+      description: Conflict - Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            data: null
+            error:
+              code: "ERR_CONFLICT"
+              message: "Resource already exists"
+    
+    TooManyRequests:
+      description: Too many requests - Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            data: null
+            error:
+              code: "ERR_RATE_LIMIT"
+              message: "Rate limit exceeded"
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per window
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in window
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when limit resets
+    
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            data: null
+            error:
+              code: "ERR_INTERNAL"
+              message: "An unexpected error occurred"

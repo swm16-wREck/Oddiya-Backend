@@ -1,0 +1,119 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oddiya-app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/oddiya
+      - SPRING_DATASOURCE_USERNAME=oddiya
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-oddiya123}
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - oddiya-network
+    volumes:
+      - ./logs:/app/logs
+      - ./temp:/app/temp
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: oddiya-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=oddiya
+      - POSTGRES_USER=oddiya
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-oddiya123}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oddiya -d oddiya"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oddiya-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: oddiya-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oddiya-network
+    restart: unless-stopped
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: oddiya-localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    environment:
+      - SERVICES=s3,sqs,dynamodb
+      - DEBUG=0
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_DEFAULT_REGION=${AWS_REGION:-ap-northeast-2}
+    volumes:
+      - localstack-data:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/localstack-init.sh:/docker-entrypoint-initaws.d/init.sh
+    networks:
+      - oddiya-network
+    profiles:
+      - dev
+
+  nginx:
+    image: nginx:alpine
+    container_name: oddiya-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    networks:
+      - oddiya-network
+    profiles:
+      - production
+
+networks:
+  oddiya-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  localstack-data:

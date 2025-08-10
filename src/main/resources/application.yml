@@ -1,0 +1,230 @@
+spring:
+  application:
+    name: oddiya
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+    
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/oddiya}
+    username: ${SPRING_DATASOURCE_USERNAME:oddiya}
+    password: ${SPRING_DATASOURCE_PASSWORD:oddiya123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        default_batch_fetch_size: 16
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    show-sql: false
+    open-in-view: false
+    
+  redis:
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
+    password: ${SPRING_REDIS_PASSWORD:}
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000
+      cache-null-values: false
+      
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SUPABASE_URL}/auth/v1
+          jwk-set-uri: ${SUPABASE_URL}/auth/v1/.well-known/jwks.json
+          
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+      
+  task:
+    execution:
+      pool:
+        core-size: 5
+        max-size: 20
+        queue-capacity: 100
+    scheduling:
+      pool:
+        size: 5
+        
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  error:
+    include-message: always
+    include-binding-errors: always
+  forward-headers-strategy: framework
+  
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+  metrics:
+    export:
+      cloudwatch:
+        enabled: ${CLOUDWATCH_ENABLED:false}
+        namespace: Oddiya
+        region: ${AWS_REGION:ap-northeast-2}
+        
+logging:
+  level:
+    root: INFO
+    com.oddiya: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/oddiya.log
+    max-size: 10MB
+    max-history: 30
+    
+app:
+  version: 1.0.0
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - https://app.oddiya.com
+      - https://admin.oddiya.com
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - "*"
+    exposed-headers:
+      - X-Total-Count
+      - X-RateLimit-Limit
+      - X-RateLimit-Remaining
+      - X-RateLimit-Reset
+    allow-credentials: true
+    max-age: 3600
+    
+  jwt:
+    secret: ${JWT_SECRET:your-256-bit-secret-key-for-jwt-token-generation}
+    expiration: 3600000 # 1 hour
+    refresh-expiration: 604800000 # 7 days
+    
+  rate-limit:
+    auth: 10
+    ai-generation: 5
+    search: 30
+    media-upload: 10
+    general: 100
+    window: 60 # seconds
+    
+  aws:
+    region: ${AWS_REGION:ap-northeast-2}
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    s3:
+      bucket: ${S3_BUCKET:oddiya-media}
+      region: ${AWS_REGION:ap-northeast-2}
+    dynamodb:
+      endpoint: ${DYNAMODB_ENDPOINT:}
+    sqs:
+      queue-url: ${SQS_QUEUE_URL:}
+    bedrock:
+      model-id: ${BEDROCK_MODEL_ID:anthropic.claude-3-sonnet-20240229-v1:0}
+      
+  google:
+    maps:
+      api-key: ${GOOGLE_MAPS_API_KEY:}
+      
+  supabase:
+    url: ${SUPABASE_URL:}
+    anon-key: ${SUPABASE_ANON_KEY:}
+    service-key: ${SUPABASE_SERVICE_KEY:}
+    
+  external-api:
+    korea-tourism:
+      api-key: ${KOREA_TOURISM_API_KEY:}
+      base-url: https://apis.data.go.kr/B551011/KorService1
+      
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+      
+  jpa:
+    hibernate:
+      ddl-auto: update
+      
+logging:
+  level:
+    root: INFO
+    com.oddiya: INFO
+    
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+      
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+      
+  redis:
+    host: localhost
+    port: 6380
+    
+logging:
+  level:
+    root: WARN
+    com.oddiya: DEBUG

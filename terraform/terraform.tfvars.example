@@ -1,0 +1,46 @@
+# Oddiya Infrastructure Configuration Example
+# Copy this file to terraform.tfvars and fill in the actual values
+
+# Environment Configuration
+environment = "prod"
+aws_region  = "ap-northeast-2"
+
+# Domain Configuration
+domain_name = "oddiya.com"
+
+# Supabase OAuth Configuration
+# Get these values from your Supabase project dashboard
+supabase_url         = "https://your-project.supabase.co"
+supabase_anon_key    = "your-anon-key-here"
+supabase_service_key = "your-service-key-here"
+supabase_jwt_secret  = "your-jwt-secret-here"
+
+# OAuth Providers
+allowed_oauth_providers = ["google", "apple"]
+
+# Enable OAuth session management using DynamoDB
+enable_oauth_session_management = true
+
+# Database Configuration
+db_name     = "oddiya"
+db_username = "oddiya_admin"
+
+# For production, use larger instance classes
+db_instance_class = "db.r6g.large"  # For production
+# db_instance_class = "db.t4g.medium"  # For development/staging
+
+# ElastiCache Configuration
+redis_node_type = "cache.r6g.large"  # For production
+# redis_node_type = "cache.t4g.micro"  # For development/staging
+redis_num_nodes = 2
+
+# ACM Certificate ARN (required for HTTPS)
+certificate_arn = "arn:aws:acm:ap-northeast-2:YOUR_ACCOUNT_ID:certificate/YOUR_CERT_ID"
+
+# Tags
+common_tags = {
+  Project     = "Oddiya"
+  Team        = "DevOps"
+  CostCenter  = "Engineering"
+  Environment = "prod"
+}
