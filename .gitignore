@@ -106,7 +106,9 @@ desktop.ini
 !*.tfvars.example
 !terraform.tfvars.example
 .terraform/
+**/.terraform/
 .terraform.lock.hcl
+**/.terraform.lock.hcl
 terraform.log
 crash.log
 crash.*.log
@@ -118,8 +120,11 @@ override.tf.json
 terraform.rc
 tfplan
 tfplan-*
+**/tfplan
+**/tfplan-*
 destroy.log
 terraform-plan.log
+*.backup
 
 # ===============================
 # Docker
