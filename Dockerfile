@@ -35,8 +35,8 @@ RUN apk add --no-cache \
 # Set timezone
 ENV TZ=Asia/Seoul
 
-# Copy jar from builder stage
-COPY --from=builder --chown=spring:spring /app/build/libs/oddiya.jar app.jar
+# Copy jar from builder stage (use wildcard to match any jar name)
+COPY --from=builder --chown=spring:spring /app/build/libs/*.jar app.jar
 
 # Create directories for logs and temp files
 RUN mkdir -p /app/logs /app/temp && \
