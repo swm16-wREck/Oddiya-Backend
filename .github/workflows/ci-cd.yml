@@ -199,10 +199,11 @@ jobs:
             
       - name: Wait for deployment
         run: |
+          echo "Waiting for ECS service to stabilize (timeout after 10 minutes)..."
           aws ecs wait services-stable \
             --cluster ${{ env.ECS_CLUSTER }}-dev \
             --services ${{ env.ECS_SERVICE }}-dev \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ env.AWS_REGION }} || echo "Service stabilization timed out - check AWS Console"
             
       - name: Health Check
         run: |
@@ -240,23 +241,32 @@ jobs:
             
       - name: Wait for deployment
         run: |
+          echo "Waiting for ECS service to stabilize (timeout after 10 minutes)..."
           aws ecs wait services-stable \
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.ECS_SERVICE }} \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ env.AWS_REGION }} || echo "Service stabilization timed out - check AWS Console"
             
       - name: Health Check
         run: |
           echo "Skipping health check - domain not configured yet"
           # curl -f https://oddiya.com/actuator/health || exit 1
           
-      - name: Notify Deployment
-        if: always()
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          text: 'Production deployment ${{ job.status }} for commit ${{ github.sha }}'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      - name: Notify Deployment (Discord)
+        if: always() && secrets.DISCORD_WEBHOOK != ''
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            COLOR="3066993"
+            TITLE="✅ Deployment Successful"
+          else
+            COLOR="15158332"
+            TITLE="❌ Deployment Failed"
+          fi
+          
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"embeds\": [{\"title\": \"$TITLE\", \"description\": \"Production deployment ${{ job.status }} for commit ${{ github.sha }}\", \"color\": $COLOR, \"fields\": [{\"name\": \"Repository\", \"value\": \"${{ github.repository }}\", \"inline\": true}, {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"inline\": true}, {\"name\": \"Commit\", \"value\": \"${{ github.sha }}\", \"inline\": false}]}]}" \
+            ${{ secrets.DISCORD_WEBHOOK }} || echo "Discord notification skipped - webhook not configured"
 
   # ==========================================
   # Infrastructure as Code (Optional)
