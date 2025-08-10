@@ -10,8 +10,8 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: oddiya
-  ECS_SERVICE: oddiya-service
-  ECS_CLUSTER: oddiya-cluster
+  ECS_SERVICE: oddiya-dev
+  ECS_CLUSTER: oddiya-dev
   CONTAINER_NAME: oddiya-app
   
 jobs:
