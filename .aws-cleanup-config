@@ -1,0 +1,56 @@
+# AWS Cleanup Configuration
+# Resources matching these patterns will be PRESERVED
+
+# Project name (resources containing this name will be kept)
+PROJECT_NAME=oddiya
+
+# Tags that protect resources from deletion
+# Format: Key:Value or just Key
+PRESERVE_TAGS=(
+    "Environment:prod"
+    "Environment:production"
+    "Project:oddiya"
+    "Protected"
+    "DoNotDelete"
+    "Critical"
+    "InUse"
+    "Active"
+)
+
+# Name patterns to preserve (regex supported)
+PRESERVE_NAME_PATTERNS=(
+    "oddiya*"
+    "prod-*"
+    "production-*"
+    "*-prod"
+    "*-production"
+    "terraform-*"
+    "critical-*"
+)
+
+# Specific resource IDs to preserve
+PRESERVE_RESOURCE_IDS=(
+    # Add specific instance IDs, volume IDs, etc.
+    # "i-1234567890abcdef0"
+    # "vol-1234567890abcdef0"
+    # "snap-1234567890abcdef0"
+)
+
+# Age thresholds (days) before considering deletion
+AGE_THRESHOLDS=(
+    "EC2_STOPPED=7"          # Delete stopped instances after 7 days
+    "EBS_UNATTACHED=7"       # Delete unattached volumes after 7 days
+    "SNAPSHOTS=30"           # Delete snapshots after 30 days
+    "AMI=30"                 # Delete AMIs after 30 days
+    "LAMBDA_UNUSED=30"       # Delete unused Lambda functions after 30 days
+    "LOGS_INACTIVE=90"       # Delete inactive log groups after 90 days
+    "S3_EMPTY=7"            # Delete empty S3 buckets after 7 days
+)
+
+# Resources to always skip (never delete)
+SKIP_RESOURCES=(
+    "default"                # Default security groups
+    "aws-service-role*"      # AWS service roles
+    "AWSLogs*"              # AWS CloudTrail logs
+    ".terraform*"           # Terraform state buckets
+)

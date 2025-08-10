@@ -339,14 +339,43 @@ resource "aws_iam_role_policy" "ecs_task" {
         Action = [
           "s3:GetObject",
           "s3:PutObject",
-          "s3:DeleteObject"
+          "s3:DeleteObject",
+          "s3:ListBucket"
         ]
-        Resource = "${aws_s3_bucket.media.arn}/*"
+        Resource = [
+          aws_s3_bucket.media.arn,
+          "${aws_s3_bucket.media.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem",
+          "dynamodb:DescribeTable"
+        ]
+        Resource = [
+          "arn:aws:dynamodb:${var.aws_region}:*:table/oddiya_*",
+          "arn:aws:dynamodb:${var.aws_region}:*:table/oddiya_*/index/*"
+        ]
       },
       {
         Effect = "Allow"
         Action = [
           "bedrock:InvokeModel"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData"
         ]
         Resource = "*"
       }
@@ -376,19 +405,7 @@ resource "aws_ecs_task_definition" "main" {
     environment = [
       {
         name  = "SPRING_PROFILES_ACTIVE"
-        value = "prod"
-      },
-      {
-        name  = "SPRING_DATASOURCE_URL"
-        value = "jdbc:postgresql://${aws_db_instance.main.endpoint}/${var.db_name}"
-      },
-      {
-        name  = "SPRING_DATASOURCE_USERNAME"
-        value = var.db_username
-      },
-      {
-        name  = "SPRING_DATASOURCE_PASSWORD"
-        value = var.db_password
+        value = "dynamodb"
       },
       {
         name  = "AWS_REGION"
@@ -397,6 +414,26 @@ resource "aws_ecs_task_definition" "main" {
       {
         name  = "S3_BUCKET"
         value = aws_s3_bucket.media.id
+      },
+      {
+        name  = "DYNAMODB_TABLE_PREFIX"
+        value = "oddiya_"
+      },
+      {
+        name  = "DYNAMODB_BILLING_MODE"
+        value = "PAY_PER_REQUEST"
+      },
+      {
+        name  = "CACHE_TYPE"
+        value = "none"
+      },
+      {
+        name  = "REDIS_ENABLED"
+        value = "false"
+      },
+      {
+        name  = "CLOUDWATCH_ENABLED"
+        value = "true"
       }
     ]
     

@@ -1,0 +1,101 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Setup AWS Infrastructure",
+        "description": "Configure AWS services for deployment including ECS, RDS, and ALB",
+        "status": "pending",
+        "priority": "high",
+        "details": "Need to setup VPC, subnets, security groups, ECS cluster, and load balancer",
+        "dependencies": [],
+        "subtasks": [
+          {
+            "id": "1.1",
+            "title": "Implement Monitoring",
+            "description": "Setup CloudWatch monitoring and alerts",
+            "status": "pending",
+            "priority": "low",
+            "details": "Configure CloudWatch dashboards, metrics, and alarms",
+            "dependencies": []
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "title": "Create Docker Container",
+        "description": "Build and test Docker container for the Spring Boot application",
+        "status": "pending",
+        "priority": "high",
+        "details": "Create multi-stage Dockerfile, optimize for size, and test locally",
+        "dependencies": [],
+        "subtasks": []
+      },
+      {
+        "id": "3",
+        "title": "Configure CI/CD Pipeline",
+        "description": "Setup GitHub Actions for automated deployment",
+        "status": "pending",
+        "priority": "medium",
+        "details": "Create workflow for building, testing, and deploying to AWS",
+        "dependencies": [
+          "1",
+          "2"
+        ],
+        "subtasks": [
+          {
+            "id": "3.1",
+            "title": "Check AWS Resources",
+            "description": "Verify and document all AWS resources needed for deployment",
+            "status": "pending",
+            "priority": "high",
+            "details": "Check ECS, RDS, S3, IAM roles, VPC configuration, security groups, and ensure all resources are properly configured",
+            "dependencies": []
+          },
+          {
+            "id": "3.2",
+            "title": "Setup GitHub + CodeCommit + CodePipeline + CodeDeploy",
+            "description": "Configure complete CI/CD pipeline using AWS Developer Tools",
+            "status": "pending",
+            "priority": "high",
+            "details": "Integrate GitHub with CodeCommit for source control, setup CodePipeline for orchestration, configure CodeBuild for building Docker images, and CodeDeploy for ECS deployment",
+            "dependencies": ["3.1"]
+          },
+          {
+            "id": "3.3",
+            "title": "Execute Deployment",
+            "description": "Deploy the Oddiya application to AWS",
+            "status": "pending",
+            "priority": "high",
+            "details": "Run the deployment pipeline, push Docker image to ECR, deploy to ECS, update RDS database, configure environment variables",
+            "dependencies": ["3.2"]
+          },
+          {
+            "id": "3.4",
+            "title": "Test Deployment",
+            "description": "Verify the deployment is working correctly",
+            "status": "pending",
+            "priority": "high",
+            "details": "Test all endpoints, verify database connectivity, check load balancer health, monitor CloudWatch logs, run smoke tests, perform security checks",
+            "dependencies": ["3.3"]
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "title": "Setup Database Migration",
+        "description": "Configure Flyway for database migrations",
+        "status": "pending",
+        "priority": "medium",
+        "details": "Setup Flyway scripts and test migration process",
+        "dependencies": [],
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-10T15:25:50.449Z",
+      "updated": "2025-08-10T15:25:50.449Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

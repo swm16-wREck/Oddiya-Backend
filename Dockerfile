@@ -53,7 +53,7 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:+HeapDumpOnOutOfMemoryError \
     -XX:HeapDumpPath=/app/logs \
     -Djava.security.egd=file:/dev/./urandom \
-    -Dspring.profiles.active=docker"
+    -Dspring.profiles.active=dynamodb"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
