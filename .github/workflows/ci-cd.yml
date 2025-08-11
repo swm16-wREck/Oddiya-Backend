@@ -279,6 +279,7 @@ jobs:
   # ==========================================
   terraform:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # Add timeout to prevent hanging
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
@@ -304,7 +305,8 @@ jobs:
       - name: Terraform Plan
         run: |
           cd terraform/simple-deploy
-          terraform plan -out=tfplan
+          # Since we're using DynamoDB, provide a dummy password for RDS (not used)
+          terraform plan -var="db_password=dummy-password-not-used-with-dynamodb" -out=tfplan
           
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
