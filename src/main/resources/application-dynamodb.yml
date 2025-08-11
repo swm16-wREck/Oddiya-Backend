@@ -1,0 +1,89 @@
+spring:
+  config:
+    activate:
+      on-profile: dynamodb
+  
+  # Completely override datasource to prevent PostgreSQL connection
+  datasource:
+    url: jdbc:h2:mem:dummydb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 1
+      minimum-idle: 0
+      connection-timeout: 5000
+      
+  # Disable JPA/Hibernate for DynamoDB
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        temp:
+          use_jdbc_metadata_defaults: false
+        dialect: org.hibernate.dialect.H2Dialect
+  
+  # Redis configuration for caching (if available)
+  redis:
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
+    password: ${SPRING_REDIS_PASSWORD:}
+    enabled: ${REDIS_ENABLED:false}
+  
+  cache:
+    type: ${CACHE_TYPE:none}
+
+# AWS DynamoDB Configuration
+app:
+  aws:
+    region: ${AWS_REGION:ap-northeast-2}
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    dynamodb:
+      endpoint: ${DYNAMODB_ENDPOINT:}
+      table-prefix: ${DYNAMODB_TABLE_PREFIX:oddiya_}
+      read-capacity: ${DYNAMODB_READ_CAPACITY:5}
+      write-capacity: ${DYNAMODB_WRITE_CAPACITY:5}
+      billing-mode: ${DYNAMODB_BILLING_MODE:PAY_PER_REQUEST}
+  
+  # S3 for file storage
+  s3:
+    bucket: ${S3_BUCKET:oddiya-media}
+    region: ${AWS_REGION:ap-northeast-2}
+    
+  # SQS for message queuing
+  sqs:
+    queue-url: ${SQS_QUEUE_URL:}
+    
+  # CloudWatch for monitoring
+  cloudwatch:
+    enabled: ${CLOUDWATCH_ENABLED:true}
+    namespace: Oddiya-DynamoDB
+    region: ${AWS_REGION:ap-northeast-2}
+
+# Actuator endpoints
+management:
+  health:
+    redis:
+      enabled: false
+    db:
+      enabled: false
+    dynamodb:
+      enabled: true
+  metrics:
+    export:
+      cloudwatch:
+        enabled: true
+        namespace: Oddiya-DynamoDB
+        region: ${AWS_REGION:ap-northeast-2}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.oddiya: INFO
+    com.amazonaws: INFO
+    software.amazon.awssdk: INFO
+    org.springframework.data.dynamodb: DEBUG
