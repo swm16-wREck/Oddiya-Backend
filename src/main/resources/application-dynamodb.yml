@@ -79,6 +79,24 @@ management:
         namespace: Oddiya-DynamoDB
         region: ${AWS_REGION:ap-northeast-2}
 
+# Supabase configuration (required by OAuth service)
+supabase:
+  url: ${SUPABASE_URL:https://dummy.supabase.co}
+  anon-key: ${SUPABASE_ANON_KEY:dummy-key}
+  service-key: ${SUPABASE_SERVICE_KEY:dummy-service-key}
+  
+# OAuth configuration
+oauth:
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:dummy-google-id}
+    client-secret: ${GOOGLE_CLIENT_SECRET:dummy-google-secret}
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID:dummy-kakao-id}
+    client-secret: ${KAKAO_CLIENT_SECRET:dummy-kakao-secret}
+  naver:
+    client-id: ${NAVER_CLIENT_ID:dummy-naver-id}
+    client-secret: ${NAVER_CLIENT_SECRET:dummy-naver-secret}
+
 # Logging
 logging:
   level:
