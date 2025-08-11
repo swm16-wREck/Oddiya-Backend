@@ -256,7 +256,7 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
+          if [ "${{ job.status }}" = "success" ]; then
             COLOR="3066993"
             TITLE="✅ Deployment Successful"
           else
@@ -264,13 +264,14 @@ jobs:
             TITLE="❌ Deployment Failed"
           fi
           
-          if [ -n "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+          WEBHOOK="${{ secrets.DISCORD_WEBHOOK }}"
+          if [ -z "$WEBHOOK" ]; then
+            echo "Discord notification skipped - DISCORD_WEBHOOK secret not configured"
+          else
             curl -H "Content-Type: application/json" \
               -X POST \
               -d "{\"embeds\": [{\"title\": \"$TITLE\", \"description\": \"Production deployment ${{ job.status }} for commit ${{ github.sha }}\", \"color\": $COLOR, \"fields\": [{\"name\": \"Repository\", \"value\": \"${{ github.repository }}\", \"inline\": true}, {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"inline\": true}, {\"name\": \"Commit\", \"value\": \"${{ github.sha }}\", \"inline\": false}]}]}" \
-              "${{ secrets.DISCORD_WEBHOOK }}" || echo "Discord notification failed"
-          else
-            echo "Discord notification skipped - DISCORD_WEBHOOK secret not configured"
+              "$WEBHOOK" || echo "Discord notification failed"
           fi
 
   # ==========================================
