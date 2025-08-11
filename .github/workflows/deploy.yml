@@ -105,16 +105,23 @@ jobs:
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
     
-    - name: Notify deployment status
+    - name: Notify deployment status (Discord)
       if: always()
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: |
-          Deployment ${{ job.status }}
-          Branch: ${{ github.ref }}
-          Commit: ${{ github.sha }}
-          Author: ${{ github.actor }}
-        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      continue-on-error: true
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          COLOR="3066993"
+          TITLE="✅ Deployment Successful"
+        else
+          COLOR="15158332"
+          TITLE="❌ Deployment Failed"
+        fi
+        
+        if [ -n "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"embeds\": [{\"title\": \"$TITLE\", \"description\": \"Deployment ${{ job.status }}\", \"color\": $COLOR, \"fields\": [{\"name\": \"Branch\", \"value\": \"${{ github.ref }}\", \"inline\": true}, {\"name\": \"Author\", \"value\": \"${{ github.actor }}\", \"inline\": true}, {\"name\": \"Commit\", \"value\": \"${{ github.sha }}\", \"inline\": false}]}]}" \
+            "${{ secrets.DISCORD_WEBHOOK }}" || echo "Discord notification failed"
+        else
+          echo "Discord notification skipped - DISCORD_WEBHOOK secret not configured"
+        fi
