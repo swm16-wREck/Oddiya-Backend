@@ -65,6 +65,14 @@ app:
 
 # Actuator endpoints
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
   health:
     redis:
       enabled: false
