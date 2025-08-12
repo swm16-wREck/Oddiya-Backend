@@ -47,11 +47,11 @@ jobs:
       - name: Configure environment variables
         run: |
           if [ "${{ inputs.environment }}" = "production" ]; then
-            echo "ECS_CLUSTER=oddiya-prod" >> $GITHUB_ENV
-            echo "ECS_SERVICE=oddiya-prod" >> $GITHUB_ENV
+            echo "ECS_CLUSTER=oddiya-prod-cluster" >> $GITHUB_ENV
+            echo "ECS_SERVICE=oddiya-prod-service" >> $GITHUB_ENV
           else
-            echo "ECS_CLUSTER=oddiya-dev" >> $GITHUB_ENV
-            echo "ECS_SERVICE=oddiya-dev" >> $GITHUB_ENV
+            echo "ECS_CLUSTER=oddiya-dev-cluster" >> $GITHUB_ENV
+            echo "ECS_SERVICE=oddiya-dev-service" >> $GITHUB_ENV
           fi
           
           echo "🚨 EMERGENCY ROLLBACK INITIATED"
