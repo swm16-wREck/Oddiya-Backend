@@ -1,10 +1,10 @@
 package com.oddiya.security;
 
 import com.oddiya.config.DataProtectionService;
-import com.oddiya.config.RateLimitingConfig;
+// RateLimitingConfig is disabled, removing import
 import com.oddiya.config.SecurityEventLogger;
 import com.oddiya.util.SecurityValidationUtils;
-import io.bucket4j.Bucket;
+// Bucket4j is not needed for basic security tests
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
@@ -54,8 +54,7 @@ class SecurityIntegrationTestSuite {
     @Autowired
     private SecurityEventLogger securityEventLogger;
 
-    @Autowired
-    private RateLimitingConfig rateLimitingConfig;
+    // RateLimitingConfig is disabled
 
     @Nested
     @DisplayName("🧪 Security Component Integration Tests")
@@ -116,23 +115,7 @@ class SecurityIntegrationTestSuite {
             });
         }
 
-        @Test
-        @Order(4)
-        @DisplayName("Rate limiting configuration should be properly set up")
-        void testRateLimitingConfiguration() {
-            assertThat(rateLimitingConfig).as("RateLimitingConfig should be available").isNotNull();
-            
-            // Test that rate limit suppliers are configured
-            assertThat(rateLimitingConfig.authRateLimitSupplier()).as("Auth rate limit supplier should exist").isNotNull();
-            assertThat(rateLimitingConfig.aiGenerationRateLimitSupplier()).as("AI rate limit supplier should exist").isNotNull();
-            assertThat(rateLimitingConfig.searchRateLimitSupplier()).as("Search rate limit supplier should exist").isNotNull();
-            assertThat(rateLimitingConfig.mediaUploadRateLimitSupplier()).as("Media rate limit supplier should exist").isNotNull();
-            assertThat(rateLimitingConfig.generalRateLimitSupplier()).as("General rate limit supplier should exist").isNotNull();
-            
-            // Test that bucket configuration is valid
-            var authConfig = rateLimitingConfig.authRateLimitSupplier().get();
-            assertThat(authConfig).as("Auth bucket configuration should be valid").isNotNull();
-        }
+        // Rate limiting test disabled since RateLimitingConfig is disabled
     }
 
     @Nested
