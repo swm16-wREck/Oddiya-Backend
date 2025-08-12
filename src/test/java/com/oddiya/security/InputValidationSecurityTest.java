@@ -25,6 +25,7 @@ import java.util.Collections;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * OWASP A04:2021 - Insecure Design & A03:2021 - Injection
@@ -203,7 +204,7 @@ public class InputValidationSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(descJson))
                 .andExpect(status().isBadRequest())
-                .andExpected(jsonPath("$.error").value(containsString("Description cannot exceed 2000 characters")));
+                .andExpect(jsonPath("$.error").value(containsString("Description cannot exceed 2000 characters")));
     }
 
     @Test
@@ -219,7 +220,7 @@ public class InputValidationSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(emptyJson))
                 .andExpect(status().isBadRequest())
-                .andExpected(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.error").exists());
         
         // Test null required fields
         String nullJson = """
@@ -272,7 +273,7 @@ public class InputValidationSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(pastDateJson))
                 .andExpect(status().isBadRequest())
-                .andExpected(jsonPath("$.error").value(containsString("Start date must be in the future")));
+                .andExpect(jsonPath("$.error").value(containsString("Start date must be in the future")));
         
         // Test end date before start date
         CreateTravelPlanRequest invalidDateRangeRequest = CreateTravelPlanRequest.builder()
@@ -305,7 +306,7 @@ public class InputValidationSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(missingProviderJson))
                 .andExpect(status().isBadRequest())
-                .andExpected(jsonPath("$.error").value(containsString("Provider is required")));
+                .andExpect(jsonPath("$.error").value(containsString("Provider is required")));
         
         // Test missing token
         LoginRequest missingTokenRequest = LoginRequest.builder()
@@ -318,7 +319,7 @@ public class InputValidationSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(missingTokenJson))
                 .andExpect(status().isBadRequest())
-                .andExpected(jsonPath("$.error").value(containsString("ID token is required")));
+                .andExpect(jsonPath("$.error").value(containsString("ID token is required")));
         
         // Test malicious provider values
         for (String malicious : MALICIOUS_STRINGS) {
