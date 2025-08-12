@@ -54,13 +54,12 @@ public class MessagingController {
             CompletableFuture<Void> future = messagingService.sendEmailMessage(emailMessage);
             
             return ResponseEntity.ok(ApiResponse.success(
-                "Email message sent successfully",
-                "Message ID: " + emailMessage.getMessageId()
+                "Email message sent successfully. Message ID: " + emailMessage.getMessageId()
             ));
         } catch (Exception e) {
             log.error("Error sending email message: {}", e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to send email message: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to send email message: " + e.getMessage()));
         }
     }
 
@@ -81,13 +80,12 @@ public class MessagingController {
             CompletableFuture<Void> future = messagingService.sendImageProcessingMessage(imageMessage);
             
             return ResponseEntity.ok(ApiResponse.success(
-                "Image processing message sent successfully",
-                "Message ID: " + imageMessage.getMessageId()
+                "Image processing message sent successfully. Message ID: " + imageMessage.getMessageId()
             ));
         } catch (Exception e) {
             log.error("Error sending image processing message: {}", e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to send image processing message: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to send image processing message: " + e.getMessage()));
         }
     }
 
@@ -108,13 +106,12 @@ public class MessagingController {
             CompletableFuture<Void> future = messagingService.sendAnalyticsMessage(analyticsMessage);
             
             return ResponseEntity.ok(ApiResponse.success(
-                "Analytics message sent successfully",
-                "Message ID: " + analyticsMessage.getMessageId()
+                "Analytics message sent successfully. Message ID: " + analyticsMessage.getMessageId()
             ));
         } catch (Exception e) {
             log.error("Error sending analytics message: {}", e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to send analytics message: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to send analytics message: " + e.getMessage()));
         }
     }
 
@@ -135,13 +132,12 @@ public class MessagingController {
             CompletableFuture<Void> future = messagingService.sendRecommendationMessage(recommendationMessage);
             
             return ResponseEntity.ok(ApiResponse.success(
-                "Recommendation message sent successfully",
-                "Message ID: " + recommendationMessage.getMessageId()
+                "Recommendation message sent successfully. Message ID: " + recommendationMessage.getMessageId()
             ));
         } catch (Exception e) {
             log.error("Error sending recommendation message: {}", e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to send recommendation message: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to send recommendation message: " + e.getMessage()));
         }
     }
 
@@ -162,13 +158,12 @@ public class MessagingController {
             CompletableFuture<Void> future = messagingService.sendVideoProcessingMessage(videoMessage);
             
             return ResponseEntity.ok(ApiResponse.success(
-                "Video processing message sent successfully",
-                "Message ID: " + videoMessage.getMessageId()
+                "Video processing message sent successfully. Message ID: " + videoMessage.getMessageId()
             ));
         } catch (Exception e) {
             log.error("Error sending video processing message: {}", e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to send video processing message: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to send video processing message: " + e.getMessage()));
         }
     }
 
@@ -189,13 +184,12 @@ public class MessagingController {
             CompletableFuture<Void> future = messagingService.sendBatchEmailMessages(emailMessages);
             
             return ResponseEntity.ok(ApiResponse.success(
-                "Batch email messages sent successfully",
-                "Message count: " + emailMessages.size()
+                "Batch email messages sent successfully. Message count: " + emailMessages.size()
             ));
         } catch (Exception e) {
             log.error("Error sending batch email messages: {}", e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to send batch email messages: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to send batch email messages: " + e.getMessage()));
         }
     }
 
@@ -241,14 +235,11 @@ public class MessagingController {
                 stats.put("localServiceStats", localStats);
             }
 
-            return ResponseEntity.ok(ApiResponse.success(
-                "Queue statistics retrieved successfully",
-                stats
-            ));
+            return ResponseEntity.ok(ApiResponse.success(stats));
         } catch (Exception e) {
             log.error("Error getting queue statistics: {}", e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to get queue statistics: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to get queue statistics: " + e.getMessage()));
         }
     }
 
@@ -279,14 +270,11 @@ public class MessagingController {
             
             queueInfo.put("lastChecked", LocalDateTime.now());
 
-            return ResponseEntity.ok(ApiResponse.success(
-                "Queue information retrieved successfully",
-                queueInfo
-            ));
+            return ResponseEntity.ok(ApiResponse.success(queueInfo));
         } catch (Exception e) {
             log.error("Error getting queue info for {}: {}", queueName, e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to get queue information: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to get queue information: " + e.getMessage()));
         }
     }
 
@@ -309,14 +297,11 @@ public class MessagingController {
         try {
             List<String> messages = messagingService.receiveMessages(queueName, maxMessages);
             
-            return ResponseEntity.ok(ApiResponse.success(
-                String.format("Retrieved %d messages from queue %s", messages.size(), queueName),
-                messages
-            ));
+            return ResponseEntity.ok(ApiResponse.success(messages));
         } catch (Exception e) {
             log.error("Error receiving messages from queue {}: {}", queueName, e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to receive messages: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to receive messages: " + e.getMessage()));
         }
     }
 
@@ -362,10 +347,7 @@ public class MessagingController {
                 healthInfo.put("localService", "AVAILABLE");
             }
             
-            return ResponseEntity.ok(ApiResponse.success(
-                "Messaging service health check completed",
-                healthInfo
-            ));
+            return ResponseEntity.ok(ApiResponse.success(healthInfo));
         } catch (Exception e) {
             log.error("Error in messaging health check: {}", e.getMessage());
             Map<String, Object> errorInfo = new HashMap<>();
@@ -375,7 +357,7 @@ public class MessagingController {
             errorInfo.put("error", e.getMessage());
             
             return ResponseEntity.status(500)
-                .body(ApiResponse.error("Messaging service health check failed", errorInfo));
+                .body(ApiResponse.error("HEALTH_CHECK_FAILED", "Messaging service health check failed: " + e.getMessage()));
         }
     }
 
@@ -396,20 +378,19 @@ public class MessagingController {
         
         if (localMessagingService == null) {
             return ResponseEntity.badRequest()
-                .body(ApiResponse.error("Local messaging service not available"));
+                .body(ApiResponse.error("SERVICE_UNAVAILABLE", "Local messaging service not available"));
         }
 
         try {
             localMessagingService.clearQueue(queueName);
             
             return ResponseEntity.ok(ApiResponse.success(
-                "Local queue cleared successfully",
-                "Queue: " + queueName
+                "Local queue cleared successfully. Queue: " + queueName
             ));
         } catch (Exception e) {
             log.error("Error clearing local queue {}: {}", queueName, e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to clear local queue: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to clear local queue: " + e.getMessage()));
         }
     }
 
@@ -428,20 +409,19 @@ public class MessagingController {
         
         if (localMessagingService == null) {
             return ResponseEntity.badRequest()
-                .body(ApiResponse.error("Local messaging service not available"));
+                .body(ApiResponse.error("SERVICE_UNAVAILABLE", "Local messaging service not available"));
         }
 
         try {
             localMessagingService.clearAllQueues();
             
             return ResponseEntity.ok(ApiResponse.success(
-                "All local queues cleared successfully",
-                "All queues have been emptied"
+                "All local queues cleared successfully. All queues have been emptied"
             ));
         } catch (Exception e) {
             log.error("Error clearing all local queues: {}", e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to clear all local queues: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to clear all local queues: " + e.getMessage()));
         }
     }
 
@@ -472,13 +452,12 @@ public class MessagingController {
             }
             
             return ResponseEntity.ok(ApiResponse.success(
-                "Custom message sent successfully",
-                "Queue: " + queueName
+                "Custom message sent successfully. Queue: " + queueName
             ));
         } catch (Exception e) {
             log.error("Error sending custom message to queue {}: {}", queueName, e.getMessage());
             return ResponseEntity.internalServerError()
-                .body(ApiResponse.error("Failed to send custom message: " + e.getMessage()));
+                .body(ApiResponse.error("MESSAGING_ERROR", "Failed to send custom message: " + e.getMessage()));
         }
     }
 }

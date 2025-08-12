@@ -1,5 +1,6 @@
 package com.oddiya.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oddiya.repository.*;
 import com.oddiya.service.messaging.LocalMessagingService;
 import com.oddiya.service.messaging.MessagingService;
@@ -120,9 +121,9 @@ public class ConditionalBeans {
     @Primary
     @Profile({"!" + ProfileConfiguration.AWS_PROFILE, "!" + ProfileConfiguration.DYNAMODB_PROFILE})
     @ConditionalOnMissingBean(MessagingService.class)
-    public MessagingService localMessagingService() {
+    public MessagingService localMessagingService(ObjectMapper objectMapper) {
         log.info("Configuring Local Messaging Service");
-        return new LocalMessagingService();
+        return new LocalMessagingService(objectMapper);
     }
     
     /**
@@ -144,9 +145,9 @@ public class ConditionalBeans {
     @Bean
     @Profile({ProfileConfiguration.AWS_PROFILE, ProfileConfiguration.DYNAMODB_PROFILE})
     @ConditionalOnProperty(name = "app.aws.sqs.enabled", havingValue = "false")
-    public MessagingService fallbackLocalMessagingService() {
+    public MessagingService fallbackLocalMessagingService(ObjectMapper objectMapper) {
         log.warn("SQS is disabled in AWS profile, falling back to Local Messaging Service");
-        return new LocalMessagingService();
+        return new LocalMessagingService(objectMapper);
     }
     
     // ========================================

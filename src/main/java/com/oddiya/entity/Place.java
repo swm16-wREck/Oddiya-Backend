@@ -90,6 +90,10 @@ public class Place extends BaseEntity {
     @Builder.Default
     private Integer bookmarkCount = 0;
     
+    @Column(name = "view_count")
+    @Builder.Default
+    private Long viewCount = 0L;
+    
     @Column(name = "is_verified")
     @Builder.Default
     private boolean isVerified = false;

@@ -140,7 +140,7 @@ public class SQSMessagingService implements MessagingService {
                 }
 
                 // Split into batches of 10 (SQS limit)
-                List<List<?>> batches = partitionList(messages, 10);
+                List<? extends List<?>> batches = partitionList(messages, 10);
                 int successCount = 0;
                 int failureCount = 0;
 

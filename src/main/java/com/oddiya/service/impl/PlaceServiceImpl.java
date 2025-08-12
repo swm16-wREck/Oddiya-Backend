@@ -69,37 +69,34 @@ public class PlaceServiceImpl implements PlaceService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<PlaceResponse> searchPlaces(String query, Pageable pageable) {
-        Page<Place> places = placeRepository.searchByNameOrDescriptionContaining(query, query, pageable);
+        Page<Place> places = placeRepository.searchPlaces(query, pageable);
         return mapToPageResponse(places);
     }
     
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<PlaceResponse> findPlacesByCategory(String category, Pageable pageable) {
+    public List<PlaceResponse> getNearbyPlaces(double latitude, double longitude, double radius) {
+        // Convert radius from km to meters for the query
+        int radiusInMeters = (int) (radius * 1000);
+        List<Place> places = placeRepository.findNearbyPlaces(latitude, longitude, radiusInMeters);
+        
+        return places.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<PlaceResponse> getPlacesByCategory(String category, Pageable pageable) {
         Page<Place> places = placeRepository.findByCategory(category, pageable);
         return mapToPageResponse(places);
     }
     
     @Override
     @Transactional(readOnly = true)
-    public List<PlaceResponse> findNearbyPlaces(double latitude, double longitude, double radiusInKm) {
-        List<Place> places = placeRepository.findAll();
-        
-        // Filter places within radius
-        List<Place> nearbyPlaces = places.stream()
-                .filter(place -> {
-                    if (place.getLatitude() == null || place.getLongitude() == null) {
-                        return false;
-                    }
-                    double distance = calculateDistance(latitude, longitude, 
-                            place.getLatitude(), place.getLongitude());
-                    return distance <= radiusInKm;
-                })
-                .collect(Collectors.toList());
-        
-        return nearbyPlaces.stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public PageResponse<PlaceResponse> getPopularPlaces(Pageable pageable) {
+        Page<Place> places = placeRepository.findAllByOrderByPopularityScoreDesc(pageable);
+        return mapToPageResponse(places);
     }
     
     @Override
@@ -133,6 +130,49 @@ public class PlaceServiceImpl implements PlaceService {
         placeRepository.deleteById(id);
     }
     
+    @Override
+    @Transactional
+    public void incrementViewCount(String id) {
+        Place place = placeRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Place not found with id: " + id));
+        
+        // Increment view count
+        if (place.getViewCount() != null) {
+            place.setViewCount(place.getViewCount() + 1);
+        } else {
+            place.setViewCount(1L);
+        }
+        
+        // Update popularity score if needed
+        updatePopularityScore(place);
+        
+        placeRepository.save(place);
+    }
+    
+    private void updatePopularityScore(Place place) {
+        // Simple popularity score calculation
+        // You can enhance this with more sophisticated algorithms
+        double score = 0.0;
+        
+        if (place.getViewCount() != null) {
+            score += Math.log10(place.getViewCount() + 1) * 10;
+        }
+        
+        if (place.getRating() != null) {
+            score += place.getRating() * 20;
+        }
+        
+        if (place.getReviewCount() != null) {
+            score += Math.log10(place.getReviewCount() + 1) * 5;
+        }
+        
+        if (place.getBookmarkCount() != null) {
+            score += Math.log10(place.getBookmarkCount() + 1) * 15;
+        }
+        
+        place.setPopularityScore(score);
+    }
+    
     private PlaceResponse mapToResponse(Place place) {
         return PlaceResponse.builder()
                 .id(place.getId())
@@ -147,9 +187,8 @@ public class PlaceServiceImpl implements PlaceService {
                 .openingHours(place.getOpeningHours())
                 .images(place.getImages())
                 .tags(place.getTags())
-                .rating(place.getRating())
+                .averageRating(place.getRating())
                 .reviewCount(place.getReviewCount())
-                .bookmarkCount(place.getBookmarkCount())
                 .createdAt(place.getCreatedAt())
                 .updatedAt(place.getUpdatedAt())
                 .build();
@@ -168,17 +207,5 @@ public class PlaceServiceImpl implements PlaceService {
                 .totalPages(placePage.getTotalPages())
                 .last(placePage.isLast())
                 .build();
-    }
-    
-    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-        // Haversine formula to calculate distance between two points
-        double R = 6371; // Earth's radius in kilometers
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
     }
 }
