@@ -79,13 +79,13 @@ public class SecurityConfig {
                 .contentTypeOptions().and()
                 .httpStrictTransportSecurity(hstsConfig -> hstsConfig
                     .maxAgeInSeconds(hstsMaxAge)
-                    .includeSubdomains(true)
+                    .includeSubDomains(true)
                     .preload(true)
                 )
                 .addHeaderWriter(new ReferrerPolicyHeaderWriter(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-                .addHeaderWriter(new CrossOriginEmbedderPolicyHeaderWriter(CrossOriginEmbedderPolicyHeaderWriter.CrossOriginEmbedderPolicy.REQUIRE_CORP))
-                .addHeaderWriter(new CrossOriginOpenerPolicyHeaderWriter(CrossOriginOpenerPolicyHeaderWriter.CrossOriginOpenerPolicy.SAME_ORIGIN))
-                .addHeaderWriter(new CrossOriginResourcePolicyHeaderWriter(CrossOriginResourcePolicyHeaderWriter.CrossOriginResourcePolicy.SAME_ORIGIN))
+                .addHeaderWriter(new CrossOriginEmbedderPolicyHeaderWriter())
+                .addHeaderWriter(new CrossOriginOpenerPolicyHeaderWriter())
+                .addHeaderWriter(new CrossOriginResourcePolicyHeaderWriter())
                 .contentSecurityPolicy(cspConfig -> {
                     if (enableCsp) {
                         cspConfig.policyDirectives(

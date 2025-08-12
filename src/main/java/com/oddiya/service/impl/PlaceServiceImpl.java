@@ -232,10 +232,135 @@ public class PlaceServiceImpl implements PlaceService {
         stats.put("bookmarkCount", place.getBookmarkCount() != null ? place.getBookmarkCount() : 0);
         stats.put("viewCount", place.getViewCount() != null ? place.getViewCount() : 0L);
         stats.put("popularityScore", place.getPopularityScore() != null ? place.getPopularityScore() : 0.0);
-        stats.put("isVerified", place.isVerified() != null ? place.isVerified() : false);
+        stats.put("isVerified", place.isVerified());
         stats.put("createdAt", place.getCreatedAt());
         stats.put("updatedAt", place.getUpdatedAt());
         
         return stats;
+    }
+    
+    @Override
+    public List<PlaceResponse> searchNearbyPlaces(double latitude, double longitude, double radiusKm, 
+                                                 String category, Double minRating, Integer limit) {
+        log.debug("Searching nearby places with filters: lat={}, lon={}, radius={}, category={}, minRating={}, limit={}", 
+                 latitude, longitude, radiusKm, category, minRating, limit);
+        
+        int radiusInMeters = (int) (radiusKm * 1000);
+        List<Place> places = placeRepository.findNearbyPlaces(latitude, longitude, radiusInMeters);
+        
+        return places.stream()
+                .filter(place -> category == null || category.equals(place.getCategory()))
+                .filter(place -> minRating == null || (place.getRating() != null && place.getRating() >= minRating))
+                .limit(limit != null ? limit : 50)
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
+    @Override
+    public List<PlaceResponse> getPopularPlacesInArea(double latitude, double longitude, double radiusKm, Integer limit) {
+        log.debug("Getting popular places in area: lat={}, lon={}, radius={}, limit={}", 
+                 latitude, longitude, radiusKm, limit);
+        
+        int radiusInMeters = (int) (radiusKm * 1000);
+        List<Place> places = placeRepository.findNearbyPlaces(latitude, longitude, radiusInMeters);
+        
+        return places.stream()
+                .sorted((p1, p2) -> {
+                    Double score1 = p1.getPopularityScore() != null ? p1.getPopularityScore() : 0.0;
+                    Double score2 = p2.getPopularityScore() != null ? p2.getPopularityScore() : 0.0;
+                    return score2.compareTo(score1);
+                })
+                .limit(limit != null ? limit : 20)
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
+    @Override
+    public List<PlaceResponse> searchExternalPlaces(String query, Double latitude, Double longitude, Double radiusKm) {
+        log.info("Searching external places: query={}, lat={}, lon={}, radius={}", query, latitude, longitude, radiusKm);
+        // TODO: Implement integration with Naver Maps API
+        // For now, return empty list as placeholder
+        return new ArrayList<>();
+    }
+    
+    @Override
+    public PlaceResponse syncPlaceWithExternalData(String placeId) {
+        log.info("Syncing place with external data: {}", placeId);
+        Place place = placeRepository.findById(placeId)
+                .orElseThrow(() -> new NotFoundException("Place not found with id: " + placeId));
+        
+        // TODO: Implement sync with external APIs
+        // For now, just return the existing place
+        return mapToResponse(place);
+    }
+    
+    @Override
+    public List<PlaceResponse> getPlaceRecommendations(double latitude, double longitude, 
+                                                      java.util.Map<String, Object> preferences, Integer limit) {
+        log.debug("Getting place recommendations: lat={}, lon={}, preferences={}, limit={}", 
+                 latitude, longitude, preferences, limit);
+        
+        // Simple recommendation based on nearby popular places
+        // TODO: Implement ML-based recommendations
+        return getPopularPlacesInArea(latitude, longitude, 5.0, limit);
+    }
+    
+    @Override
+    public double calculateDistance(String placeId1, String placeId2) {
+        Place place1 = placeRepository.findById(placeId1)
+                .orElseThrow(() -> new NotFoundException("Place not found with id: " + placeId1));
+        Place place2 = placeRepository.findById(placeId2)
+                .orElseThrow(() -> new NotFoundException("Place not found with id: " + placeId2));
+        
+        // Haversine formula for distance calculation
+        double lat1 = Math.toRadians(place1.getLatitude());
+        double lon1 = Math.toRadians(place1.getLongitude());
+        double lat2 = Math.toRadians(place2.getLatitude());
+        double lon2 = Math.toRadians(place2.getLongitude());
+        
+        double dlat = lat2 - lat1;
+        double dlon = lon2 - lon1;
+        
+        double a = Math.sin(dlat / 2) * Math.sin(dlat / 2) +
+                   Math.cos(lat1) * Math.cos(lat2) * Math.sin(dlon / 2) * Math.sin(dlon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        
+        return 6371 * c; // Distance in kilometers
+    }
+    
+    @Override
+    public List<PlaceResponse> getPlacesWithinTravelDistance(double latitude, double longitude, 
+                                                           int maxTravelTimeMinutes, String transportMode) {
+        log.debug("Getting places within travel distance: lat={}, lon={}, time={}, mode={}", 
+                 latitude, longitude, maxTravelTimeMinutes, transportMode);
+        
+        // Simple implementation based on distance
+        // TODO: Integrate with routing API for actual travel time
+        double maxDistance = transportMode.equals("walking") ? 
+                           maxTravelTimeMinutes * 0.08 : // 5km/h walking speed
+                           maxTravelTimeMinutes * 0.5;   // 30km/h driving speed
+        
+        return getNearbyPlaces(latitude, longitude, maxDistance);
+    }
+    
+    @Override
+    public void updatePopularityScore(String placeId) {
+        Place place = placeRepository.findById(placeId)
+                .orElseThrow(() -> new NotFoundException("Place not found with id: " + placeId));
+        
+        updatePopularityScore(place);
+        placeRepository.save(place);
+    }
+    
+    @Override
+    public List<PlaceResponse> importPlacesFromExternal(String area, List<String> categories) {
+        log.info("Importing places from external sources: area={}, categories={}", area, categories);
+        
+        // TODO: Implement bulk import from external APIs
+        // For now, return empty list as placeholder
+        List<PlaceResponse> importedPlaces = new ArrayList<>();
+        
+        log.warn("External place import not yet implemented - returning empty list");
+        return importedPlaces;
     }
 }

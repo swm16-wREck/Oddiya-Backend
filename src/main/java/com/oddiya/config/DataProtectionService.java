@@ -385,7 +385,11 @@ public class DataProtectionService {
     }
     
     private Map<String, RetentionPolicy> getApplicableRetentionPolicies(String userId) {
-        return new HashMap<>(retentionPolicies);
+        Map<String, RetentionPolicy> result = new HashMap<>();
+        for (Map.Entry<DataType, RetentionPolicy> entry : retentionPolicies.entrySet()) {
+            result.put(entry.getKey().toString(), entry.getValue());
+        }
+        return result;
     }
     
     // Data classes for privacy compliance

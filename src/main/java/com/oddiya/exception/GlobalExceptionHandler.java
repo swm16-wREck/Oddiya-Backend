@@ -69,8 +69,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.error("AUTHENTICATION_FAILED", 
-                      "Authentication required", 
-                      errorId));
+                      "Authentication required"));
     }
     
     @ExceptionHandler(AccessDeniedException.class)
@@ -88,8 +87,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error("ACCESS_DENIED", 
-                      "Access denied", 
-                      errorId));
+                      "Access denied"));
     }
     
     @ExceptionHandler(UnauthorizedException.class)
@@ -100,8 +98,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.error("UNAUTHORIZED", 
-                      sanitizeErrorMessage(ex.getMessage()), 
-                      errorId));
+                      sanitizeErrorMessage(ex.getMessage())));
     }
     
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -112,8 +109,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error("RESOURCE_NOT_FOUND", 
-                      sanitizeErrorMessage(ex.getMessage()), 
-                      errorId));
+                      sanitizeErrorMessage(ex.getMessage())));
     }
     
     @ExceptionHandler(BadRequestException.class)
@@ -124,8 +120,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("BAD_REQUEST", 
-                      sanitizeErrorMessage(ex.getMessage()), 
-                      errorId));
+                      sanitizeErrorMessage(ex.getMessage())));
     }
     
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -147,7 +142,6 @@ public class GlobalExceptionHandler {
                 .message("Request validation failed")
                 .details(errors)
                 .timestamp(LocalDateTime.now())
-                .errorId(errorId)
                 .build();
         
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -163,8 +157,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("DATABASE_ERROR", 
-                      "Data access error occurred", 
-                      errorId));
+                      "Data access error occurred"));
     }
     
     // Encryption-related exceptions
@@ -176,8 +169,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("INVALID_DATA", 
-                      "Data format error", 
-                      errorId));
+                      "Data format error"));
     }
     
     // File access exceptions
@@ -189,8 +181,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error("FILE_ACCESS_DENIED", 
-                      "File access not allowed", 
-                      errorId));
+                      "File access not allowed"));
     }
     
     // HTTP method not supported
@@ -202,8 +193,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(ApiResponse.error("METHOD_NOT_ALLOWED", 
-                      "HTTP method not supported", 
-                      errorId));
+                      "HTTP method not supported"));
     }
     
     // No handler found (404)
@@ -215,8 +205,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error("ENDPOINT_NOT_FOUND", 
-                      "Requested endpoint not found", 
-                      errorId));
+                      "Requested endpoint not found"));
     }
     
     // Generic exception handler (catch-all)
@@ -237,8 +226,7 @@ public class GlobalExceptionHandler {
         
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("INTERNAL_SERVER_ERROR", 
-                      "An unexpected error occurred", 
-                      errorId));
+                      "An unexpected error occurred"));
     }
     
     // Security-aware error logging methods

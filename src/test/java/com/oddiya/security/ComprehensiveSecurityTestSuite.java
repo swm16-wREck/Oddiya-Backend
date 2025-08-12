@@ -114,7 +114,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
             for (String endpoint : adminEndpoints) {
                 mockMvc.perform(get(endpoint)
                         .with(jwt().jwt(jwt -> jwt.subject("user1"))))
-                        .andExpected(anyOf(
+                        .andExpect(anyOf(
                             status().isForbidden(),
                             status().isNotFound() // Admin endpoints might not exist
                         ));
@@ -131,14 +131,14 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt
                         .subject(TEST_USER_ID)
                         .claim("roles", "USER"))))
-                    .andExpected(anyOf(status().isOk(), status().isNotFound()));
+                    .andExpect(anyOf(status().isOk(), status().isNotFound()));
 
             // ADMIN role should access admin endpoints (if they exist)
             mockMvc.perform(get("/api/v1/admin/health")
                     .with(jwt().jwt(jwt -> jwt
                         .subject("admin-user")
                         .claim("roles", "ADMIN"))))
-                    .andExpected(anyOf(
+                    .andExpect(anyOf(
                         status().isOk(),
                         status().isNotFound(), // Endpoint might not exist
                         status().isForbidden()  // Or not implemented yet
@@ -160,7 +160,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
             // This test validates that security headers are present
             mockMvc.perform(get("/api/v1/health")
                     .header("X-Forwarded-Proto", "http"))
-                    .andExpected(result -> {
+                    .andExpect(result -> {
                         // In production, should redirect to HTTPS or return security headers
                         String response = result.getResponse().getContentAsString();
                         // Verify no sensitive data in HTTP responses
@@ -175,7 +175,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
         void shouldNotExposeSensitiveInformationInResponses() throws Exception {
             mockMvc.perform(get("/api/v1/users/profile")
                     .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID))))
-                    .andExpected(result -> {
+                    .andExpect(result -> {
                         String response = result.getResponse().getContentAsString();
                         
                         // Should not expose sensitive fields
@@ -239,7 +239,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                 mockMvc.perform(get("/api/v1/travel-plans/search")
                         .param("q", payload)
                         .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID))))
-                        .andExpected(result -> {
+                        .andExpect(result -> {
                             int status = result.getResponse().getStatus();
                             String response = result.getResponse().getContentAsString();
                             
@@ -274,7 +274,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                         .param("longitude", "126.9780")
                         .param("radiusKm", "10")
                         .param("query", payload))
-                        .andExpected(result -> {
+                        .andExpect(result -> {
                             int status = result.getResponse().getStatus();
                             String response = result.getResponse().getContentAsString();
                             
@@ -317,7 +317,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                         .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                        .andExpected(result -> {
+                        .andExpect(result -> {
                             String response = result.getResponse().getContentAsString();
                             
                             // Response should not contain raw script tags
@@ -350,7 +350,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .characterEncoding("UTF-8")
                     .content(requestBody))
-                    .andExpected(result -> {
+                    .andExpect(result -> {
                         String response = result.getResponse().getContentAsString();
                         
                         // Should preserve Korean text but remove scripts
@@ -386,8 +386,8 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
             for (String invalidToken : invalidTokens) {
                 mockMvc.perform(get("/api/v1/users/profile")
                         .header("Authorization", invalidToken))
-                        .andExpected(status().isUnauthorized())
-                        .andExpected(result -> {
+                        .andExpect(status().isUnauthorized())
+                        .andExpect(result -> {
                             String response = result.getResponse().getContentAsString();
                             assertThat(response).doesNotContain("sensitive");
                         });
@@ -422,7 +422,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
             mockMvc.perform(get("/oauth2/callback/google")
                     .param("code", "malicious-code")
                     .param("state", "tampered-state"))
-                    .andExpected(result -> {
+                    .andExpect(result -> {
                         // Should handle invalid OAuth responses securely
                         int status = result.getResponse().getStatus();
                         assertThat(status).isIn(400, 401, 403, 404); // Various acceptable error responses
@@ -499,7 +499,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID)))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(largePayload.toString()))
-                    .andExpected(status().isBadRequest()); // Should reject large payloads
+                    .andExpect(status().isBadRequest()); // Should reject large payloads
         }
     }
 
@@ -515,7 +515,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
         @DisplayName("Should include security headers in responses")
         void shouldIncludeSecurityHeadersInResponses() throws Exception {
             mockMvc.perform(get("/api/v1/health"))
-                    .andExpected(result -> {
+                    .andExpect(result -> {
                         // Check for important security headers
                         var response = result.getResponse();
                         
@@ -552,7 +552,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
 
             for (String endpoint : endpoints) {
                 mockMvc.perform(get(endpoint))
-                        .andExpected(result -> {
+                        .andExpect(result -> {
                             String response = result.getResponse().getContentAsString();
                             String serverHeader = result.getResponse().getHeader("Server");
                             
@@ -598,7 +598,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                         .param("latitude", coords[0])
                         .param("longitude", coords[1])
                         .param("radiusKm", "10"))
-                        .andExpected(status().isBadRequest());
+                        .andExpect(status().isBadRequest());
             }
         }
 
@@ -619,7 +619,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID)))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(invalidDateRequest))
-                    .andExpected(status().isBadRequest());
+                    .andExpect(status().isBadRequest());
         }
 
         @Test
@@ -639,7 +639,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID)))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(longTitleRequest))
-                    .andExpected(result -> {
+                    .andExpect(result -> {
                         int status = result.getResponse().getStatus();
                         // Should either accept with truncation or reject
                         assertThat(status).isIn(201, 400);
