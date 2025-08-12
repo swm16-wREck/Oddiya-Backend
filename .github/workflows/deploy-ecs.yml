@@ -12,6 +12,7 @@ env:
   ECR_REPOSITORY: oddiya
   ECS_SERVICE: oddiya-dev-service
   ECS_CLUSTER: oddiya-dev-cluster
+  ECS_TASK_DEFINITION: oddiya-dev
   CONTAINER_NAME: oddiya
   DEPLOYMENT_TIMEOUT: 1800  # 30 minutes in seconds
   HEALTH_CHECK_RETRIES: 15
@@ -67,7 +68,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition ${{ env.ECS_SERVICE }} \
+            --task-definition ${{ env.ECS_TASK_DEFINITION }} \
             --query taskDefinition > task-definition.json
 
       - name: Fill in the new image ID in the Amazon ECS task definition
