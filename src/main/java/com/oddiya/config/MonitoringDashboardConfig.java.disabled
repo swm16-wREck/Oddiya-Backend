@@ -1,0 +1,750 @@
+package com.oddiya.config;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
+import software.amazon.awssdk.services.cloudwatch.model.*;
+
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.annotation.PostConstruct;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Production monitoring dashboards configuration
+ * Creates and manages CloudWatch dashboards for operations team
+ */
+@Configuration
+@ConditionalOnProperty(name = "app.monitoring.dashboards.enabled", havingValue = "true", matchIfMissing = false)
+@EnableScheduling
+@Slf4j
+public class MonitoringDashboardConfig {
+
+    @Bean
+    @ConfigurationProperties(prefix = "app.monitoring.dashboards")
+    public DashboardProperties dashboardProperties() {
+        return new DashboardProperties();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.monitoring.dashboards.cloudwatch.enabled", havingValue = "true")
+    public ProductionDashboardManager productionDashboardManager(
+            CloudWatchClient cloudWatchClient, 
+            DashboardProperties properties) {
+        return new ProductionDashboardManager(cloudWatchClient, properties);
+    }
+
+    @Bean
+    @Profile({"local", "test", "h2"})
+    public ProductionDashboardManager mockDashboardManager(DashboardProperties properties) {
+        return new MockProductionDashboardManager(properties);
+    }
+
+    @Bean
+    public SLAMonitor slaMonitor(ProductionDashboardManager dashboardManager, DashboardProperties properties) {
+        return new SLAMonitor(dashboardManager, properties);
+    }
+
+    /**
+     * Dashboard configuration properties
+     */
+    @Data
+    public static class DashboardProperties {
+        private boolean enabled = true;
+        private CloudWatchConfig cloudwatch = new CloudWatchConfig();
+        private Map<String, DashboardConfig> dashboards = new HashMap<>();
+        private SLAConfig sla = new SLAConfig();
+        private AlertConfig alerts = new AlertConfig();
+
+        @Data
+        public static class CloudWatchConfig {
+            private boolean enabled = false;
+            private String region = "ap-northeast-2";
+            private String namespace = "Oddiya";
+            private boolean autoCreateDashboards = true;
+        }
+
+        @Data
+        public static class DashboardConfig {
+            private String name;
+            private String description;
+            private List<String> widgets = new ArrayList<>();
+            private int refreshIntervalSeconds = 300;
+            private boolean enabled = true;
+        }
+
+        @Data
+        public static class SLAConfig {
+            private double uptimeTarget = 99.9; // 99.9% uptime
+            private double responseTimeTarget = 200.0; // 200ms average
+            private double errorRateTarget = 0.1; // 0.1% error rate
+            private double aiResponseTimeTarget = 5000.0; // 5 seconds for AI
+            private int evaluationWindowMinutes = 5;
+            private boolean alertOnSLAViolation = true;
+        }
+
+        @Data
+        public static class AlertConfig {
+            private boolean enabled = true;
+            private String snsTopicArn;
+            private long cooldownMinutes = 15;
+        }
+
+        public void setDefaults() {
+            // Set default dashboards
+            dashboards.putIfAbsent("operations", new DashboardConfig() {{
+                setName("Oddiya-Operations-Dashboard");
+                setDescription("Main operations dashboard for production monitoring");
+                setWidgets(Arrays.asList("api-metrics", "business-metrics", "system-health", "alerts"));
+            }});
+
+            dashboards.putIfAbsent("performance", new DashboardConfig() {{
+                setName("Oddiya-Performance-Dashboard");
+                setDescription("Performance metrics and SLA monitoring");
+                setWidgets(Arrays.asList("response-times", "throughput", "errors", "sla-status"));
+            }});
+
+            dashboards.putIfAbsent("business", new DashboardConfig() {{
+                setName("Oddiya-Business-Dashboard");
+                setDescription("Business KPIs and user engagement metrics");
+                setWidgets(Arrays.asList("user-engagement", "ai-usage", "travel-plans", "revenue"));
+            }});
+        }
+    }
+
+    /**
+     * Production dashboard manager
+     */
+    public interface ProductionDashboardManager {
+        void createOrUpdateDashboards();
+        void updateDashboardData(String dashboardName, Map<String, Object> data);
+        Map<String, Object> getDashboardMetrics();
+        boolean isDashboardHealthy();
+    }
+
+    /**
+     * CloudWatch-based dashboard manager
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class ProductionDashboardManager implements MonitoringDashboardConfig.ProductionDashboardManager {
+
+        private final CloudWatchClient cloudWatchClient;
+        private final DashboardProperties properties;
+        private final ObjectMapper objectMapper = new ObjectMapper();
+
+        @PostConstruct
+        public void initialize() {
+            if (properties.getCloudwatch().isAutoCreateDashboards()) {
+                log.info("Auto-creating CloudWatch dashboards");
+                createOrUpdateDashboards();
+            }
+        }
+
+        @Override
+        @Scheduled(fixedRate = 3600000) // Update every hour
+        public void createOrUpdateDashboards() {
+            try {
+                for (Map.Entry<String, DashboardProperties.DashboardConfig> entry : 
+                     properties.getDashboards().entrySet()) {
+                    
+                    DashboardProperties.DashboardConfig config = entry.getValue();
+                    if (config.isEnabled()) {
+                        createOrUpdateDashboard(entry.getKey(), config);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error updating dashboards: {}", e.getMessage(), e);
+            }
+        }
+
+        private void createOrUpdateDashboard(String key, DashboardProperties.DashboardConfig config) {
+            try {
+                String dashboardBody = createDashboardJson(key, config);
+                
+                PutDashboardRequest request = PutDashboardRequest.builder()
+                        .dashboardName(config.getName())
+                        .dashboardBody(dashboardBody)
+                        .build();
+
+                PutDashboardResponse response = cloudWatchClient.putDashboard(request);
+                
+                if (response.sdkHttpResponse().isSuccessful()) {
+                    log.info("Successfully created/updated dashboard: {}", config.getName());
+                } else {
+                    log.error("Failed to create/update dashboard: {} - Status: {}", 
+                        config.getName(), response.sdkHttpResponse().statusCode());
+                }
+
+            } catch (Exception e) {
+                log.error("Error creating dashboard {}: {}", config.getName(), e.getMessage(), e);
+            }
+        }
+
+        private String createDashboardJson(String dashboardType, DashboardProperties.DashboardConfig config) {
+            switch (dashboardType) {
+                case "operations":
+                    return createOperationsDashboard();
+                case "performance":
+                    return createPerformanceDashboard();
+                case "business":
+                    return createBusinessDashboard();
+                default:
+                    return createGenericDashboard(config);
+            }
+        }
+
+        private String createOperationsDashboard() {
+            return """
+                {
+                    "widgets": [
+                        {
+                            "type": "metric",
+                            "x": 0, "y": 0,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "ApiRequestCount", { "stat": "Sum" } ],
+                                    [ ".", "ApiResponseTime", { "stat": "Average" } ],
+                                    [ ".", "ErrorRate", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "API Health Overview",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 12, "y": 0,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "UserRegistrations", { "stat": "Sum" } ],
+                                    [ ".", "TravelPlanCreations", { "stat": "Sum" } ],
+                                    [ ".", "ActiveUsers", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "Business Metrics",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 0, "y": 6,
+                            "width": 8, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "AWS/ECS", "CPUUtilization", "ServiceName", "oddiya-service", { "stat": "Average" } ],
+                                    [ ".", "MemoryUtilization", ".", ".", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "System Resources",
+                                "yAxis": {
+                                    "left": { "min": 0, "max": 100 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 8, "y": 6,
+                            "width": 8, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "DatabaseConnections", { "stat": "Average" } ],
+                                    [ ".", "CacheHitRatio", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "Infrastructure Health",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 16, "y": 6,
+                            "width": 8, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "oddiya-alb", { "stat": "Average" } ],
+                                    [ ".", "RequestCount", ".", ".", { "stat": "Sum" } ],
+                                    [ ".", "HTTPCode_Target_4XX_Count", ".", ".", { "stat": "Sum" } ],
+                                    [ ".", "HTTPCode_Target_5XX_Count", ".", ".", { "stat": "Sum" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "Load Balancer Metrics",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        }
+                    ]
+                }
+                """.formatted(
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion()
+                );
+        }
+
+        private String createPerformanceDashboard() {
+            return """
+                {
+                    "widgets": [
+                        {
+                            "type": "metric",
+                            "x": 0, "y": 0,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "ApiResponseTime", { "stat": "Average" } ],
+                                    [ ".", "P95ResponseTime", { "stat": "Maximum" } ],
+                                    [ ".", "P99ResponseTime", { "stat": "Maximum" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "Response Time Percentiles",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 12, "y": 0,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "RequestsPerSecond", { "stat": "Average" } ],
+                                    [ ".", "ThroughputRPS", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "Throughput Metrics",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 0, "y": 6,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "ErrorRate", { "stat": "Average" } ],
+                                    [ ".", "SuccessRate", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "Error Rates",
+                                "yAxis": {
+                                    "left": { "min": 0, "max": 100 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 12, "y": 6,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "SLACompliance", { "stat": "Average" } ],
+                                    [ ".", "UptimePercentage", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "SLA Compliance",
+                                "yAxis": {
+                                    "left": { "min": 95, "max": 100 }
+                                }
+                            }
+                        }
+                    ]
+                }
+                """.formatted(
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion()
+                );
+        }
+
+        private String createBusinessDashboard() {
+            return """
+                {
+                    "widgets": [
+                        {
+                            "type": "metric",
+                            "x": 0, "y": 0,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "ActiveUsers", { "stat": "Average" } ],
+                                    [ ".", "UserEngagementScore", { "stat": "Average" } ],
+                                    [ ".", "UserRetentionRate", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "User Engagement",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 12, "y": 0,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "AIGeneratedPlans", { "stat": "Sum" } ],
+                                    [ ".", "AIAdoptionRate", { "stat": "Average" } ],
+                                    [ ".", "AISuccessRate", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "AI Usage Metrics",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 0, "y": 6,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "TravelPlanCreations", { "stat": "Sum" } ],
+                                    [ ".", "SharedPlans", { "stat": "Sum" } ],
+                                    [ ".", "AveragePlanRating", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "Travel Plan Metrics",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        },
+                        {
+                            "type": "metric",
+                            "x": 12, "y": 6,
+                            "width": 12, "height": 6,
+                            "properties": {
+                                "metrics": [
+                                    [ "%s", "RevenueMetrics", { "stat": "Sum" } ],
+                                    [ ".", "ConversionRate", { "stat": "Average" } ]
+                                ],
+                                "period": 300,
+                                "region": "%s",
+                                "title": "Business Performance",
+                                "yAxis": {
+                                    "left": { "min": 0 }
+                                }
+                            }
+                        }
+                    ]
+                }
+                """.formatted(
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion(),
+                    properties.getCloudwatch().getNamespace(),
+                    properties.getCloudwatch().getRegion()
+                );
+        }
+
+        private String createGenericDashboard(DashboardProperties.DashboardConfig config) {
+            // Simplified generic dashboard
+            return """
+                {
+                    "widgets": [
+                        {
+                            "type": "text",
+                            "x": 0, "y": 0,
+                            "width": 24, "height": 4,
+                            "properties": {
+                                "markdown": "# %s\\n\\n%s\\n\\nThis is a generic dashboard. Configure widgets in the dashboard configuration."
+                            }
+                        }
+                    ]
+                }
+                """.formatted(config.getName(), config.getDescription());
+        }
+
+        @Override
+        public void updateDashboardData(String dashboardName, Map<String, Object> data) {
+            // In a real implementation, this would update dashboard data
+            log.debug("Updating dashboard {} with data: {}", dashboardName, data);
+        }
+
+        @Override
+        public Map<String, Object> getDashboardMetrics() {
+            try {
+                // Get dashboard list
+                ListDashboardsResponse response = cloudWatchClient.listDashboards();
+                
+                return Map.of(
+                    "totalDashboards", response.dashboardEntries().size(),
+                    "configuredDashboards", properties.getDashboards().size(),
+                    "autoCreate", properties.getCloudwatch().isAutoCreateDashboards(),
+                    "namespace", properties.getCloudwatch().getNamespace(),
+                    "region", properties.getCloudwatch().getRegion(),
+                    "dashboards", response.dashboardEntries().stream()
+                        .map(DashboardEntry::dashboardName)
+                        .collect(Collectors.toList())
+                );
+                
+            } catch (Exception e) {
+                log.error("Error getting dashboard metrics: {}", e.getMessage());
+                return Map.of("error", "Failed to get dashboard metrics");
+            }
+        }
+
+        @Override
+        public boolean isDashboardHealthy() {
+            try {
+                cloudWatchClient.listDashboards();
+                return true;
+            } catch (Exception e) {
+                log.warn("Dashboard health check failed: {}", e.getMessage());
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Mock dashboard manager for local development
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class MockProductionDashboardManager implements MonitoringDashboardConfig.ProductionDashboardManager {
+
+        private final DashboardProperties properties;
+        private final Map<String, Map<String, Object>> mockDashboards = new HashMap<>();
+
+        @PostConstruct
+        public void initialize() {
+            log.info("Initializing mock dashboard manager");
+            createOrUpdateDashboards();
+        }
+
+        @Override
+        public void createOrUpdateDashboards() {
+            log.info("Mock: Creating/updating {} dashboards", properties.getDashboards().size());
+            
+            for (Map.Entry<String, DashboardProperties.DashboardConfig> entry : 
+                 properties.getDashboards().entrySet()) {
+                
+                String key = entry.getKey();
+                DashboardProperties.DashboardConfig config = entry.getValue();
+                
+                if (config.isEnabled()) {
+                    mockDashboards.put(key, Map.of(
+                        "name", config.getName(),
+                        "description", config.getDescription(),
+                        "widgets", config.getWidgets(),
+                        "lastUpdated", Instant.now().toString()
+                    ));
+                    
+                    log.info("Mock: Created dashboard: {}", config.getName());
+                }
+            }
+        }
+
+        @Override
+        public void updateDashboardData(String dashboardName, Map<String, Object> data) {
+            log.debug("Mock: Updating dashboard {} with data: {}", dashboardName, data.keySet());
+        }
+
+        @Override
+        public Map<String, Object> getDashboardMetrics() {
+            return Map.of(
+                "totalDashboards", mockDashboards.size(),
+                "configuredDashboards", properties.getDashboards().size(),
+                "type", "mock",
+                "dashboards", mockDashboards.keySet()
+            );
+        }
+
+        @Override
+        public boolean isDashboardHealthy() {
+            return true; // Mock is always healthy
+        }
+    }
+
+    /**
+     * SLA Monitor for performance validation
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class SLAMonitor {
+
+        private final ProductionDashboardManager dashboardManager;
+        private final DashboardProperties properties;
+
+        private final Map<String, Double> currentMetrics = new HashMap<>();
+
+        @Scheduled(fixedRate = 300000) // Check every 5 minutes
+        public void checkSLACompliance() {
+            try {
+                DashboardProperties.SLAConfig slaConfig = properties.getSla();
+                
+                // Check uptime SLA
+                checkUptimeSLA(slaConfig);
+                
+                // Check response time SLA
+                checkResponseTimeSLA(slaConfig);
+                
+                // Check error rate SLA
+                checkErrorRateSLA(slaConfig);
+                
+                // Check AI response time SLA
+                checkAIResponseTimeSLA(slaConfig);
+                
+                // Update dashboard with SLA status
+                updateSLADashboard();
+                
+            } catch (Exception e) {
+                log.error("Error during SLA compliance check: {}", e.getMessage(), e);
+            }
+        }
+
+        private void checkUptimeSLA(DashboardProperties.SLAConfig config) {
+            // Mock implementation - in production would query actual metrics
+            double currentUptime = 99.95; // Mock value
+            currentMetrics.put("uptime", currentUptime);
+            
+            if (currentUptime < config.getUptimeTarget()) {
+                log.warn("SLA VIOLATION: Uptime is {:.2f}%, below target of {:.2f}%", 
+                    currentUptime, config.getUptimeTarget());
+                
+                if (config.isAlertOnSLAViolation()) {
+                    // Would trigger alert in production
+                    log.error("SLA Alert: Uptime violation detected");
+                }
+            }
+        }
+
+        private void checkResponseTimeSLA(DashboardProperties.SLAConfig config) {
+            // Mock implementation
+            double currentResponseTime = 180.0; // Mock value in ms
+            currentMetrics.put("responseTime", currentResponseTime);
+            
+            if (currentResponseTime > config.getResponseTimeTarget()) {
+                log.warn("SLA VIOLATION: Response time is {:.2f}ms, above target of {:.2f}ms", 
+                    currentResponseTime, config.getResponseTimeTarget());
+                
+                if (config.isAlertOnSLAViolation()) {
+                    log.error("SLA Alert: Response time violation detected");
+                }
+            }
+        }
+
+        private void checkErrorRateSLA(DashboardProperties.SLAConfig config) {
+            // Mock implementation
+            double currentErrorRate = 0.05; // Mock value in %
+            currentMetrics.put("errorRate", currentErrorRate);
+            
+            if (currentErrorRate > config.getErrorRateTarget()) {
+                log.warn("SLA VIOLATION: Error rate is {:.2f}%, above target of {:.2f}%", 
+                    currentErrorRate, config.getErrorRateTarget());
+                
+                if (config.isAlertOnSLAViolation()) {
+                    log.error("SLA Alert: Error rate violation detected");
+                }
+            }
+        }
+
+        private void checkAIResponseTimeSLA(DashboardProperties.SLAConfig config) {
+            // Mock implementation
+            double currentAIResponseTime = 3200.0; // Mock value in ms
+            currentMetrics.put("aiResponseTime", currentAIResponseTime);
+            
+            if (currentAIResponseTime > config.getAiResponseTimeTarget()) {
+                log.warn("SLA VIOLATION: AI response time is {:.2f}ms, above target of {:.2f}ms", 
+                    currentAIResponseTime, config.getAiResponseTimeTarget());
+                
+                if (config.isAlertOnSLAViolation()) {
+                    log.error("SLA Alert: AI response time violation detected");
+                }
+            }
+        }
+
+        private void updateSLADashboard() {
+            Map<String, Object> slaData = new HashMap<>(currentMetrics);
+            slaData.put("slaCompliance", calculateOverallSLACompliance());
+            slaData.put("lastChecked", Instant.now().toString());
+            
+            dashboardManager.updateDashboardData("sla-dashboard", slaData);
+        }
+
+        private double calculateOverallSLACompliance() {
+            DashboardProperties.SLAConfig config = properties.getSla();
+            
+            double uptimeCompliance = Math.min(100.0, currentMetrics.getOrDefault("uptime", 100.0) / config.getUptimeTarget() * 100);
+            double responseTimeCompliance = Math.min(100.0, config.getResponseTimeTarget() / currentMetrics.getOrDefault("responseTime", 1.0) * 100);
+            double errorRateCompliance = Math.min(100.0, config.getErrorRateTarget() / Math.max(0.001, currentMetrics.getOrDefault("errorRate", 0.001)) * 100);
+            double aiResponseTimeCompliance = Math.min(100.0, config.getAiResponseTimeTarget() / currentMetrics.getOrDefault("aiResponseTime", 1.0) * 100);
+            
+            return (uptimeCompliance + responseTimeCompliance + errorRateCompliance + aiResponseTimeCompliance) / 4.0;
+        }
+
+        public Map<String, Object> getSLAMetrics() {
+            DashboardProperties.SLAConfig config = properties.getSla();
+            Map<String, Object> metrics = new HashMap<>(currentMetrics);
+            
+            metrics.put("slaTargets", Map.of(
+                "uptimeTarget", config.getUptimeTarget(),
+                "responseTimeTarget", config.getResponseTimeTarget(),
+                "errorRateTarget", config.getErrorRateTarget(),
+                "aiResponseTimeTarget", config.getAiResponseTimeTarget()
+            ));
+            
+            metrics.put("overallCompliance", calculateOverallSLACompliance());
+            metrics.put("lastChecked", Instant.now().toString());
+            
+            return metrics;
+        }
+    }
+}
