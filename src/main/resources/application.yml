@@ -443,20 +443,26 @@ spring:
       on-profile: docker
       
   datasource:
-    url: jdbc:h2:mem:dockerdb
+    url: jdbc:h2:mem:dockerdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
     driver-class-name: org.h2.Driver
     username: sa
     password: 
+    hikari:
+      driver-class-name: org.h2.Driver
       
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
         
   flyway:
     enabled: false
+    
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
       
 logging:
   level:
