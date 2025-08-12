@@ -82,31 +82,28 @@ public class SecurityConfig {
                     .includeSubdomains(true)
                     .preload(true)
                 )
-                .and()
-                .headers(headerConfig -> headerConfig
-                    .addHeaderWriter(new ReferrerPolicyHeaderWriter(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-                    .addHeaderWriter(new CrossOriginEmbedderPolicyHeaderWriter(CrossOriginEmbedderPolicyHeaderWriter.CrossOriginEmbedderPolicy.REQUIRE_CORP))
-                    .addHeaderWriter(new CrossOriginOpenerPolicyHeaderWriter(CrossOriginOpenerPolicyHeaderWriter.CrossOriginOpenerPolicy.SAME_ORIGIN))
-                    .addHeaderWriter(new CrossOriginResourcePolicyHeaderWriter(CrossOriginResourcePolicyHeaderWriter.CrossOriginResourcePolicy.SAME_ORIGIN))
-                    .and()
-                    .contentSecurityPolicy(cspConfig -> {
-                        if (enableCsp) {
-                            cspConfig.policyDirectives(
-                                "default-src 'self'; " +
-                                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-                                "style-src 'self' 'unsafe-inline'; " +
-                                "img-src 'self' data: blob: https:; " +
-                                "font-src 'self' data:; " +
-                                "connect-src 'self' https://api.oddiya.com https://*.supabase.co; " +
-                                "media-src 'self' blob:; " +
-                                "object-src 'none'; " +
-                                "base-uri 'self'; " +
-                                "form-action 'self'; " +
-                                "frame-ancestors 'none'; " +
-                                "upgrade-insecure-requests"
-                            );
-                        }
-                    })
+                .addHeaderWriter(new ReferrerPolicyHeaderWriter(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                .addHeaderWriter(new CrossOriginEmbedderPolicyHeaderWriter(CrossOriginEmbedderPolicyHeaderWriter.CrossOriginEmbedderPolicy.REQUIRE_CORP))
+                .addHeaderWriter(new CrossOriginOpenerPolicyHeaderWriter(CrossOriginOpenerPolicyHeaderWriter.CrossOriginOpenerPolicy.SAME_ORIGIN))
+                .addHeaderWriter(new CrossOriginResourcePolicyHeaderWriter(CrossOriginResourcePolicyHeaderWriter.CrossOriginResourcePolicy.SAME_ORIGIN))
+                .contentSecurityPolicy(cspConfig -> {
+                    if (enableCsp) {
+                        cspConfig.policyDirectives(
+                            "default-src 'self'; " +
+                            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+                            "style-src 'self' 'unsafe-inline'; " +
+                            "img-src 'self' data: blob: https:; " +
+                            "font-src 'self' data:; " +
+                            "connect-src 'self' https://api.oddiya.com https://*.supabase.co; " +
+                            "media-src 'self' blob:; " +
+                            "object-src 'none'; " +
+                            "base-uri 'self'; " +
+                            "form-action 'self'; " +
+                            "frame-ancestors 'none'; " +
+                            "upgrade-insecure-requests"
+                        );
+                    }
+                })
             )
             
             // Authorization Rules - A01: Broken Access Control
