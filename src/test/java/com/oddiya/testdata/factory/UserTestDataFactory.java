@@ -172,7 +172,7 @@ public class UserTestDataFactory {
             .username(generateUsername(koreanName))
             .password(passwordEncoder.encode("password123"))
             .nickname(generateNickname())
-            .profileImageUrl(faker.internet().avatar())
+            .profileImageUrl(faker.internet().url())
             .bio(generateBio())
             .provider(randomProvider())
             .providerId(faker.random().hex(16))

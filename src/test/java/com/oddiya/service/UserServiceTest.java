@@ -98,9 +98,9 @@ class UserServiceTest {
             assertThat(response.getBio()).isEqualTo("I love traveling!");
             assertThat(response.getProfileImageUrl()).isEqualTo("https://example.com/avatar.jpg");
             assertThat(response.getPreferences()).isEqualTo(testPreferences);
-            assertThat(response.isEmailVerified()).isTrue();
-            assertThat(response.isPremium()).isFalse();
-            assertThat(response.isActive()).isTrue();
+            assertThat(response.getIsEmailVerified()).isTrue();
+            assertThat(response.getIsPremium()).isFalse();
+            assertThat(response.getIsActive()).isTrue();
             assertThat(response.getProvider()).isEqualTo("google");
             assertThat(response.getLastLoginAt()).isNotNull();
         }
@@ -488,7 +488,7 @@ class UserServiceTest {
             when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
 
             // When
-            boolean exists = userService.emailExists("test@example.com");
+            boolean exists = userService.existsByEmail("test@example.com");
 
             // Then
             assertThat(exists).isTrue();
@@ -501,7 +501,7 @@ class UserServiceTest {
             when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
 
             // When
-            boolean exists = userService.emailExists("nonexistent@example.com");
+            boolean exists = userService.existsByEmail("nonexistent@example.com");
 
             // Then
             assertThat(exists).isFalse();
