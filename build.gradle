@@ -65,6 +65,14 @@ dependencies {
     implementation 'software.amazon.awssdk:bedrockruntime'
     implementation 'software.amazon.awssdk:sqs'
     implementation 'software.amazon.awssdk:cloudwatch'
+    implementation 'software.amazon.awssdk:sns'
+    implementation 'software.amazon.awssdk:costexplorer'
+    implementation 'software.amazon.awssdk:budgets'
+    
+    // AWS X-Ray for distributed tracing
+    implementation 'com.amazonaws:aws-xray-recorder-sdk-core:2.15.1'
+    implementation 'com.amazonaws:aws-xray-recorder-sdk-aws-sdk-v2:2.15.1'
+    implementation 'com.amazonaws:aws-xray-recorder-sdk-aws-sdk-v2-instrumentor:2.15.1'
     
     // Spring Cloud AWS for SQS messaging
     implementation platform('io.awspring.cloud:spring-cloud-aws-dependencies:3.1.1')
@@ -104,6 +112,8 @@ dependencies {
     // Utilities
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
     implementation 'org.mapstruct:mapstruct:1.5.5.Final'
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
     implementation 'org.apache.commons:commons-lang3:3.14.0'
@@ -120,6 +130,8 @@ dependencies {
     testRuntimeOnly 'com.h2database:h2'
     runtimeOnly 'com.h2database:h2'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.junit.platform:junit-platform-suite-api:1.10.2'
+    testImplementation 'org.junit.platform:junit-platform-suite-engine:1.10.2'
     testImplementation 'org.mockito:mockito-core:5.10.0'
     testImplementation 'org.mockito:mockito-junit-jupiter:5.10.0'
     testImplementation 'org.assertj:assertj-core:3.25.3'

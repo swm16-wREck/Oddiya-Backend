@@ -102,6 +102,39 @@ public class AWSConfig {
                 .credentialsProvider(credentialsProvider)
                 .build();
     }
+    
+    @Bean
+    @ConditionalOnProperty(name = "app.alerting.sns.enabled", havingValue = "true")
+    public software.amazon.awssdk.services.sns.SnsClient snsClient(Region region, AwsCredentialsProvider credentialsProvider) {
+        log.info("Creating SNS client for region: {}", region);
+        
+        return software.amazon.awssdk.services.sns.SnsClient.builder()
+                .region(region)
+                .credentialsProvider(credentialsProvider)
+                .build();
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "app.cost-monitoring.aws.enabled", havingValue = "true")
+    public software.amazon.awssdk.services.costexplorer.CostExplorerClient costExplorerClient(AwsCredentialsProvider credentialsProvider) {
+        log.info("Creating Cost Explorer client for us-east-1 (Cost Explorer only available in us-east-1)");
+        
+        return software.amazon.awssdk.services.costexplorer.CostExplorerClient.builder()
+                .region(Region.US_EAST_1) // Cost Explorer is only available in us-east-1
+                .credentialsProvider(credentialsProvider)
+                .build();
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "app.cost-monitoring.aws.enabled", havingValue = "true")
+    public software.amazon.awssdk.services.budgets.BudgetsClient budgetsClient(AwsCredentialsProvider credentialsProvider) {
+        log.info("Creating Budgets client for us-east-1");
+        
+        return software.amazon.awssdk.services.budgets.BudgetsClient.builder()
+                .region(Region.US_EAST_1) // Budgets is only available in us-east-1
+                .credentialsProvider(credentialsProvider)
+                .build();
+    }
 
     @Data
     public static class S3Properties {
