@@ -222,9 +222,9 @@ public abstract class OddiyaIntegrationTestBase {
     protected LoginRequest createMockLoginRequest() {
         return LoginRequest.builder()
             .provider("google")
-            .providerId("google-integration-test-123")
-            .email("integration-test@oddiya.com")
-            .nickname("Integration Test User")
+            .idToken("mock-google-id-token-for-integration-testing")
+            .deviceId("test-device-123")
+            .deviceType("web")
             .build();
     }
 

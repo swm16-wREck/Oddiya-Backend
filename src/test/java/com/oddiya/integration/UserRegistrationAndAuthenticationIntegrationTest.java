@@ -56,25 +56,24 @@ class UserRegistrationAndAuthenticationIntegrationTest extends OddiyaIntegration
         assertThat(authResponse).isNotNull();
         assertThat(authResponse.getAccessToken()).isNotBlank();
         assertThat(authResponse.getRefreshToken()).isNotBlank();
-        assertThat(authResponse.getUser()).isNotNull();
-        assertThat(authResponse.getUser().getEmail()).isEqualTo(loginRequest.getEmail());
-        assertThat(authResponse.getUser().getNickname()).isEqualTo(loginRequest.getNickname());
+        assertThat(authResponse.getUserId()).isNotBlank();
+        assertThat(authResponse.getEmail()).isNotBlank();
+        assertThat(authResponse.getNickname()).isNotBlank();
 
         // Store tokens for subsequent tests
         accessToken = authResponse.getAccessToken();
         refreshToken = authResponse.getRefreshToken();
-        registeredUserEmail = authResponse.getUser().getEmail();
+        registeredUserEmail = authResponse.getEmail();
 
         // Verify user is saved in database
         List<User> users = userRepository.findAll();
         User savedUser = users.stream()
-            .filter(u -> u.getEmail().equals(loginRequest.getEmail()))
+            .filter(u -> u.getEmail().equals(authResponse.getEmail()))
             .findFirst()
             .orElse(null);
         
         assertThat(savedUser).isNotNull();
         assertThat(savedUser.getProvider()).isEqualTo("google");
-        assertThat(savedUser.getProviderId()).isEqualTo(loginRequest.getProviderId());
         assertThat(savedUser.isActive()).isTrue();
         assertThat(savedUser.getRefreshToken()).isNotBlank();
     }
@@ -112,7 +111,7 @@ class UserRegistrationAndAuthenticationIntegrationTest extends OddiyaIntegration
         // Verify only one user exists in database
         List<User> users = userRepository.findAll();
         long userCount = users.stream()
-            .filter(u -> u.getEmail().equals(loginRequest.getEmail()))
+            .filter(u -> u.getProvider().equals("google"))
             .count();
         assertThat(userCount).isEqualTo(1);
     }
@@ -162,7 +161,7 @@ class UserRegistrationAndAuthenticationIntegrationTest extends OddiyaIntegration
         assertThat(authResponse).isNotNull();
         assertThat(authResponse.getAccessToken()).isNotBlank();
         assertThat(authResponse.getRefreshToken()).isNotBlank();
-        assertThat(authResponse.getUser()).isNotNull();
+        assertThat(authResponse.getUserId()).isNotBlank();
         
         // Verify tokens are different (new ones generated)
         String newAccessToken = authResponse.getAccessToken();
@@ -259,7 +258,7 @@ class UserRegistrationAndAuthenticationIntegrationTest extends OddiyaIntegration
 
         String accessToken = loginResponse.getBody().getData().getAccessToken();
         String refreshTokenToInvalidate = loginResponse.getBody().getData().getRefreshToken();
-        String userId = loginResponse.getBody().getData().getUser().getId();
+        String userId = loginResponse.getBody().getData().getUserId();
         
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
@@ -347,15 +346,15 @@ class UserRegistrationAndAuthenticationIntegrationTest extends OddiyaIntegration
         assertThat(response1.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response2.getStatusCode()).isEqualTo(HttpStatus.OK);
         
-        String userId1 = response1.getBody().getData().getUser().getId();
-        String userId2 = response2.getBody().getData().getUser().getId();
+        String userId1 = response1.getBody().getData().getUserId();
+        String userId2 = response2.getBody().getData().getUserId();
         
         assertThat(userId1).isEqualTo(userId2);
 
         // Verify only one user record exists
         List<User> users = userRepository.findAll();
         long userCount = users.stream()
-            .filter(u -> u.getEmail().equals(loginRequest.getEmail()))
+            .filter(u -> u.getProvider().equals("google"))
             .count();
         assertThat(userCount).isEqualTo(1);
     }
