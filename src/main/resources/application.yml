@@ -603,3 +603,50 @@ management:
         enabled: true
         namespace: Oddiya-Production
         region: ${AWS_REGION:ap-northeast-2}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dynamodb
+      
+  # Dummy H2 configuration to satisfy JPA requirements
+  datasource:
+    url: jdbc:h2:mem:dummydb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    hikari:
+      driver-class-name: org.h2.Driver
+      maximum-pool-size: 1
+      minimum-idle: 0
+      
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        
+  flyway:
+    enabled: false
+    
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      
+logging:
+  level:
+    root: INFO
+    com.oddiya: INFO
+    com.amazonaws.services.dynamodbv2: DEBUG
+    
+# DynamoDB profile specific app configuration
+app.aws.dynamodb.enabled: true
+app.aws.dynamodb.create-tables-on-startup: true
+app.aws.s3.enabled: true
+app.aws.s3.create-bucket-on-startup: true
+app.aws.sqs.enabled: false
+app.aws.cloudwatch.enabled: true
+app.aws.mock.enabled: false
