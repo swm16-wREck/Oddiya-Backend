@@ -22,7 +22,7 @@ import java.time.Duration;
 
 @Configuration
 @ConfigurationProperties(prefix = "app.aws")
-@ConditionalOnProperty(name = "spring.profiles.active", havingValue = "aws", matchIfMissing = false)
+@ConditionalOnProperty(name = "app.aws.dynamodb.enabled", havingValue = "true", matchIfMissing = false)
 @Data
 @Slf4j
 public class AWSConfig {
