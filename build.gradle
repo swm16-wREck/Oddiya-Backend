@@ -75,6 +75,15 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
     
+    // Rate Limiting with Bucket4j
+    implementation 'com.bucket4j:bucket4j-core:8.10.1'
+    implementation 'com.bucket4j:bucket4j-redis:8.10.1'
+    
+    // Additional Security Features
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.security:spring-security-web'
+    implementation 'org.springframework.security:spring-security-config'
+    
     // Supabase Client - Using REST API instead of SDK
     // Note: Supabase Java SDK is not available in Maven Central
     // We'll use REST API with Spring WebClient for Supabase integration

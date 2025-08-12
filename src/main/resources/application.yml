@@ -166,12 +166,18 @@ app:
       - DELETE
       - OPTIONS
     allowed-headers:
-      - "*"
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+      - Accept
+      - Accept-Language
+      - Cache-Control
     exposed-headers:
       - X-Total-Count
       - X-RateLimit-Limit
       - X-RateLimit-Remaining
       - X-RateLimit-Reset
+      - Authorization
     allow-credentials: true
     max-age: 3600
     
@@ -179,6 +185,36 @@ app:
     secret: ${JWT_SECRET:your-256-bit-secret-key-for-jwt-token-generation}
     expiration: 3600000 # 1 hour
     refresh-expiration: 604800000 # 7 days
+  
+  security:
+    enable-hsts: ${SECURITY_ENABLE_HSTS:true}
+    enable-csp: ${SECURITY_ENABLE_CSP:true}
+    strict-transport-security-max-age: ${SECURITY_HSTS_MAX_AGE:31536000}
+    strict-cors: ${SECURITY_STRICT_CORS:true}
+    rate-limiting:
+      enabled: ${SECURITY_RATE_LIMITING_ENABLED:true}
+      strict-mode: ${SECURITY_RATE_LIMITING_STRICT_MODE:false}
+    validation:
+      enabled: ${SECURITY_VALIDATION_ENABLED:true}
+      strict-mode: ${SECURITY_VALIDATION_STRICT_MODE:false}
+      block-on-violation: ${SECURITY_VALIDATION_BLOCK_ON_VIOLATION:true}
+    audit:
+      enabled: ${SECURITY_AUDIT_ENABLED:true}
+      include-ip: ${SECURITY_AUDIT_INCLUDE_IP:true}
+      include-user-agent: ${SECURITY_AUDIT_INCLUDE_USER_AGENT:true}
+      mask-sensitive-data: ${SECURITY_AUDIT_MASK_SENSITIVE_DATA:true}
+    error-details:
+      enabled: ${SECURITY_ERROR_DETAILS_ENABLED:false}
+    encryption:
+      key: ${ENCRYPTION_KEY:}
+  
+  privacy:
+    anonymization:
+      enabled: ${PRIVACY_ANONYMIZATION_ENABLED:true}
+    retention:
+      default-days: ${PRIVACY_RETENTION_DEFAULT_DAYS:2555}
+    consent:
+      required: ${PRIVACY_CONSENT_REQUIRED:true}
     
   rate-limit:
     auth: 10

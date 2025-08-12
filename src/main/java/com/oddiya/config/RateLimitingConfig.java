@@ -1,10 +1,10 @@
 package com.oddiya.config;
 
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
-import io.github.bucket4j.BucketConfiguration;
-import io.github.bucket4j.distributed.proxy.ProxyManager;
-import io.github.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
+import com.bucket4j.Bandwidth;
+import com.bucket4j.Bucket;
+import com.bucket4j.BucketConfiguration;
+import com.bucket4j.distributed.proxy.ProxyManager;
+import com.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import lombok.RequiredArgsConstructor;
