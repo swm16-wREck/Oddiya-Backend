@@ -129,11 +129,20 @@ jobs:
           DEPLOY_START_TIME=$(date +%s)
           echo "🚀 Starting deployment at $(date)"
           
-          # Update service with new task definition
+          # First register the task definition
+          TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          
+          echo "📝 Registered task definition: $TASK_DEFINITION_ARN"
+          
+          # Update service with new task definition ARN
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
-            --task-definition ${{ steps.task-def.outputs.task-definition }} \
+            --task-definition $TASK_DEFINITION_ARN \
             --region ${{ env.AWS_REGION }}
           
           echo "✅ Service update initiated"
