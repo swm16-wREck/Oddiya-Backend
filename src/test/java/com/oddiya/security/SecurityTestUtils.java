@@ -1,9 +1,19 @@
 package com.oddiya.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.ArrayList;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
 /**
  * Utility class for security testing with common security test helpers.
@@ -16,6 +26,50 @@ import java.nio.charset.StandardCharsets;
  * - Input validation testing
  */
 public class SecurityTestUtils {
+    
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    
+    // Command Injection test payloads
+    public static final String[] COMMAND_INJECTION_PAYLOADS = {
+        "; ls -la",
+        "| whoami",
+        "& net user",
+        "`cat /etc/passwd`",
+        "$(id)",
+        "; rm -rf /",
+        "&& ping google.com",
+        "|| echo vulnerable",
+        "`whoami`",
+        "$(cat /etc/passwd)"
+    };
+    
+    // SSRF test payloads
+    public static final String[] SSRF_PAYLOADS = {
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://192.168.1.1",
+        "http://169.254.169.254/latest/meta-data/",
+        "file:///etc/passwd",
+        "ftp://localhost",
+        "http://internal.company.com",
+        "http://0.0.0.0:22",
+        "http://[::1]:8080",
+        "gopher://127.0.0.1:6379/_INFO"
+    };
+    
+    // Suspicious User Agents
+    public static final String[] SUSPICIOUS_USER_AGENTS = {
+        "sqlmap/1.0",
+        "nikto/2.1.6",
+        "Burp Suite Professional",
+        "python-requests/2.25.1",
+        "curl/7.68.0",
+        "wget/1.20.3",
+        "gobuster/3.1.0",
+        "dirb/2.22",
+        "nmap scripting engine",
+        "ZAP/2.10.0"
+    };
 
     // Common XSS payloads for testing
     public static final String[] XSS_PAYLOADS = {
@@ -334,5 +388,368 @@ public class SecurityTestUtils {
      */
     public static SecurityTestResult failed(String testName, String message, String recommendation) {
         return new SecurityTestResult(testName, false, message, recommendation);
+    }
+    
+    // ==================== ENHANCED SECURITY TEST METHODS ====================
+    
+    /**
+     * Create a POST request with JSON payload
+     */
+    public static MockHttpServletRequestBuilder createJsonPostRequest(String url, Object payload) throws Exception {
+        return post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload));
+    }
+    
+    /**
+     * Create a GET request with malicious parameters
+     */
+    public static MockHttpServletRequestBuilder createMaliciousGetRequest(String url, String paramName, String payload) {
+        return get(url).param(paramName, payload);
+    }
+    
+    /**
+     * Create a request with malicious headers
+     */
+    public static MockHttpServletRequestBuilder createMaliciousHeaderRequest(String url, String headerName, String payload) {
+        return get(url).header(headerName, payload);
+    }
+    
+    /**
+     * Create a request with suspicious User-Agent
+     */
+    public static MockHttpServletRequestBuilder createSuspiciousUserAgentRequest(String url, String userAgent) {
+        return get(url).header("User-Agent", userAgent);
+    }
+    
+    /**
+     * Create an authenticated request
+     */
+    public static MockHttpServletRequestBuilder createAuthenticatedRequest(String url, String token) {
+        return get(url).header("Authorization", "Bearer " + token);
+    }
+    
+    /**
+     * Perform rate limit testing by making multiple requests
+     */
+    public static List<ResultActions> performRateLimitTest(MockMvc mockMvc, String url, int requestCount) throws Exception {
+        List<ResultActions> results = new ArrayList<>();
+        for (int i = 0; i < requestCount; i++) {
+            results.add(mockMvc.perform(get(url)));
+        }
+        return results;
+    }
+    
+    /**
+     * Validate security headers in response
+     */
+    public static void validateSecurityHeaders(ResultActions resultActions) throws Exception {
+        resultActions
+            .andExpect(result -> {
+                String hstsHeader = result.getResponse().getHeader("Strict-Transport-Security");
+                if (hstsHeader == null || hstsHeader.isEmpty()) {
+                    throw new AssertionError("Missing HSTS header");
+                }
+            })
+            .andExpect(result -> {
+                String cspHeader = result.getResponse().getHeader("Content-Security-Policy");
+                if (cspHeader == null || cspHeader.isEmpty()) {
+                    throw new AssertionError("Missing CSP header");
+                }
+            })
+            .andExpect(result -> {
+                String frameOptionsHeader = result.getResponse().getHeader("X-Frame-Options");
+                if (frameOptionsHeader == null || !frameOptionsHeader.equals("DENY")) {
+                    throw new AssertionError("Invalid or missing X-Frame-Options header");
+                }
+            })
+            .andExpect(result -> {
+                String contentTypeHeader = result.getResponse().getHeader("X-Content-Type-Options");
+                if (contentTypeHeader == null || !contentTypeHeader.equals("nosniff")) {
+                    throw new AssertionError("Invalid or missing X-Content-Type-Options header");
+                }
+            });
+    }
+    
+    /**
+     * Validate rate limit headers in response
+     */
+    public static void validateRateLimitHeaders(ResultActions resultActions) throws Exception {
+        resultActions
+            .andExpect(result -> {
+                String limitHeader = result.getResponse().getHeader("X-RateLimit-Limit");
+                String remainingHeader = result.getResponse().getHeader("X-RateLimit-Remaining");
+                String resetHeader = result.getResponse().getHeader("X-RateLimit-Reset");
+                
+                if (limitHeader == null || remainingHeader == null || resetHeader == null) {
+                    throw new AssertionError("Missing rate limit headers");
+                }
+            });
+    }
+    
+    /**
+     * Create a large payload to test size limits
+     */
+    public static String createLargePayload(int sizeInKB) {
+        StringBuilder builder = new StringBuilder();
+        String pattern = "A";
+        int targetSize = sizeInKB * 1024;
+        
+        while (builder.length() < targetSize) {
+            builder.append(pattern);
+        }
+        
+        return builder.toString();
+    }
+    
+    /**
+     * Test data for user registration with malicious inputs
+     */
+    public static Object createMaliciousUserData(String maliciousInput) {
+        return new Object() {
+            public final String username = maliciousInput;
+            public final String email = "test@example.com";
+            public final String password = "password123";
+            public final String firstName = "Test";
+            public final String lastName = "User";
+        };
+    }
+    
+    /**
+     * Test data for travel plan creation with malicious inputs
+     */
+    public static Object createMaliciousTravelPlanData(String maliciousInput) {
+        return new Object() {
+            public final String title = maliciousInput;
+            public final String description = "Test description";
+            public final String destination = "Seoul, Korea";
+            public final String startDate = "2024-01-01";
+            public final String endDate = "2024-01-07";
+            public final Double budget = 1000.0;
+        };
+    }
+    
+    /**
+     * Test data for place creation with malicious inputs
+     */
+    public static Object createMaliciousPlaceData(String maliciousInput) {
+        return new Object() {
+            public final String name = maliciousInput;
+            public final String address = "Test Address";
+            public final String description = "Test Description";
+            public final Double latitude = 37.5665;
+            public final Double longitude = 126.9780;
+            public final String category = "RESTAURANT";
+        };
+    }
+    
+    /**
+     * Validate that response doesn't contain sensitive information
+     */
+    public static void validateNoSensitiveInfoLeakage(ResultActions resultActions) throws Exception {
+        resultActions
+            .andExpect(result -> {
+                String responseBody = result.getResponse().getContentAsString();
+                
+                // Check for stack traces
+                if (responseBody.contains("Exception") && responseBody.contains("at ")) {
+                    throw new AssertionError("Response contains stack trace information");
+                }
+                
+                // Check for database information
+                if (responseBody.toLowerCase().contains("sql") && 
+                    (responseBody.toLowerCase().contains("error") || responseBody.toLowerCase().contains("exception"))) {
+                    throw new AssertionError("Response contains database error information");
+                }
+                
+                // Check for file system paths
+                if (responseBody.contains("/Users/") || responseBody.contains("C:\\") || 
+                    responseBody.contains("/var/") || responseBody.contains("/etc/")) {
+                    throw new AssertionError("Response contains file system path information");
+                }
+                
+                // Check for internal class names
+                if (responseBody.contains("com.oddiya") && responseBody.contains(".class")) {
+                    throw new AssertionError("Response contains internal class information");
+                }
+                
+                // Check for password fields
+                if (responseBody.toLowerCase().contains("\"password\"") && 
+                    !responseBody.toLowerCase().contains("\"password\":null")) {
+                    throw new AssertionError("Response contains password field");
+                }
+            });
+    }
+    
+    /**
+     * Create a request with header injection attempt
+     */
+    public static MockHttpServletRequestBuilder createHeaderInjectionRequest(String url) {
+        return get(url)
+                .header("X-Custom-Header", "normal\r\nInjected-Header: malicious")
+                .header("User-Agent", "normal\nX-Injected: evil")
+                .header("Referer", "http://example.com\r\nX-Evil: attack");
+    }
+    
+    /**
+     * Create a request simulating various attack vectors
+     */
+    public static MockHttpServletRequestBuilder createMultiVectorAttackRequest(String url) {
+        return post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("User-Agent", "sqlmap/1.0")
+                .header("X-Forwarded-For", "127.0.0.1")
+                .param("callback", "http://attacker.com/steal")
+                .param("search", "'; DROP TABLE users; --")
+                .content("{\"name\":\"<script>alert('xss')</script>\",\"file\":\"../../../etc/passwd\"}");
+    }
+    
+    /**
+     * Test encryption/decryption functionality
+     */
+    public static class EncryptionTestHelper {
+        public static final String TEST_PLAINTEXT = "sensitive-data-12345";
+        public static final String TEST_PII = "john.doe@example.com";
+        public static final String TEST_PASSWORD = "super-secret-password";
+        
+        public static void validateEncryptionWorking(String encrypted, String original) {
+            assert !encrypted.equals(original) : "Data not encrypted properly";
+            assert encrypted != null && !encrypted.isEmpty() : "Encrypted data is null or empty";
+            assert encrypted.length() > original.length() : "Encrypted data should be longer than original";
+        }
+        
+        public static void validateDecryptionWorking(String decrypted, String original) {
+            assert decrypted.equals(original) : "Decryption failed: expected " + original + " but got " + decrypted;
+        }
+    }
+    
+    /**
+     * Test rate limiting functionality
+     */
+    public static class RateLimitTestHelper {
+        
+        public static void validateRateLimitApplied(List<ResultActions> results, int expectedAllowed) throws Exception {
+            int allowedRequests = 0;
+            int blockedRequests = 0;
+            
+            for (ResultActions result : results) {
+                int status = result.andReturn().getResponse().getStatus();
+                if (status == 200 || status == 201) {
+                    allowedRequests++;
+                } else if (status == 429) {
+                    blockedRequests++;
+                }
+            }
+            
+            assert allowedRequests <= expectedAllowed : 
+                "Too many requests allowed: " + allowedRequests + " (expected max: " + expectedAllowed + ")";
+            assert blockedRequests > 0 : "No requests were rate limited";
+        }
+        
+        public static void validateRateLimitHeaders(ResultActions result) throws Exception {
+            result.andExpect(res -> {
+                String limit = res.getResponse().getHeader("X-RateLimit-Limit");
+                String remaining = res.getResponse().getHeader("X-RateLimit-Remaining");
+                String reset = res.getResponse().getHeader("X-RateLimit-Reset");
+                
+                assert limit != null : "Missing X-RateLimit-Limit header";
+                assert remaining != null : "Missing X-RateLimit-Remaining header";
+                assert reset != null : "Missing X-RateLimit-Reset header";
+                
+                assert Integer.parseInt(limit) > 0 : "Invalid rate limit value";
+                assert Integer.parseInt(remaining) >= 0 : "Invalid remaining count";
+            });
+        }
+    }
+    
+    /**
+     * Security audit helper for comprehensive testing
+     */
+    public static class SecurityAuditHelper {
+        
+        public static void auditEndpointSecurity(MockMvc mockMvc, String endpoint) throws Exception {
+            List<SecurityTestResult> results = new ArrayList<>();
+            
+            // Test 1: SQL Injection
+            for (String payload : SQL_INJECTION_PAYLOADS) {
+                try {
+                    ResultActions result = mockMvc.perform(get(endpoint).param("search", payload));
+                    validateNoSensitiveInfoLeakage(result);
+                    assertSQLInjectionPrevented(result.andReturn().getResponse().getContentAsString(), payload);
+                    results.add(passed("SQL Injection Prevention", "Payload blocked: " + payload));
+                } catch (Exception e) {
+                    results.add(failed("SQL Injection Prevention", "Payload not blocked: " + payload, 
+                                     "Implement input validation for parameter 'search'"));
+                }
+            }
+            
+            // Test 2: XSS Prevention
+            for (String payload : XSS_PAYLOADS) {
+                try {
+                    ResultActions result = mockMvc.perform(get(endpoint).param("name", payload));
+                    String response = result.andReturn().getResponse().getContentAsString();
+                    assertXSSSanitized(response, payload);
+                    results.add(passed("XSS Prevention", "Payload sanitized: " + payload));
+                } catch (Exception e) {
+                    results.add(failed("XSS Prevention", "Payload not sanitized: " + payload,
+                                     "Implement output encoding for parameter 'name'"));
+                }
+            }
+            
+            // Test 3: Security Headers
+            try {
+                ResultActions result = mockMvc.perform(get(endpoint));
+                validateSecurityHeaders(result);
+                results.add(passed("Security Headers", "All required security headers present"));
+            } catch (Exception e) {
+                results.add(failed("Security Headers", "Missing security headers: " + e.getMessage(),
+                                 "Configure security headers in SecurityConfig"));
+            }
+            
+            // Print audit results
+            System.out.println("\n=== Security Audit Results for " + endpoint + " ===");
+            for (SecurityTestResult result : results) {
+                System.out.println(result);
+            }
+        }
+    }
+    
+    /**
+     * Create test data with various injection attempts
+     */
+    public static class TestDataFactory {
+        
+        public static Object createTestUser(String maliciousField, String payload) {
+            return new Object() {
+                public final String username = maliciousField.equals("username") ? payload : "testuser";
+                public final String email = maliciousField.equals("email") ? payload : "test@example.com";
+                public final String firstName = maliciousField.equals("firstName") ? payload : "John";
+                public final String lastName = maliciousField.equals("lastName") ? payload : "Doe";
+                public final String password = maliciousField.equals("password") ? payload : "ValidPass123!";
+            };
+        }
+        
+        public static Object createTestTravelPlan(String maliciousField, String payload) {
+            return new Object() {
+                public final String title = maliciousField.equals("title") ? payload : "Test Trip";
+                public final String description = maliciousField.equals("description") ? payload : "A test travel plan";
+                public final String destination = maliciousField.equals("destination") ? payload : "Seoul, Korea";
+                public final String startDate = maliciousField.equals("startDate") ? payload : "2024-06-01";
+                public final String endDate = maliciousField.equals("endDate") ? payload : "2024-06-07";
+                public final Double budget = 1000.0;
+            };
+        }
+        
+        public static Object createTestPlace(String maliciousField, String payload) {
+            return new Object() {
+                public final String name = maliciousField.equals("name") ? payload : "Test Place";
+                public final String address = maliciousField.equals("address") ? payload : "123 Test St, Seoul";
+                public final String description = maliciousField.equals("description") ? payload : "A test place";
+                public final Double latitude = 37.5665;
+                public final Double longitude = 126.9780;
+                public final String category = "RESTAURANT";
+                public final String imageUrl = maliciousField.equals("imageUrl") ? payload : "https://example.com/image.jpg";
+            };
+        }
     }
 }

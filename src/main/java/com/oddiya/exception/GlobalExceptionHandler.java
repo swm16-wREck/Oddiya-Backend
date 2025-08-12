@@ -21,7 +21,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import javax.crypto.BadPaddingException;
-import java.nio.file.AccessDeniedException as FileAccessDeniedException;
+// Using fully qualified name to avoid conflict with Spring Security's AccessDeniedException
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -181,9 +181,9 @@ public class GlobalExceptionHandler {
     }
     
     // File access exceptions
-    @ExceptionHandler(FileAccessDeniedException.class)
+    @ExceptionHandler(java.nio.file.AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleFileAccessDeniedException(
-            FileAccessDeniedException ex, HttpServletRequest request) {
+            java.nio.file.AccessDeniedException ex, HttpServletRequest request) {
         String errorId = generateErrorId();
         logSecurityError(errorId, "File access denied", ex, request);
         
