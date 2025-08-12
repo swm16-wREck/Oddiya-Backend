@@ -49,9 +49,7 @@ class ReviewSubmissionAndRatingIntegrationTest extends OddiyaIntegrationTestBase
 
         LoginRequest loginRequest = LoginRequest.builder()
             .provider("google")
-            .providerId("google-reviewer-123")
-            .email("reviewer@oddiya.com")
-            .nickname("Test Reviewer")
+            .idToken("test-id-token-reviewer-123")
             .build();
 
         HttpEntity<LoginRequest> request = new HttpEntity<>(loginRequest, createHeaders());
@@ -66,7 +64,7 @@ class ReviewSubmissionAndRatingIntegrationTest extends OddiyaIntegrationTestBase
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         AuthResponse authResponse = response.getBody().getData();
         accessToken = authResponse.getAccessToken();
-        userId = authResponse.getUser().getId();
+        userId = authResponse.getUserId();
     }
 
     @Test
@@ -107,8 +105,8 @@ class ReviewSubmissionAndRatingIntegrationTest extends OddiyaIntegrationTestBase
         assertThat(reviewResponse.getId()).isNotBlank();
         assertThat(reviewResponse.getRating()).isEqualTo(5);
         assertThat(reviewResponse.getContent()).isEqualTo(reviewRequest.getContent());
-        assertThat(reviewResponse.getUser().getId()).isEqualTo(userId);
-        assertThat(reviewResponse.getPlace().getId()).isEqualTo(reviewRequest.getPlaceId());
+        assertThat(reviewResponse.getUserId()).isEqualTo(userId);
+        assertThat(reviewResponse.getPlaceId()).isEqualTo(reviewRequest.getPlaceId());
 
         // Verify review is saved in database
         List<Review> reviews = testReviewer.getReviews();
@@ -255,7 +253,7 @@ class ReviewSubmissionAndRatingIntegrationTest extends OddiyaIntegrationTestBase
         assertThat(getPlaceResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         PlaceResponse placeResponse = getPlaceResponse.getBody().getData();
         assertThat(placeResponse.getReviewCount()).isEqualTo(initialReviewCount + 3);
-        assertThat(placeResponse.getRating()).isCloseTo(expectedRating, within(0.01));
+        assertThat(placeResponse.getAverageRating()).isCloseTo(expectedRating, within(0.01));
     }
 
     @Test
@@ -308,10 +306,10 @@ class ReviewSubmissionAndRatingIntegrationTest extends OddiyaIntegrationTestBase
 
         // Verify review content
         ReviewResponse firstReview = reviews.get(0);
-        assertThat(firstReview.getPlace().getId()).isEqualTo(targetPlace.getId().toString());
+        assertThat(firstReview.getPlaceId()).isEqualTo(targetPlace.getId().toString());
         assertThat(firstReview.getRating()).isBetween(1, 5);
         assertThat(firstReview.getContent()).isNotBlank();
-        assertThat(firstReview.getUser()).isNotNull();
+        assertThat(firstReview.getUserId()).isNotNull();
     }
 
     @Test
@@ -483,9 +481,7 @@ class ReviewSubmissionAndRatingIntegrationTest extends OddiyaIntegrationTestBase
     private String authenticateUserAndGetToken(User user) {
         LoginRequest loginRequest = LoginRequest.builder()
             .provider(user.getProvider())
-            .providerId(user.getProviderId())
-            .email(user.getEmail())
-            .nickname(user.getNickname())
+            .idToken("test-id-token-" + user.getId())
             .build();
 
         HttpEntity<LoginRequest> request = new HttpEntity<>(loginRequest, createHeaders());

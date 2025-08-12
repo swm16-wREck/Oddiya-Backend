@@ -159,7 +159,7 @@ class DatabaseIntegrationTest extends RepositoryTestBase {
             TravelPlan retrievedPlan = travelPlanRepository.findById(travelPlan.getId()).orElse(null);
             List<ItineraryItem> items = itineraryItemRepository
                 .findByTravelPlanIdOrderByDayNumberAscSequenceAsc(travelPlan.getId());
-            boolean isSaved = savedPlanRepository.existsByUserIdAndTravelPlanId(
+            boolean isSaved = savedPlanRepository.existsSavedPlan(
                 collaborator.getId(), travelPlan.getId());
 
             // Then

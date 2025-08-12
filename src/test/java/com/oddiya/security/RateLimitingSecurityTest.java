@@ -384,7 +384,7 @@ public class RateLimitingSecurityTest {
         // Check if rate limiting headers are present in responses
         String response = mockMvc.perform(get("/api/v1/travel-plans/public")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpected(status().isOk())
+                .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
                 .getHeaderNames()

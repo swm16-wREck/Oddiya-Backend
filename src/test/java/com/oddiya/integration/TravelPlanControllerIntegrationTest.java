@@ -104,7 +104,7 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.title").value("Seoul Cultural Journey"))
                     .andExpect(jsonPath("$.data.destination").value("Seoul"))
-                    .andExpected(jsonPath("$.data.userId").value(TEST_USER_ID))
+                    .andExpect(jsonPath("$.data.userId").value(TEST_USER_ID))
                     .andReturn();
 
             long responseTime = System.currentTimeMillis() - startTime;
@@ -253,9 +253,9 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.content").isArray())
-                    .andExpected(jsonPath("$.data.pageNumber").value(0))
-                    .andExpected(jsonPath("$.data.pageSize").value(5))
-                    .andExpected(jsonPath("$.data.totalElements").isNumber());
+                    .andExpect(jsonPath("$.data.pageNumber").value(0))
+                    .andExpect(jsonPath("$.data.pageSize").value(5))
+                    .andExpect(jsonPath("$.data.totalElements").isNumber());
         }
 
         @Test
@@ -272,8 +272,8 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
             mockMvc.perform(get("/api/v1/travel-plans/search")
                     .param("q", "부산")
                     .characterEncoding("UTF-8"))
-                    .andExpected(status().isOk())
-                    .andExpected(jsonPath("$.data.content").isArray());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.content").isArray());
         }
 
         @Test
@@ -292,10 +292,10 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID)))
                     .param("page", "0")
                     .param("size", "10"))
-                    .andExpected(status().isOk())
-                    .andExpected(jsonPath("$.data.content").isArray())
-                    .andExpected(jsonPath("$.data.content.length()").value(10))
-                    .andExpected(jsonPath("$.data.totalElements").value(16)); // 15 + 1 original
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.content").isArray())
+                    .andExpect(jsonPath("$.data.content.length()").value(10))
+                    .andExpect(jsonPath("$.data.totalElements").value(16)); // 15 + 1 original
         }
     }
 
@@ -367,8 +367,8 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
             mockMvc.perform(get("/api/v1/travel-plans/public")
                     .param("page", "0")
                     .param("size", "100"))
-                    .andExpected(status().isOk())
-                    .andExpected(jsonPath("$.data.content").isArray());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.content").isArray());
 
             long responseTime = System.currentTimeMillis() - startTime;
             
@@ -402,9 +402,9 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID)))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(invalidRequest)))
-                    .andExpected(status().isBadRequest())
-                    .andExpected(jsonPath("$.success").value(false))
-                    .andExpected(jsonPath("$.error").exists());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").exists());
         }
 
         @Test
@@ -413,9 +413,9 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
             // When & Then
             mockMvc.perform(get("/api/v1/travel-plans/{id}", "non-existent-id")
                     .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID))))
-                    .andExpected(status().isNotFound())
-                    .andExpected(jsonPath("$.success").value(false))
-                    .andExpected(jsonPath("$.error.code").value("TRAVEL_PLAN_NOT_FOUND"));
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error.code").value("TRAVEL_PLAN_NOT_FOUND"));
         }
 
         @Test
@@ -423,7 +423,7 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
         void shouldHandleUnauthorizedAccessGracefully() throws Exception {
             // When & Then - Request without authentication
             mockMvc.perform(get("/api/v1/travel-plans/{id}", TEST_TRAVEL_PLAN_ID))
-                    .andExpected(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized());
         }
 
         @Test
@@ -443,8 +443,8 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt.subject(TEST_USER_ID)))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(invalidRequest)))
-                    .andExpected(status().isBadRequest())
-                    .andExpected(jsonPath("$.error.message").value("Start date must be before end date"));
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.message").value("Start date must be before end date"));
         }
     }
 
@@ -467,8 +467,8 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
                     .param("latitude", String.valueOf(SEOUL_LATITUDE))
                     .param("longitude", String.valueOf(SEOUL_LONGITUDE))
                     .param("radiusKm", "50"))
-                    .andExpected(status().isOk())
-                    .andExpected(jsonPath("$.data").isArray());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data").isArray());
         }
 
         @Test
@@ -479,7 +479,7 @@ class TravelPlanControllerIntegrationTest extends BaseIntegrationTest {
                     .param("latitude", "200") // Invalid latitude
                     .param("longitude", "400") // Invalid longitude
                     .param("radiusKm", "10"))
-                    .andExpected(status().isBadRequest());
+                    .andExpect(status().isBadRequest());
         }
     }
 

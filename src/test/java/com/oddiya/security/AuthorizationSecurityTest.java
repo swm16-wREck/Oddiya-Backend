@@ -179,7 +179,7 @@ public class AuthorizationSecurityTest {
         for (String id : testIds) {
             mockMvc.perform(get("/api/v1/travel-plans/" + id)
                     .contentType(MediaType.APPLICATION_JSON))
-                    .andExpected(result -> {
+                    .andDo(result -> {
                         int status = result.getResponse().getStatus();
                         // Should either be 404 (not found) or 403 (forbidden), never expose unauthorized data
                         assert status == 404 || status == 403 : 
@@ -209,7 +209,7 @@ public class AuthorizationSecurityTest {
         mockMvc.perform(post("/api/v1/travel-plans")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(travelPlanPayload))
-                .andExpected(result -> {
+                .andDo(result -> {
                     // Should ignore tampered userId and use authenticated user's ID
                     String response = result.getResponse().getContentAsString();
                     // Verify the created plan belongs to authenticated user, not tampered user
@@ -229,7 +229,7 @@ public class AuthorizationSecurityTest {
                 .header("X-Impersonate-User", "admin")
                 .header("X-Acting-As", "admin")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpected(result -> {
+                .andDo(result -> {
                     String response = result.getResponse().getContentAsString();
                     // Should return authenticated user's data, not header-specified user
                     assert !response.contains("admin") || response.contains("user1") :
@@ -262,7 +262,7 @@ public class AuthorizationSecurityTest {
         mockMvc.perform(put("/api/v1/users/profile")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(maliciousPayload))
-                .andExpected(result -> {
+                .andDo(result -> {
                     String response = result.getResponse().getContentAsString();
                     // Should only update allowed fields, ignore sensitive fields
                     assert !response.contains("\"role\":\"admin\"") : "Mass assignment succeeded for role field";
@@ -292,7 +292,7 @@ public class AuthorizationSecurityTest {
                     .file("file", "malicious content".getBytes())
                     .param("fileName", filename)
                     .param("contentType", "text/plain"))
-                    .andExpected(result -> {
+                    .andDo(result -> {
                         int status = result.getResponse().getStatus();
                         // Should either reject malicious filenames or sanitize them
                         if (status == 200) {
@@ -368,7 +368,7 @@ public class AuthorizationSecurityTest {
         mockMvc.perform(post("/api/v1/travel-plans")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(premiumFeaturePayload))
-                .andExpected(result -> {
+                .andDo(result -> {
                     // Should either reject premium features for non-premium users or ignore them
                     String response = result.getResponse().getContentAsString();
                     if (result.getResponse().getStatus() == 201) {

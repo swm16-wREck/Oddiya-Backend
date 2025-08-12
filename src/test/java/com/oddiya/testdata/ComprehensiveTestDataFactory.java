@@ -221,8 +221,6 @@ public class ComprehensiveTestDataFactory {
                 .transportDurationMinutes(random.nextInt(30) + 5) // 5-35 minutes
                 .estimatedCost(BigDecimal.valueOf(random.nextInt(50000) + 10000)) // 10,000-60,000 KRW
                 .isCompleted(false)
-                .createdAt(LocalDateTime.now().minusDays(random.nextInt(7)))
-                .updatedAt(LocalDateTime.now().minusDays(random.nextInt(3)))
                 .build();
     }
 

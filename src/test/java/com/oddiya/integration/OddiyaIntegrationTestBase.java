@@ -251,9 +251,9 @@ public abstract class OddiyaIntegrationTestBase {
         return CreateItineraryItemRequest.builder()
             .placeId(placeId)
             .dayNumber(dayNumber)
-            .sequence(sequence)
-            .startTime("09:00")
-            .endTime("11:00")
+            .order(sequence)
+            .startTime(LocalDateTime.now().plusDays(dayNumber).withHour(9).withMinute(0))
+            .endTime(LocalDateTime.now().plusDays(dayNumber).withHour(11).withMinute(0))
             .notes("Integration test itinerary item")
             .build();
     }
@@ -275,7 +275,7 @@ public abstract class OddiyaIntegrationTestBase {
      */
     protected CreatePlaceRequest createPlaceRequest(String name, String category) {
         return CreatePlaceRequest.builder()
-            .naverPlaceId("naver-" + name.toLowerCase().replace(" ", "-"))
+            .googlePlaceId("google-" + name.toLowerCase().replace(" ", "-"))
             .name(name)
             .category(category)
             .description("Integration test place: " + name)

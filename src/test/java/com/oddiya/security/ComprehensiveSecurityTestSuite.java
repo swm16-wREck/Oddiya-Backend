@@ -116,10 +116,12 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
             for (String endpoint : adminEndpoints) {
                 mockMvc.perform(get(endpoint)
                         .with(jwt().jwt(jwt -> jwt.subject("user1"))))
-                        .andExpect(ResultMatcher.anyOf(
-                            status().isForbidden(),
-                            status().isNotFound() // Admin endpoints might not exist
-                        ));
+                        .andDo(result -> {
+                            int status = result.getResponse().getStatus();
+                            // Admin endpoints should be either forbidden or not found
+                            assert status == 403 || status == 404 : 
+                                "Expected 403 or 404 for admin endpoint " + endpoint + ", got " + status;
+                        });
             }
         }
 
@@ -133,18 +135,22 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt
                         .subject(TEST_USER_ID)
                         .claim("roles", "USER"))))
-                    .andExpect(ResultMatcher.anyOf(status().isOk(), status().isNotFound()));
+                    .andDo(result -> {
+                        int status = result.getResponse().getStatus();
+                        assert status == 200 || status == 404 : 
+                            "Expected 200 or 404 for user profile, got " + status;
+                    });
 
             // ADMIN role should access admin endpoints (if they exist)
             mockMvc.perform(get("/api/v1/admin/health")
                     .with(jwt().jwt(jwt -> jwt
                         .subject("admin-user")
                         .claim("roles", "ADMIN"))))
-                    .andExpect(anyOf(
-                        status().isOk(),
-                        status().isNotFound(), // Endpoint might not exist
-                        status().isForbidden()  // Or not implemented yet
-                    ));
+                    .andDo(result -> {
+                        int status = result.getResponse().getStatus();
+                        assert status == 200 || status == 404 || status == 403 : 
+                            "Expected 200, 404, or 403 for admin health, got " + status;
+                    });
         }
     }
 
