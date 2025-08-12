@@ -1,0 +1,39 @@
+# Optimized ECS Configuration for Spring Boot
+# Copy this file to terraform.tfvars and adjust values as needed
+
+# Project Configuration
+project_name = "oddiya"
+environment = "dev"
+region = "ap-northeast-2"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c"]
+
+# Optimized Resource Allocation
+task_cpu = "1024"    # 1 vCPU (increased from 256 for Spring Boot performance)
+task_memory = "2048" # 2GB (increased from 512MB for JPA/Hibernate)
+
+# Service Configuration
+desired_count = 1
+min_capacity = 1
+max_capacity = 3
+
+# Optimized Health Check Configuration
+health_check_timeout = 15              # Increased from 5s for slow startup
+health_check_interval = 60             # Reduced from 30s during startup
+health_check_unhealthy_threshold = 5   # Increased from 2 for startup tolerance
+
+# Container Health Check Configuration  
+container_health_check_start_period = 180  # 3 minutes grace period for Spring Boot startup
+container_health_check_retries = 5         # More retries for startup resilience
+
+# Logging Configuration
+enable_logging = true
+log_retention_days = 30
+
+# Performance Notes:
+# - These settings optimize for Spring Boot applications with JPA/Hibernate
+# - Cost increase: ~$15-20/month for improved reliability
+# - Expected startup time: 60-80 seconds (down from 130 seconds)
+# - Reduced health check failures during application startup

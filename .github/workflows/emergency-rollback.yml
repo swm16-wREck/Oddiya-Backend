@@ -1,0 +1,104 @@
+name: Emergency Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        type: choice
+        options:
+        - development
+        - production
+      rollback_target:
+        description: 'Rollback target'
+        required: true
+        type: choice
+        options:
+        - previous-version
+        - specific-task-definition
+        - last-known-good
+      task_definition_arn:
+        description: 'Specific task definition ARN (if rollback_target is specific-task-definition)'
+        required: false
+        type: string
+      reason:
+        description: 'Reason for rollback'
+        required: true
+        type: string
+        default: 'Emergency rollback due to critical issue'
+
+env:
+  AWS_REGION: ap-northeast-2
+  ROLLBACK_TIMEOUT: 900  # 15 minutes
+
+jobs:
+  emergency-rollback:
+    name: Emergency Rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Configure environment variables
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            echo "ECS_CLUSTER=oddiya-prod" >> $GITHUB_ENV
+            echo "ECS_SERVICE=oddiya-prod" >> $GITHUB_ENV
+          else
+            echo "ECS_CLUSTER=oddiya-dev" >> $GITHUB_ENV
+            echo "ECS_SERVICE=oddiya-dev" >> $GITHUB_ENV
+          fi
+          
+          echo "🚨 EMERGENCY ROLLBACK INITIATED"
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Target: ${{ inputs.rollback_target }}"
+          echo "Reason: ${{ inputs.reason }}"
+          echo "Time: $(date)"
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Pre-rollback assessment
+        id: assessment
+        run: |
+          echo "=== PRE-ROLLBACK ASSESSMENT ==="
+          
+          # Get current service state
+          CURRENT_STATE=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].{TaskDefinition:taskDefinition,Status:status,RunningCount:runningCount,DesiredCount:desiredCount,DeploymentCount:length(deployments)}' \
+            --output json)
+          
+          echo "📊 Current service state:"
+          echo "$CURRENT_STATE" | jq .
+          
+          CURRENT_TASK_DEF=$(echo "$CURRENT_STATE" | jq -r '.TaskDefinition')
+          SERVICE_STATUS=$(echo "$CURRENT_STATE" | jq -r '.Status')
+          RUNNING_COUNT=$(echo "$CURRENT_STATE" | jq -r '.RunningCount')
+          DESIRED_COUNT=$(echo "$CURRENT_STATE" | jq -r '.DesiredCount')
+          DEPLOYMENT_COUNT=$(echo "$CURRENT_STATE" | jq -r '.DeploymentCount')
+          
+          echo "current_task_def=$CURRENT_TASK_DEF" >> $GITHUB_OUTPUT
+          echo "service_status=$SERVICE_STATUS" >> $GITHUB_OUTPUT
+          echo "running_count=$RUNNING_COUNT" >> $GITHUB_OUTPUT
+          echo "desired_count=$DESIRED_COUNT" >> $GITHUB_OUTPUT
+          
+          # Check if rollback is necessary
+          if [ "$SERVICE_STATUS" = "ACTIVE" ] && [ "$RUNNING_COUNT" = "$DESIRED_COUNT" ] && [ "$DEPLOYMENT_COUNT" = "1" ]; then\n            echo "⚠️ Service appears healthy. Rollback reason: ${{ inputs.reason }}"
+            echo "healthy_service=true" >> $GITHUB_OUTPUT
+          else
+            echo "🚨 Service appears unhealthy, rollback is justified"
+            echo "healthy_service=false" >> $GITHUB_OUTPUT
+          fi
+          \n          # Get recent service events\n          echo "📋 Recent service events:"\n          aws ecs describe-services \\\n            --cluster ${{ env.ECS_CLUSTER }} \\\n            --services ${{ env.ECS_SERVICE }} \\\n            --region ${{ env.AWS_REGION }} \\\n            --query 'services[0].events[:10].[createdAt,message]' \\\n            --output table\n          \n      - name: Determine rollback target\n        id: rollback-target\n        run: |\n          echo \"=== DETERMINING ROLLBACK TARGET ===\"\n          \n          if [ \"${{ inputs.rollback_target }}\" = \"specific-task-definition\" ]; then\n            if [ -z \"${{ inputs.task_definition_arn }}\" ]; then\n              echo \"❌ Specific task definition ARN is required but not provided\"\n              exit 1\n            fi\n            ROLLBACK_TASK_DEF=\"${{ inputs.task_definition_arn }}\"\n            echo \"🎯 Using specific task definition: $ROLLBACK_TASK_DEF\"\n            \n          else\n            # Get task definition history\n            echo \"📜 Getting task definition history...\"\n            TASK_DEF_FAMILY=$(echo \"${{ steps.assessment.outputs.current_task_def }}\" | awk -F':' '{print $1}' | awk -F'/' '{print $NF}')\n            \n            TASK_DEF_HISTORY=$(aws ecs list-task-definitions \\\n              --family-prefix \"$TASK_DEF_FAMILY\" \\\n              --region ${{ env.AWS_REGION }} \\\n              --status ACTIVE \\\n              --sort DESC \\\n              --max-items 5 \\\n              --query 'taskDefinitionArns' --output json)\n            \n            echo \"📋 Available task definitions:\"\n            echo \"$TASK_DEF_HISTORY\" | jq -r '.[] | \"  \" + .'\n            \n            if [ \"${{ inputs.rollback_target }}\" = \"previous-version\" ]; then\n              # Get the second most recent (previous version)\n              ROLLBACK_TASK_DEF=$(echo \"$TASK_DEF_HISTORY\" | jq -r '.[1] // empty')\n              if [ -z \"$ROLLBACK_TASK_DEF\" ]; then\n                echo \"❌ No previous version found\"\n                exit 1\n              fi\n              echo \"⏮️ Using previous version: $ROLLBACK_TASK_DEF\"\n              \n            elif [ \"${{ inputs.rollback_target }}\" = \"last-known-good\" ]; then\n              # This is a simplified version - in a real scenario, you'd have metadata about known good versions\n              # For now, we'll use the 3rd most recent or fallback to previous\n              ROLLBACK_TASK_DEF=$(echo \"$TASK_DEF_HISTORY\" | jq -r '.[2] // .[1] // empty')\n              if [ -z \"$ROLLBACK_TASK_DEF\" ]; then\n                echo \"❌ No last known good version found\"\n                exit 1\n              fi\n              echo \"✅ Using last known good version: $ROLLBACK_TASK_DEF\"\n            fi\n          fi\n          \n          # Validate target task definition exists and is active\n          if ! aws ecs describe-task-definition \\\n            --task-definition \"$ROLLBACK_TASK_DEF\" \\\n            --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then\n            echo \"❌ Target task definition does not exist or is not accessible\"\n            exit 1\n          fi\n          \n          echo \"rollback_task_def=$ROLLBACK_TASK_DEF\" >> $GITHUB_OUTPUT\n          echo \"🎯 Rollback target confirmed: $ROLLBACK_TASK_DEF\"\n          \n          # Get task definition details\n          TASK_DEF_INFO=$(aws ecs describe-task-definition \\\n            --task-definition \"$ROLLBACK_TASK_DEF\" \\\n            --region ${{ env.AWS_REGION }} \\\n            --query 'taskDefinition.{Family:family,Revision:revision,CreatedAt:createdAt}' \\\n            --output json)\n          \n          echo \"📋 Rollback target details:\"\n          echo \"$TASK_DEF_INFO\" | jq .\n          \n      - name: Execute rollback\n        id: rollback\n        run: |\n          echo \"=== EXECUTING EMERGENCY ROLLBACK ===\"\n          echo \"🚨 Rolling back from: ${{ steps.assessment.outputs.current_task_def }}\"\n          echo \"🎯 Rolling back to: ${{ steps.rollback-target.outputs.rollback_task_def }}\"\n          \n          ROLLBACK_START=$(date +%s)\n          \n          # Execute the rollback\n          aws ecs update-service \\\n            --cluster ${{ env.ECS_CLUSTER }} \\\n            --service ${{ env.ECS_SERVICE }} \\\n            --task-definition ${{ steps.rollback-target.outputs.rollback_task_def }} \\\n            --region ${{ env.AWS_REGION }}\n          \n          echo \"✅ Rollback command executed at $(date)\"\n          \n          # Monitor rollback progress\n          echo \"⏳ Monitoring rollback progress...\"\n          TIMEOUT_SECONDS=${{ env.ROLLBACK_TIMEOUT }}\n          ELAPSED=0\n          LAST_STATUS=\"\"\n          \n          while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do\n            DEPLOYMENT_STATUS=$(aws ecs describe-services \\\n              --cluster ${{ env.ECS_CLUSTER }} \\\n              --services ${{ env.ECS_SERVICE }} \\\n              --region ${{ env.AWS_REGION }} \\\n              --query 'services[0].deployments[?status==`PRIMARY`] | [0].rolloutState' \\\n              --output text)\n            \n            RUNNING_COUNT=$(aws ecs describe-services \\\n              --cluster ${{ env.ECS_CLUSTER }} \\\n              --services ${{ env.ECS_SERVICE }} \\\n              --region ${{ env.AWS_REGION }} \\\n              --query 'services[0].runningCount' --output text)\n            \n            DESIRED_COUNT=$(aws ecs describe-services \\\n              --cluster ${{ env.ECS_CLUSTER }} \\\n              --services ${{ env.ECS_SERVICE }} \\\n              --region ${{ env.AWS_REGION }} \\\n              --query 'services[0].desiredCount' --output text)\n            \n            CURRENT_STATUS=\"$DEPLOYMENT_STATUS-$RUNNING_COUNT/$DESIRED_COUNT\"\n            if [ \"$CURRENT_STATUS\" != \"$LAST_STATUS\" ]; then\n              echo \"🔄 Rollback status: $DEPLOYMENT_STATUS | Tasks: $RUNNING_COUNT/$DESIRED_COUNT | Elapsed: ${ELAPSED}s\"\n              LAST_STATUS=\"$CURRENT_STATUS\"\n            fi\n            \n            if [ \"$DEPLOYMENT_STATUS\" = \"COMPLETED\" ]; then\n              echo \"✅ Rollback completed successfully at $(date)!\"\n              echo \"rollback_result=success\" >> $GITHUB_OUTPUT\n              break\n            elif [ \"$DEPLOYMENT_STATUS\" = \"FAILED\" ]; then\n              echo \"❌ Rollback failed at $(date)!\"\n              echo \"rollback_result=failed\" >> $GITHUB_OUTPUT\n              exit 1\n            fi\n            \n            sleep 15\n            ELAPSED=$(($(date +%s) - $ROLLBACK_START))\n          done\n          \n          if [ $ELAPSED -ge $TIMEOUT_SECONDS ]; then\n            echo \"⏰ Rollback timed out after $TIMEOUT_SECONDS seconds\"\n            echo \"rollback_result=timeout\" >> $GITHUB_OUTPUT\n            exit 1\n          fi\n          \n      - name: Post-rollback verification\n        if: steps.rollback.outputs.rollback_result == 'success'\n        run: |\n          echo \"=== POST-ROLLBACK VERIFICATION ===\"\n          \n          # Verify service health\n          FINAL_STATE=$(aws ecs describe-services \\\n            --cluster ${{ env.ECS_CLUSTER }} \\\n            --services ${{ env.ECS_SERVICE }} \\\n            --region ${{ env.AWS_REGION }} \\\n            --query 'services[0].{TaskDefinition:taskDefinition,Status:status,RunningCount:runningCount,DesiredCount:desiredCount}' \\\n            --output json)\n          \n          echo \"📊 Final service state after rollback:\"\n          echo \"$FINAL_STATE\" | jq .\n          \n          FINAL_TASK_DEF=$(echo \"$FINAL_STATE\" | jq -r '.TaskDefinition')\n          FINAL_STATUS=$(echo \"$FINAL_STATE\" | jq -r '.Status')\n          FINAL_RUNNING=$(echo \"$FINAL_STATE\" | jq -r '.RunningCount')\n          FINAL_DESIRED=$(echo \"$FINAL_STATE\" | jq -r '.DesiredCount')\n          \n          # Verify rollback target was applied\n          if [ \"$FINAL_TASK_DEF\" = \"${{ steps.rollback-target.outputs.rollback_task_def }}\" ]; then\n            echo \"✅ Correct task definition is now active\"\n          else\n            echo \"❌ Rollback may not have applied correctly\"\n            echo \"Expected: ${{ steps.rollback-target.outputs.rollback_task_def }}\"\n            echo \"Actual: $FINAL_TASK_DEF\"\n            exit 1\n          fi\n          \n          # Verify service health\n          if [ \"$FINAL_STATUS\" = \"ACTIVE\" ] && [ \"$FINAL_RUNNING\" = \"$FINAL_DESIRED\" ]; then\n            echo \"✅ Service is healthy after rollback\"\n            echo \"🎉 Emergency rollback completed successfully!\"\n          else\n            echo \"⚠️ Service may still have issues after rollback\"\n            exit 1\n          fi\n          \n          # Check for unhealthy tasks\n          UNHEALTHY_TASKS=$(aws ecs list-tasks \\\n            --cluster ${{ env.ECS_CLUSTER }} \\\n            --service-name ${{ env.ECS_SERVICE }} \\\n            --desired-status STOPPED \\\n            --region ${{ env.AWS_REGION }} \\\n            --query 'length(taskArns)')\n          \n          if [ \"$UNHEALTHY_TASKS\" -gt 0 ]; then\n            echo \"⚠️ Found $UNHEALTHY_TASKS recently stopped tasks, checking reasons...\"\n            aws ecs list-tasks \\\n              --cluster ${{ env.ECS_CLUSTER }} \\\n              --service-name ${{ env.ECS_SERVICE }} \\\n              --desired-status STOPPED \\\n              --region ${{ env.AWS_REGION }} \\\n              --query 'taskArns[:3]' \\\n              --output text | xargs -I {} aws ecs describe-tasks \\\n                --cluster ${{ env.ECS_CLUSTER }} \\\n                --tasks {} \\\n                --region ${{ env.AWS_REGION }} \\\n                --query 'tasks[0].{TaskArn:taskArn,StoppedReason:stoppedReason,LastStatus:lastStatus}' \\\n                --output table || true\n          else\n            echo \"✅ No recently failed tasks\"\n          fi\n          \n      - name: Generate rollback report\n        if: always()\n        run: |\n          echo \"=== GENERATING ROLLBACK REPORT ===\"\n          \n          REPORT_FILE=\"rollback-report-${{ inputs.environment }}-$(date +%Y%m%d-%H%M%S).json\"\n          \n          # Get final service state\n          FINAL_SERVICE_STATE=$(aws ecs describe-services \\\n            --cluster ${{ env.ECS_CLUSTER }} \\\n            --services ${{ env.ECS_SERVICE }} \\\n            --region ${{ env.AWS_REGION }} \\\n            --query 'services[0]' --output json)\n          \n          # Create comprehensive report\n          cat > \"$REPORT_FILE\" << EOF\n          {\n            \"rollback_session\": {\n              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\n              \"environment\": \"${{ inputs.environment }}\",\n              \"reason\": \"${{ inputs.reason }}\",\n              \"rollback_target\": \"${{ inputs.rollback_target }}\",\n              \"initiated_by\": \"${{ github.actor }}\",\n              \"workflow_run_id\": \"${{ github.run_id }}\"\n            },\n            \"before_rollback\": {\n              \"task_definition\": \"${{ steps.assessment.outputs.current_task_def }}\",\n              \"service_status\": \"${{ steps.assessment.outputs.service_status }}\",\n              \"running_count\": ${{ steps.assessment.outputs.running_count }},\n              \"desired_count\": ${{ steps.assessment.outputs.desired_count }}\n            },\n            \"rollback_target\": {\n              \"task_definition\": \"${{ steps.rollback-target.outputs.rollback_task_def }}\",\n              \"target_type\": \"${{ inputs.rollback_target }}\"\n            },\n            \"rollback_result\": {\n              \"status\": \"${{ steps.rollback.outputs.rollback_result }}\",\n              \"completed\": ${{ steps.rollback.outputs.rollback_result == 'success' }}\n            },\n            \"final_service_state\": $FINAL_SERVICE_STATE\n          }\n          EOF\n          \n          echo \"📄 Rollback report generated: $REPORT_FILE\"\n          cat \"$REPORT_FILE\" | jq .\n          \n      - name: Upload rollback report\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: rollback-report-${{ inputs.environment }}-${{ github.run_id }}\n          path: rollback-report-*.json\n          retention-days: 90  # Keep rollback reports longer\n          \n      - name: Emergency notification\n        if: always()\n        continue-on-error: true\n        run: |\n          # Determine notification urgency and content\n          if [ \"${{ steps.rollback.outputs.rollback_result }}\" = \"success\" ]; then\n            TITLE=\"✅ Emergency Rollback Successful\"\n            DESCRIPTION=\"Emergency rollback completed successfully\"\n            COLOR=\"3066993\"\n            URGENCY=\"SUCCESS\"\n          else\n            TITLE=\"❌ Emergency Rollback Failed\"\n            DESCRIPTION=\"Emergency rollback failed - manual intervention required\"\n            COLOR=\"15158332\"\n            URGENCY=\"CRITICAL\"\n          fi\n          \n          # Send urgent notification\n          if [ ! -z \"${{ secrets.DISCORD_WEBHOOK }}\" ]; then\n            curl -H \"Content-Type: application/json\" \\\n              -X POST \\\n              -d \"{\n                \\\"content\\\": \\\"@everyone URGENT: Emergency rollback in ${{ inputs.environment }}\\\",\n                \\\"embeds\\\": [{\n                  \\\"title\\\": \\\"$TITLE\\\",\n                  \\\"description\\\": \\\"$DESCRIPTION\\\",\n                  \\\"color\\\": $COLOR,\n                  \\\"fields\\\": [\n                    {\\\"name\\\": \\\"Environment\\\", \\\"value\\\": \\\"${{ inputs.environment }}\\\", \\\"inline\\\": true},\n                    {\\\"name\\\": \\\"Reason\\\", \\\"value\\\": \\\"${{ inputs.reason }}\\\", \\\"inline\\\": false},\n                    {\\\"name\\\": \\\"From\\\", \\\"value\\\": \\\"${{ steps.assessment.outputs.current_task_def }}\\\", \\\"inline\\\": false},\n                    {\\\"name\\\": \\\"To\\\", \\\"value\\\": \\\"${{ steps.rollback-target.outputs.rollback_task_def }}\\\", \\\"inline\\\": false},\n                    {\\\"name\\\": \\\"Initiated By\\\", \\\"value\\\": \\\"${{ github.actor }}\\\", \\\"inline\\\": true},\n                    {\\\"name\\\": \\\"Status\\\", \\\"value\\\": \\\"${{ steps.rollback.outputs.rollback_result }}\\\", \\\"inline\\\": true}\n                  ],\n                  \\\"timestamp\\\": \\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\"\n                }]\n              }\" \\\n              \"${{ secrets.DISCORD_WEBHOOK }}\"\n          fi\n          \n          # Log final status\n          echo \"🚨 EMERGENCY ROLLBACK COMPLETED\"\n          echo \"Status: ${{ steps.rollback.outputs.rollback_result }}\"\n          echo \"Environment: ${{ inputs.environment }}\"\n          echo \"Urgency: $URGENCY\"

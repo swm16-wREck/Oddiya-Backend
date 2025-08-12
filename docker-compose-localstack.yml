@@ -1,0 +1,162 @@
+version: '3.8'
+
+services:
+  localstack:
+    container_name: localstack-main
+    image: localstack/localstack:3.0
+    ports:
+      - "4566:4566"   # LocalStack Gateway
+      - "4510-4559:4510-4559"  # External services port range
+    environment:
+      # LocalStack configuration
+      - DEBUG=1
+      - PERSISTENCE=1
+      - LAMBDA_EXECUTOR=local
+      - LOCALSTACK_API_KEY=${LOCALSTACK_API_KEY:-}  # Optional Pro features
+      
+      # AWS Services Configuration
+      - SERVICES=dynamodb,s3,sqs,cloudwatch,lambda
+      - AWS_DEFAULT_REGION=ap-northeast-2
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      
+      # DynamoDB Configuration
+      - DYNAMODB_SHARE_DB=1
+      - DYNAMODB_IN_MEMORY=0
+      
+      # S3 Configuration  
+      - S3_SKIP_SIGNATURE_VALIDATION=1
+      - S3_SKIP_KMS_KEY_VALIDATION=1
+      
+      # SQS Configuration
+      - SQS_ENDPOINT_STRATEGY=standard
+      
+      # CloudWatch Configuration
+      - CLOUDWATCH_ENABLE_METRICS=1
+      
+      # Networking
+      - HOSTNAME_EXTERNAL=localstack
+      - HOSTNAME=localstack
+      
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./tmp/localstack:/var/lib/localstack"
+      - "./localstack-init:/etc/localstack/init/ready.d/"  # Initialization scripts
+    networks:
+      - oddiya-test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # PostgreSQL for JPA testing (when not using H2)
+  postgres:
+    image: postgres:15-alpine
+    container_name: oddiya-postgres-test
+    environment:
+      - POSTGRES_DB=oddiya_test
+      - POSTGRES_USER=oddiya_test
+      - POSTGRES_PASSWORD=test_password
+    ports:
+      - "5433:5432"  # Use different port to avoid conflicts
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./database/oddiya_database_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - oddiya-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oddiya_test -d oddiya_test"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis for caching tests (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: oddiya-redis-test
+    ports:
+      - "6380:6379"  # Use different port to avoid conflicts
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_test_data:/data
+    networks:
+      - oddiya-test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Test application instance (for integration testing)
+  oddiya-app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oddiya-app-test
+    depends_on:
+      localstack:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      # Spring profiles
+      - SPRING_PROFILES_ACTIVE=integration-test
+      
+      # Database configuration
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/oddiya_test
+      - SPRING_DATASOURCE_USERNAME=oddiya_test
+      - SPRING_DATASOURCE_PASSWORD=test_password
+      
+      # AWS LocalStack configuration
+      - AWS_REGION=ap-northeast-2
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      
+      # Application AWS configuration
+      - APP_AWS_DYNAMODB_ENABLED=true
+      - APP_AWS_DYNAMODB_ENDPOINT=http://localstack:4566
+      - APP_AWS_DYNAMODB_TABLE_PREFIX=test_oddiya_
+      
+      - APP_AWS_S3_ENABLED=true
+      - APP_AWS_S3_BUCKET=oddiya-test-bucket
+      - APP_AWS_S3_REGION=ap-northeast-2
+      
+      - APP_AWS_SQS_ENABLED=true
+      - APP_AWS_SQS_QUEUE_URL=http://localstack:4566/000000000000/oddiya-test-queue
+      
+      - APP_AWS_CLOUDWATCH_ENABLED=true
+      
+      # Redis configuration
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      
+      # JWT configuration
+      - JWT_SECRET=test-secret-key-for-integration-testing-must-be-at-least-256-bits-long
+      - JWT_EXPIRATION=3600000
+      
+      # Logging
+      - LOGGING_LEVEL_COM_ODDIYA=DEBUG
+      - LOGGING_LEVEL_SOFTWARE_AMAZON_AWSSDK=INFO
+      
+    ports:
+      - "8081:8080"  # Use different port for testing
+    networks:
+      - oddiya-test-network
+    profiles:
+      - integration-test  # Only start when explicitly requested
+
+volumes:
+  postgres_test_data:
+    driver: local
+  redis_test_data:
+    driver: local
+
+networks:
+  oddiya-test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

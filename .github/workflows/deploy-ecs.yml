@@ -5,7 +5,17 @@ on:
     branches:
       - main
       - develop
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  packages: write
+  pull-requests: write
+  issues: write
 
 env:
   AWS_REGION: ap-northeast-2
@@ -14,15 +24,71 @@ env:
   ECS_CLUSTER: oddiya-dev-cluster
   ECS_TASK_DEFINITION: oddiya-dev
   CONTAINER_NAME: oddiya
-  DEPLOYMENT_TIMEOUT: 1800  # 30 minutes in seconds
+  DEPLOYMENT_TIMEOUT: 1800
   HEALTH_CHECK_RETRIES: 15
   ROLLBACK_ENABLED: true
 
 jobs:
-  deploy:
-    name: Deploy
+  # ==========================================
+  # Test & Code Quality
+  # ==========================================
+  test:
+    name: Test & Code Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Extended timeout for resilient deployments
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # For SonarCloud
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+      - name: Code Coverage
+        if: github.event_name == 'pull_request'
+        run: ./gradlew jacocoTestReport
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: build/test-results/test/
+
+  # ==========================================
+  # Build & Deploy to ECS
+  # ==========================================
+  deploy:
+    name: Build & Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+
+    outputs:
+      deployment-status: ${{ steps.deploy.outputs.deployment_status }}
+      task-definition: ${{ steps.register.outputs.task_definition_arn }}
 
     steps:
       - name: Checkout
@@ -45,33 +111,34 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Build with Gradle
+      - name: Build application
         run: |
           chmod +x gradlew
           ./gradlew clean build -x test
-          
-      - name: Build, tag, and push image to Amazon ECR
+
+      - name: Build, tag, and push Docker image
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Build a docker container and push it to ECR
+          # Build and push with commit SHA
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
           
           # Also tag as latest
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Download current task definition
+      - name: Download task definition
         run: |
           aws ecs describe-task-definition \
             --task-definition ${{ env.ECS_TASK_DEFINITION }} \
             --query taskDefinition > task-definition.json
 
-      - name: Fill in the new image ID in the Amazon ECS task definition
+      - name: Update task definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -79,37 +146,22 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
 
-      # Pre-deployment health check
-      - name: Pre-deployment health check
-        id: pre-check
+      - name: Register task definition
+        id: register
         run: |
-          echo "=== PRE-DEPLOYMENT HEALTH CHECK ==="
-          
-          # Check if cluster and service exist
-          if ! aws ecs describe-clusters --clusters ${{ env.ECS_CLUSTER }} --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
-            echo "❌ ECS cluster ${{ env.ECS_CLUSTER }} not found"
-            exit 1
-          fi
-          echo "✅ ECS cluster exists"
-          
-          if ! aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }} --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
-            echo "❌ ECS service ${{ env.ECS_SERVICE }} not found"
-            exit 1
-          fi
-          echo "✅ ECS service exists"
-          
-          # Check current service health
-          CURRENT_STATUS=$(aws ecs describe-services \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }} \
+          TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
             --region ${{ env.AWS_REGION }} \
-            --query 'services[0].status' --output text)
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
           
-          if [ "$CURRENT_STATUS" != "ACTIVE" ]; then
-            echo "⚠️ Service status is $CURRENT_STATUS, proceeding with caution"
-          else
-            echo "✅ Service is ACTIVE"
-          fi
+          echo "task_definition_arn=$TASK_DEFINITION_ARN" >> $GITHUB_OUTPUT
+          echo "📝 Registered task definition: $TASK_DEFINITION_ARN"
+
+      - name: Deploy to ECS
+        id: deploy
+        run: |
+          echo "🚀 Starting deployment..."
           
           # Store current task definition for rollback
           CURRENT_TASK_DEF=$(aws ecs describe-services \
@@ -118,49 +170,18 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --query 'services[0].taskDefinition' --output text)
           echo "current_task_def=$CURRENT_TASK_DEF" >> $GITHUB_OUTPUT
-          echo "📝 Current task definition: $CURRENT_TASK_DEF"
           
-      - name: Deploy Amazon ECS task definition with monitoring
-        id: deploy
-        run: |
-          echo "=== STARTING DEPLOYMENT ==="
-          
-          # Deploy with timeout and monitoring
-          DEPLOY_START_TIME=$(date +%s)
-          echo "🚀 Starting deployment at $(date)"
-          
-          # First register the task definition
-          TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
-            --region ${{ env.AWS_REGION }} \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-          
-          echo "📝 Registered task definition: $TASK_DEFINITION_ARN"
-          
-          # Update service with new task definition ARN
+          # Update service
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
-            --task-definition $TASK_DEFINITION_ARN \
+            --task-definition ${{ steps.register.outputs.task_definition_arn }} \
             --region ${{ env.AWS_REGION }}
           
-          echo "✅ Service update initiated"
-          
-          # Monitor deployment progress
-          DEPLOYMENT_ID=$(aws ecs describe-services \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }} \
-            --region ${{ env.AWS_REGION }} \
-            --query 'services[0].deployments[?status==`PRIMARY`].id' \
-            --output text)
-          
-          echo "📊 Monitoring deployment: $DEPLOYMENT_ID"
-          
-          # Wait for deployment with progress monitoring
+          # Monitor deployment
+          DEPLOY_START_TIME=$(date +%s)
           TIMEOUT_SECONDS=${{ env.DEPLOYMENT_TIMEOUT }}
           ELAPSED=0
-          LAST_STATUS=""
           
           while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do
             DEPLOYMENT_STATUS=$(aws ecs describe-services \
@@ -170,23 +191,6 @@ jobs:
               --query 'services[0].deployments[?status==`PRIMARY`] | [0].rolloutState' \
               --output text)
             
-            RUNNING_COUNT=$(aws ecs describe-services \
-              --cluster ${{ env.ECS_CLUSTER }} \
-              --services ${{ env.ECS_SERVICE }} \
-              --region ${{ env.AWS_REGION }} \
-              --query 'services[0].runningCount' --output text)
-            
-            DESIRED_COUNT=$(aws ecs describe-services \
-              --cluster ${{ env.ECS_CLUSTER }} \
-              --services ${{ env.ECS_SERVICE }} \
-              --region ${{ env.AWS_REGION }} \
-              --query 'services[0].desiredCount' --output text)
-            
-            if [ "$DEPLOYMENT_STATUS" != "$LAST_STATUS" ]; then
-              echo "🔄 Deployment status: $DEPLOYMENT_STATUS (Running: $RUNNING_COUNT/$DESIRED_COUNT) - $(date)"
-              LAST_STATUS="$DEPLOYMENT_STATUS"
-            fi
-            
             if [ "$DEPLOYMENT_STATUS" = "COMPLETED" ]; then
               echo "✅ Deployment completed successfully!"
               echo "deployment_status=success" >> $GITHUB_OUTPUT
@@ -194,15 +198,6 @@ jobs:
             elif [ "$DEPLOYMENT_STATUS" = "FAILED" ]; then
               echo "❌ Deployment failed!"
               echo "deployment_status=failed" >> $GITHUB_OUTPUT
-              
-              # Get failure details
-              aws ecs describe-services \
-                --cluster ${{ env.ECS_CLUSTER }} \
-                --services ${{ env.ECS_SERVICE }} \
-                --region ${{ env.AWS_REGION }} \
-                --query 'services[0].events[:5].[createdAt,message]' \
-                --output table
-              
               exit 1
             fi
             
@@ -211,104 +206,109 @@ jobs:
           done
           
           if [ $ELAPSED -ge $TIMEOUT_SECONDS ]; then
-            echo "⏰ Deployment timed out after $TIMEOUT_SECONDS seconds"
+            echo "⏰ Deployment timed out"
             echo "deployment_status=timeout" >> $GITHUB_OUTPUT
-            
-            # Check if we should rollback
-            if [ "${{ env.ROLLBACK_ENABLED }}" = "true" ]; then
-              echo "🔄 Rollback is enabled, will attempt rollback"
-            fi
-            
             exit 1
           fi
-          
-      - name: Rollback on failure
-        if: failure() && env.ROLLBACK_ENABLED == 'true' && steps.pre-check.outputs.current_task_def != ''
+
+      - name: Verify deployment health
+        if: success()
         run: |
-          echo "=== INITIATING ROLLBACK ==="
-          echo "🔄 Rolling back to previous task definition: ${{ steps.pre-check.outputs.current_task_def }}"
+          echo "🏥 Verifying deployment health..."
           
+          # Wait for tasks to stabilize
+          sleep 60
+          
+          # Check running tasks
+          RUNNING_COUNT=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].runningCount' --output text)
+          
+          DESIRED_COUNT=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].desiredCount' --output text)
+          
+          if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ]; then
+            echo "✅ All tasks are running ($RUNNING_COUNT/$DESIRED_COUNT)"
+          else
+            echo "⚠️ Task count mismatch: $RUNNING_COUNT/$DESIRED_COUNT"
+            exit 1
+          fi
+
+      - name: Rollback on failure
+        if: failure() && env.ROLLBACK_ENABLED == 'true' && steps.deploy.outputs.current_task_def != ''
+        run: |
+          echo "🔄 Rolling back to previous version..."
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
-            --task-definition ${{ steps.pre-check.outputs.current_task_def }} \
+            --task-definition ${{ steps.deploy.outputs.current_task_def }} \
             --region ${{ env.AWS_REGION }}
-          
-          echo "⚠️ Rollback initiated. Waiting for service to stabilize..."
-          
-          # Wait for rollback to complete (shorter timeout)
-          timeout 900 aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }} \
-            --region ${{ env.AWS_REGION }} || true
-          
-          echo "🔙 Rollback attempt completed"
-          
-      - name: Post-deployment verification
-        if: success()
+          echo "🔙 Rollback initiated"
+
+  # ==========================================
+  # Post-Deployment Monitoring
+  # ==========================================
+  monitor:
+    name: Post-Deployment Monitoring
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: needs.deploy.outputs.deployment-status == 'success'
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Monitor application health
         run: |
-          echo "=== POST-DEPLOYMENT VERIFICATION ==="
+          echo "📊 Monitoring application health for 5 minutes..."
           
-          # Verify service status
-          SERVICE_INFO=$(aws ecs describe-services \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }} \
-            --region ${{ env.AWS_REGION }} \
-            --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount,TaskDefinition:taskDefinition}' \
-            --output json)
+          END_TIME=$(($(date +%s) + 300))
+          CHECKS=0
+          FAILURES=0
           
-          echo "📊 Final service status:"
-          echo "$SERVICE_INFO" | jq .
-          
-          # Health check with retries
-          echo "🏥 Performing health checks..."
-          
-          # Get service endpoint (if available)
-          LOAD_BALANCER=$(aws ecs describe-services \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }} \
-            --region ${{ env.AWS_REGION }} \
-            --query 'services[0].loadBalancers[0].targetGroupArn' \
-            --output text)
-          
-          if [ "$LOAD_BALANCER" != "None" ] && [ "$LOAD_BALANCER" != "null" ]; then
-            echo "🔍 Found load balancer, checking health..."
-            
-            # Get target group health
-            TARGET_GROUP_ARN="$LOAD_BALANCER"
-            aws elbv2 describe-target-health \
-              --target-group-arn "$TARGET_GROUP_ARN" \
-              --region ${{ env.AWS_REGION }} || echo "⚠️ Could not check target health"
-          else
-            echo "ℹ️ No load balancer configured, skipping health check"
-          fi
-          
-          # Verify tasks are healthy
-          UNHEALTHY_TASKS=$(aws ecs list-tasks \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service-name ${{ env.ECS_SERVICE }} \
-            --desired-status STOPPED \
-            --region ${{ env.AWS_REGION }} \
-            --query 'length(taskArns)')
-          
-          if [ "$UNHEALTHY_TASKS" -gt 0 ]; then
-            echo "⚠️ Found $UNHEALTHY_TASKS recently stopped tasks"
-            
-            # Show recent task failures
-            aws ecs list-tasks \
+          while [ $(date +%s) -lt $END_TIME ]; do
+            # Check ECS service health
+            RUNNING=$(aws ecs describe-services \
               --cluster ${{ env.ECS_CLUSTER }} \
-              --service-name ${{ env.ECS_SERVICE }} \
-              --desired-status STOPPED \
+              --services ${{ env.ECS_SERVICE }} \
               --region ${{ env.AWS_REGION }} \
-              --query 'taskArns[:3]' \
-              --output text | xargs -I {} aws ecs describe-tasks \
-                --cluster ${{ env.ECS_CLUSTER }} \
-                --tasks {} \
-                --region ${{ env.AWS_REGION }} \
-                --query 'tasks[0].{TaskArn:taskArn,StoppedAt:stoppedAt,StoppedReason:stoppedReason}' \
-                --output table || true
-          else
-            echo "✅ No recently failed tasks"
-          fi
+              --query 'services[0].runningCount' --output text)
+            
+            if [ "$RUNNING" -lt "1" ]; then
+              FAILURES=$((FAILURES + 1))
+              echo "⚠️ Warning: No running tasks detected"
+            fi
+            
+            CHECKS=$((CHECKS + 1))
+            
+            # Alert if failure rate is high
+            if [ $FAILURES -gt 3 ]; then
+              echo "🚨 High failure rate detected!"
+              exit 1
+            fi
+            
+            sleep 60
+          done
           
-          echo "🎉 Deployment verification completed!"
+          echo "✅ Post-deployment monitoring completed"
+          echo "📊 Health check summary: $((CHECKS - FAILURES))/$CHECKS successful"
+
+      - name: Create deployment summary
+        if: always()
+        run: |
+          echo "## 📋 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cluster**: ${{ env.ECS_CLUSTER }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Service**: ${{ env.ECS_SERVICE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Task Definition**: ${{ needs.deploy.outputs.task-definition }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ needs.deploy.outputs.deployment-status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date)" >> $GITHUB_STEP_SUMMARY

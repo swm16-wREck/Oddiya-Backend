@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -43,4 +44,27 @@ public abstract class BaseEntity {
     
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        BaseEntity that = (BaseEntity) obj;
+        return id != null && id.equals(that.id);
+    }
+    
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
+    }
+    
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{" +
+                "id='" + id + '\'' +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                ", version=" + version +
+                '}';
+    }
 }

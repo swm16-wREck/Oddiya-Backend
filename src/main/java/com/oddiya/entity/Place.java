@@ -2,6 +2,7 @@ package com.oddiya.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,7 +17,7 @@ import java.util.Map;
 })
 @Getter
 @Setter
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class Place extends BaseEntity {
@@ -55,36 +56,45 @@ public class Place extends BaseEntity {
     @CollectionTable(name = "place_opening_hours", joinColumns = @JoinColumn(name = "place_id"))
     @MapKeyColumn(name = "day_of_week")
     @Column(name = "hours")
+    @Builder.Default
     private Map<String, String> openingHours = new HashMap<>();
     
     @ElementCollection
     @CollectionTable(name = "place_images", joinColumns = @JoinColumn(name = "place_id"))
     @Column(name = "image_url")
+    @Builder.Default
     private List<String> images = new ArrayList<>();
     
     @ElementCollection
     @CollectionTable(name = "place_tags", joinColumns = @JoinColumn(name = "place_id"))
     @Column(name = "tag")
+    @Builder.Default
     private List<String> tags = new ArrayList<>();
     
     @OneToMany(mappedBy = "place", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<Review> reviews = new ArrayList<>();
     
     @OneToMany(mappedBy = "place")
+    @Builder.Default
     private List<ItineraryItem> itineraryItems = new ArrayList<>();
     
     @Column
     private Double rating;
     
     @Column(name = "review_count")
+    @Builder.Default
     private Integer reviewCount = 0;
     
     @Column(name = "bookmark_count")
+    @Builder.Default
     private Integer bookmarkCount = 0;
     
     @Column(name = "is_verified")
+    @Builder.Default
     private boolean isVerified = false;
     
     @Column(name = "popularity_score")
+    @Builder.Default
     private Double popularityScore = 0.0;
 }

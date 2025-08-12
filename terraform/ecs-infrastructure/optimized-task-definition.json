@@ -1,0 +1,50 @@
+{
+  "family": "oddiya-dev-optimized",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/oddiya-ecs-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/oddiya-ecs-task-role",
+  "containerDefinitions": [
+    {
+      "name": "oddiya",
+      "image": "ACCOUNT_ID.dkr.ecr.ap-northeast-2.amazonaws.com/oddiya:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "prod"
+        },
+        {
+          "name": "JAVA_OPTS",
+          "value": "-Xms1024m -Xmx1536m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/oddiya-dev",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8080/actuator/health || exit 1"
+        ],
+        "interval": 60,
+        "timeout": 15,
+        "retries": 5,
+        "startPeriod": 180
+      }
+    }
+  ]
+}

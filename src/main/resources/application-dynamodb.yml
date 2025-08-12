@@ -36,32 +36,69 @@ spring:
     type: ${CACHE_TYPE:none}
 
 # AWS DynamoDB Configuration
+# AWS DynamoDB Configuration
 app:
   aws:
     region: ${AWS_REGION:ap-northeast-2}
     access-key: ${AWS_ACCESS_KEY_ID:}
     secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    
+    # Mock disabled for DynamoDB profile
+    mock:
+      enabled: false
+    
+    # DynamoDB Configuration
     dynamodb:
+      enabled: true
       endpoint: ${DYNAMODB_ENDPOINT:}
       table-prefix: ${DYNAMODB_TABLE_PREFIX:oddiya_}
       read-capacity: ${DYNAMODB_READ_CAPACITY:5}
       write-capacity: ${DYNAMODB_WRITE_CAPACITY:5}
       billing-mode: ${DYNAMODB_BILLING_MODE:PAY_PER_REQUEST}
+      create-tables-on-startup: ${DYNAMODB_CREATE_TABLES:true}
   
-  # S3 for file storage
-  s3:
-    bucket: ${S3_BUCKET:oddiya-media}
-    region: ${AWS_REGION:ap-northeast-2}
-    
-  # SQS for message queuing
-  sqs:
-    queue-url: ${SQS_QUEUE_URL:}
-    
-  # CloudWatch for monitoring
-  cloudwatch:
-    enabled: ${CLOUDWATCH_ENABLED:true}
-    namespace: Oddiya-DynamoDB
-    region: ${AWS_REGION:ap-northeast-2}
+    # S3 for file storage
+    s3:
+      enabled: ${AWS_S3_ENABLED:true}
+      bucket: ${S3_BUCKET:oddiya-media}
+      region: ${AWS_REGION:ap-northeast-2}
+      create-bucket-on-startup: ${S3_CREATE_BUCKET:true}
+      
+    # SQS for message queuing
+    sqs:
+      enabled: ${AWS_SQS_ENABLED:true}
+      queue-url: ${SQS_QUEUE_URL:}
+      create-queues-on-startup: ${SQS_CREATE_QUEUES:true}
+      
+    # CloudWatch for monitoring
+    cloudwatch:
+      enabled: ${CLOUDWATCH_ENABLED:true}
+      namespace: Oddiya-DynamoDB
+      region: ${AWS_REGION:ap-northeast-2}
+      enable-detailed-metrics: true
+      
+    # AWS Health Check Configuration
+    health:
+      enabled: true
+      global-timeout-seconds: 10
+      cache-interval-seconds: 30
+      detailed-error-reporting: true
+      
+      dynamodb:
+        enabled: true
+        timeout-seconds: 5
+        test-table-access: true
+        test-permissions: true
+        
+      s3:
+        enabled: true
+        timeout-seconds: 5
+        test-bucket-access: true
+        
+      sqs:
+        enabled: true
+        timeout-seconds: 10
+        test-queue-access: true
 
 # Actuator endpoints
 management:

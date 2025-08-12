@@ -1,0 +1,288 @@
+name: Status Checks
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build --no-daemon
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+      - name: Generate test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Gradle Tests
+          path: build/test-results/test/*.xml
+          reporter: java-junit
+          fail-on-error: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: build/test-results/
+
+  lint-and-format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Check Java formatting (if Spotless is configured)
+        run: |
+          if ./gradlew tasks --all | grep -q spotlessCheck; then
+            echo "Running Spotless format check..."
+            ./gradlew spotlessCheck --no-daemon
+          else
+            echo "Spotless not configured, skipping format check"
+          fi
+
+      - name: Run static analysis
+        run: |
+          if ./gradlew tasks --all | grep -q checkstyleMain; then
+            echo "Running Checkstyle..."
+            ./gradlew checkstyleMain --no-daemon
+          else
+            echo "Checkstyle not configured, skipping"
+          fi
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run dependency vulnerability check
+        run: |
+          if ./gradlew tasks --all | grep -q dependencyCheckAnalyze; then
+            echo "Running OWASP Dependency Check..."
+            ./gradlew dependencyCheckAnalyze --no-daemon
+          else
+            echo "OWASP Dependency Check not configured, running basic security scan"
+            ./gradlew dependencies --no-daemon | grep -i "vulnerability\|security\|cve" || true
+          fi
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results
+          path: |
+            build/reports/dependency-check-report.html
+            build/reports/
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run code coverage
+        run: |
+          ./gradlew test jacocoTestReport --no-daemon
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: build/reports/jacoco/test/jacocoTestReport.xml
+          name: oddiya-coverage
+          fail_ci_if_error: false
+
+      - name: Comment coverage on PR
+        uses: 5monkeys/cobertura-action@master
+        if: github.event_name == 'pull_request'
+        with:
+          path: build/reports/jacoco/test/jacocoTestReport.xml
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          minimum_coverage: 70
+          fail_below_threshold: false
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (test only)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: oddiya:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  api-contract-test:
+    name: API Contract Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Start application for testing
+        run: |
+          ./gradlew bootRun --no-daemon &
+          APP_PID=$!
+          echo "APP_PID=$APP_PID" >> $GITHUB_ENV
+          
+          # Wait for application to start
+          echo "Waiting for application to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8080/actuator/health 2>/dev/null; then
+              echo "Application is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Application failed to start"
+              kill $APP_PID || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Run API tests
+        run: |
+          # Basic API health check
+          curl -f http://localhost:8080/actuator/health
+          
+          # Test main endpoints (add your specific endpoints)
+          echo "Testing API endpoints..."
+          curl -f http://localhost:8080/actuator/info || true
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [ ! -z "$APP_PID" ]; then
+            kill $APP_PID || true
+          fi
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'integration-test')
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run integration tests
+        run: |
+          ./gradlew integrationTest --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: testpass

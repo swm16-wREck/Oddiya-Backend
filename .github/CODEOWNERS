@@ -1,0 +1,47 @@
+# CODEOWNERS file for Oddiya project
+# This file defines code ownership for automatic review requests
+
+# Global ownership
+* @wjs
+
+# Infrastructure and deployment
+terraform/ @wjs
+.github/ @wjs
+scripts/ @wjs
+Dockerfile @wjs
+docker-compose*.yml @wjs
+
+# Configuration files
+*.yml @wjs
+*.yaml @wjs
+*.json @wjs
+*.properties @wjs
+*.gradle @wjs
+gradle.properties @wjs
+gradlew* @wjs
+
+# Security sensitive files
+src/main/java/**/security/ @wjs
+src/main/java/**/auth/ @wjs
+src/main/java/**/config/SecurityConfig.java @wjs
+
+# Database related
+src/main/java/**/entity/ @wjs
+src/main/java/**/repository/ @wjs
+src/main/resources/db/ @wjs
+src/main/resources/application*.yml @wjs
+
+# API controllers and services
+src/main/java/**/controller/ @wjs
+src/main/java/**/service/ @wjs
+src/main/java/**/dto/ @wjs
+
+# Documentation
+README* @wjs
+docs/ @wjs
+*.md @wjs
+
+# Root configuration files
+build.gradle @wjs
+settings.gradle @wjs
+.gitignore @wjs
