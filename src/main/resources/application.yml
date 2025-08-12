@@ -495,19 +495,14 @@ spring:
     
   cache:
     type: none
-    
-app:
-  aws:
-    mock:
-      enabled: true
-    s3:
-      enabled: false
-    dynamodb:
-      enabled: false
-    sqs:
-      enabled: false
-    cloudwatch:
-      enabled: false
+
+# Test profile specific app configuration
+# Merged into the main app section by Spring Boot
+app.aws.mock.enabled: true
+app.aws.s3.enabled: false
+app.aws.dynamodb.enabled: false
+app.aws.sqs.enabled: false
+app.aws.cloudwatch.enabled: false
     
 logging:
   level:
@@ -524,19 +519,14 @@ logging:
   level:
     root: INFO
     com.oddiya: DEBUG
-    
-app:
-  aws:
-    mock:
-      enabled: false
-    s3:
-      enabled: false
-    dynamodb:
-      enabled: false
-    sqs:
-      enabled: false
-    cloudwatch:
-      enabled: false
+
+# Local profile specific app configuration
+# Using flat property syntax to avoid duplicate app key
+app.aws.mock.enabled: false
+app.aws.s3.enabled: false
+app.aws.dynamodb.enabled: false
+app.aws.sqs.enabled: false
+app.aws.cloudwatch.enabled: false
 
 ---
 spring:
@@ -551,97 +541,60 @@ logging:
     com.amazonaws: INFO
     software.amazon.awssdk: INFO
 
-app:
-  aws:
-    # Enable AWS services in production
-    s3:
-      enabled: true
-      create-bucket-on-startup: true
-      cors:
-        enabled: true
-      lifecycle:
-        enabled: true
-    
-    dynamodb:
-      enabled: true
-      create-tables-on-startup: true
-    
-    sqs:
-      enabled: true
-      create-queues-on-startup: true
-    
-    cloudwatch:
-      enabled: true
-      enable-detailed-metrics: true
-      enable-custom-dashboard: true
-      enable-alarms: true
-      
-    mock:
-      enabled: false
-    
-    # AWS Health Check Configuration
-    health:
-      enabled: true
-      global-timeout-seconds: 10
-      cache-interval-seconds: 30
-      detailed-error-reporting: true
-      
-      dynamodb:
-        enabled: true
-        timeout-seconds: 5
-        test-table-access: true
-        test-permissions: true
-        max-tables-check: 5
-        
-      s3:
-        enabled: true
-        timeout-seconds: 5
-        test-bucket-access: true
-        test-presigned-urls: true
-        check-configuration: true
-        check-cors-configuration: true
-        
-      sqs:
-        enabled: true
-        timeout-seconds: 10
-        test-queue-access: true
-        monitor-queue-depth: true
-        check-dead-letter-queue: true
-        queue-depth-warning-threshold: 100
-        queue-depth-alert-threshold: 1000
-        
-      cloudwatch:
-        enabled: true
-        timeout-seconds: 10
-        test-metric-publishing: true
-        check-alarms: true
-        check-dashboards: true
-        max-alarms-check: 100
-    
-    # AWS Info Contributor Configuration  
-    info:
-      enabled: true
+# AWS profile specific app configuration
+# Using flat property syntax to avoid duplicate app key
+app.aws.s3.enabled: true
+app.aws.s3.create-bucket-on-startup: true
+app.aws.s3.cors.enabled: true
+app.aws.s3.lifecycle.enabled: true
+app.aws.dynamodb.enabled: true
+app.aws.dynamodb.create-tables-on-startup: true
+app.aws.sqs.enabled: true
+app.aws.sqs.create-queues-on-startup: true
+app.aws.cloudwatch.enabled: true
+app.aws.cloudwatch.enable-detailed-metrics: true
+app.aws.cloudwatch.enable-custom-dashboard: true
+app.aws.cloudwatch.enable-alarms: true
+app.aws.mock.enabled: false
+# AWS Health Check Configuration  
+app.aws.health.enabled: true
+app.aws.health.global-timeout-seconds: 10
+app.aws.health.cache-interval-seconds: 30
+app.aws.health.detailed-error-reporting: true
+app.aws.health.dynamodb.enabled: true
+app.aws.health.dynamodb.timeout-seconds: 5
+app.aws.health.dynamodb.test-table-access: true
+app.aws.health.dynamodb.test-permissions: true
+app.aws.health.dynamodb.max-tables-check: 5
+app.aws.health.s3.enabled: true
+app.aws.health.s3.timeout-seconds: 5
+app.aws.health.s3.test-bucket-access: true
+app.aws.health.s3.test-presigned-urls: true
+app.aws.health.s3.check-configuration: true
+app.aws.health.s3.check-cors-configuration: true
+app.aws.health.sqs.enabled: true
+app.aws.health.sqs.timeout-seconds: 10
+app.aws.health.sqs.test-queue-access: true
+app.aws.health.sqs.monitor-queue-depth: true
+app.aws.health.sqs.check-dead-letter-queue: true
+app.aws.health.sqs.queue-depth-warning-threshold: 100
+app.aws.health.sqs.queue-depth-alert-threshold: 1000
+app.aws.health.cloudwatch.enabled: true
+app.aws.health.cloudwatch.timeout-seconds: 10
+app.aws.health.cloudwatch.test-metric-publishing: true
+app.aws.health.cloudwatch.check-alarms: true
+app.aws.health.cloudwatch.check-dashboards: true
+app.aws.health.cloudwatch.max-alarms-check: 100
+app.aws.info.enabled: true
 
-  # Enable comprehensive monitoring in AWS profile
-  tracing:
-    xray:
-      enabled: true
-  
-  alerting:
-    enabled: true
-    sns:
-      enabled: true
-      
-  monitoring:
-    dashboards:
-      enabled: true
-      cloudwatch:
-        enabled: true
-  
-  cost-monitoring:
-    enabled: true
-    aws:
-      enabled: true
+# Enable comprehensive monitoring in AWS profile
+app.tracing.xray.enabled: true
+app.alerting.enabled: true
+app.alerting.sns.enabled: true
+app.monitoring.dashboards.enabled: true
+app.monitoring.dashboards.cloudwatch.enabled: true
+app.cost-monitoring.enabled: true
+app.cost-monitoring.aws.enabled: true
 
 management:
   metrics:

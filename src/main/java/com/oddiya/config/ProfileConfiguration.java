@@ -139,10 +139,12 @@ public class ProfileConfiguration {
             return DataSourceType.DUMMY_H2; // DynamoDB uses dummy H2 to avoid conflicts
         } else if (isTestProfile()) {
             return DataSourceType.H2_MEMORY;
-        } else if (isLocalProfile() && !isDockerProfile()) {
-            return DataSourceType.POSTGRESQL_LOCAL;
         } else if (isDockerProfile()) {
-            return DataSourceType.POSTGRESQL_DOCKER;
+            return DataSourceType.H2_MEMORY; // Docker uses H2 for simplicity
+        } else if (isLocalProfile()) {
+            return DataSourceType.POSTGRESQL_LOCAL;
+        } else if (isAwsProfile()) {
+            return DataSourceType.POSTGRESQL_AWS;
         } else {
             return DataSourceType.POSTGRESQL_LOCAL;
         }

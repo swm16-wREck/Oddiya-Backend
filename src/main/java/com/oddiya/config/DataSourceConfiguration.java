@@ -113,9 +113,19 @@ public class DataSourceConfiguration {
     }
     
     private void configureH2MemoryDataSource(HikariConfig config) {
-        config.setJdbcUrl("jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL");
-        config.setUsername("sa");
-        config.setPassword("");
+        // Get H2 URL from configuration, with appropriate default based on profile
+        String activeProfile = environment.getProperty("spring.profiles.active", "");
+        String defaultUrl = activeProfile.contains("docker") 
+            ? "jdbc:h2:mem:dockerdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE"
+            : "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL";
+        
+        String url = environment.getProperty("spring.datasource.url", defaultUrl);
+        String username = environment.getProperty("spring.datasource.username", "sa");
+        String password = environment.getProperty("spring.datasource.password", "");
+        
+        config.setJdbcUrl(url);
+        config.setUsername(username);
+        config.setPassword(password);
         config.setDriverClassName("org.h2.Driver");
         
         // H2 specific optimizations
