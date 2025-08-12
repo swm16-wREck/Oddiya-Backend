@@ -18,6 +18,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import org.springframework.test.web.servlet.ResultMatcher;
+
 /**
  * Comprehensive Security Test Suite for Oddiya
  * 
@@ -114,7 +116,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
             for (String endpoint : adminEndpoints) {
                 mockMvc.perform(get(endpoint)
                         .with(jwt().jwt(jwt -> jwt.subject("user1"))))
-                        .andExpect(anyOf(
+                        .andExpect(ResultMatcher.anyOf(
                             status().isForbidden(),
                             status().isNotFound() // Admin endpoints might not exist
                         ));
@@ -131,7 +133,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
                     .with(jwt().jwt(jwt -> jwt
                         .subject(TEST_USER_ID)
                         .claim("roles", "USER"))))
-                    .andExpect(anyOf(status().isOk(), status().isNotFound()));
+                    .andExpect(ResultMatcher.anyOf(status().isOk(), status().isNotFound()));
 
             // ADMIN role should access admin endpoints (if they exist)
             mockMvc.perform(get("/api/v1/admin/health")

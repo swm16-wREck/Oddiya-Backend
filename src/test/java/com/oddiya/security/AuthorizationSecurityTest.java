@@ -398,7 +398,7 @@ public class AuthorizationSecurityTest {
             // Test travel plan access
             mockMvc.perform(get("/api/v1/travel-plans/" + id)
                     .contentType(MediaType.APPLICATION_JSON))
-                    .andExpected(result -> {
+                    .andDo(result -> {
                         int status = result.getResponse().getStatus();
                         // Should only allow access to user's own resources
                         assert status == 403 || status == 404 || status == 400 :
@@ -409,7 +409,7 @@ public class AuthorizationSecurityTest {
             // Test user profile access  
             mockMvc.perform(get("/api/v1/users/" + id)
                     .contentType(MediaType.APPLICATION_JSON))
-                    .andExpected(result -> {
+                    .andDo(result -> {
                         int status = result.getResponse().getStatus();
                         assert status == 403 || status == 404 || status == 400 :
                                "IDOR vulnerability - unauthorized user access for ID: " + id;
@@ -439,7 +439,7 @@ public class AuthorizationSecurityTest {
         for (String endpoint : adminEndpoints) {
             mockMvc.perform(get(endpoint)
                     .contentType(MediaType.APPLICATION_JSON))
-                    .andExpected(result -> {
+                    .andDo(result -> {
                         int status = result.getResponse().getStatus();
                         // Should deny access to admin functions for regular users
                         assert status == 403 || status == 404 :
@@ -468,7 +468,7 @@ public class AuthorizationSecurityTest {
                 .header("X-Forwarded-For", "192.168.1.100")
                 .header("CF-IPCountry", "XX") // Unknown country
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpected(result -> {
+                .andDo(result -> {
                     // Should either allow or provide additional security checks
                     int status = result.getResponse().getStatus();
                     assert status == 200 || status == 429 || status == 403 :
@@ -487,7 +487,7 @@ public class AuthorizationSecurityTest {
                 .header("CF-IPCountry", "KR")
                 .header("X-Session-ID", "session2")
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpected(result -> {
+                .andDo(result -> {
                     // Should detect potential concurrent sessions and handle appropriately
                     System.out.println("RECOMMENDATION: Monitor for concurrent sessions from different locations");
                 });

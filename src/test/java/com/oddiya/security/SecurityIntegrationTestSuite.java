@@ -95,7 +95,7 @@ class SecurityIntegrationTestSuite {
             
             // Test anonymization
             String email = "test@example.com";
-            String anonymized = dataProtectionService.anonymizePersonalData(email);
+            String anonymized = dataProtectionService.anonymizePII(email);
             assertThat(anonymized).as("Email should be anonymized").isNotEqualTo(email);
         }
 
