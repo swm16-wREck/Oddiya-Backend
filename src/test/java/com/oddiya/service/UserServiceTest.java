@@ -525,7 +525,7 @@ class UserServiceTest {
 
             // Then
             verify(userRepository).save(argThat(user -> {
-                assertThat(user.isActive()).isTrue();
+                assertThat(user.getIsActive()).isTrue();
                 return true;
             }));
         }
@@ -542,7 +542,7 @@ class UserServiceTest {
 
             // Then
             verify(userRepository).save(argThat(user -> {
-                assertThat(user.isActive()).isFalse();
+                assertThat(user.getIsActive()).isFalse();
                 return true;
             }));
         }
@@ -585,7 +585,7 @@ class UserServiceTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // When
-            userService.updateLastLogin("user123");
+            userService.updateLastLoginTime("user123");
 
             // Then
             verify(userRepository).save(argThat(user -> {
@@ -602,7 +602,7 @@ class UserServiceTest {
             when(userRepository.findById("nonexistent")).thenReturn(Optional.empty());
 
             // When & Then
-            assertThatThrownBy(() -> userService.updateLastLogin("nonexistent"))
+            assertThatThrownBy(() -> userService.updateLastLoginTime("nonexistent"))
                     .isInstanceOf(NotFoundException.class)
                     .hasMessage("User not found with ID: nonexistent");
         }
@@ -677,7 +677,7 @@ class UserServiceTest {
             UserProfileResponse response = userService.getUserProfile("user123");
 
             // Then
-            assertThat(response.isEmailVerified()).isEqualTo(isVerified);
+            assertThat(response.getIsEmailVerified()).isEqualTo(isVerified);
         }
 
         @ParameterizedTest
@@ -692,7 +692,7 @@ class UserServiceTest {
             UserProfileResponse response = userService.getUserProfile("user123");
 
             // Then
-            assertThat(response.isPremium()).isEqualTo(isPremium);
+            assertThat(response.getIsPremium()).isEqualTo(isPremium);
         }
     }
 
