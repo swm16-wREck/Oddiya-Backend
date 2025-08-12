@@ -1,7 +1,6 @@
 package com.oddiya.config;
 
 import com.oddiya.repository.*;
-import com.oddiya.repository.dynamodb.*;
 import com.oddiya.service.messaging.LocalMessagingService;
 import com.oddiya.service.messaging.MessagingService;
 import com.oddiya.service.messaging.SQSMessagingService;

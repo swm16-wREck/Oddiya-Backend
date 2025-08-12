@@ -5,7 +5,8 @@ import com.oddiya.entity.*;
 import com.oddiya.entity.dynamodb.*;
 import com.oddiya.repository.*;
 import com.oddiya.repository.dynamodb.*;
-import lombok.RequiredArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
@@ -23,7 +24,6 @@ import java.util.stream.Collectors;
  * Supports bidirectional migration with progress tracking, validation, and rollback capabilities.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 @ConditionalOnBean({ProfileConfiguration.class})
 public class DataMigrationService {
@@ -477,36 +477,36 @@ public class DataMigrationService {
     // Data classes
     // ========================================
     
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class MigrationOptions {
-        @lombok.Builder.Default
+        @Builder.Default
         private boolean migrateUsers = true;
         
-        @lombok.Builder.Default
+        @Builder.Default
         private boolean migratePlaces = true;
         
-        @lombok.Builder.Default
+        @Builder.Default
         private boolean migrateTravelPlans = true;
         
-        @lombok.Builder.Default
+        @Builder.Default
         private boolean migrateSavedPlans = true;
         
-        @lombok.Builder.Default
+        @Builder.Default
         private int batchSize = 100;
         
-        @lombok.Builder.Default
+        @Builder.Default
         private boolean validateAfterMigration = true;
         
-        @lombok.Builder.Default
+        @Builder.Default
         private boolean createBackup = true;
         
-        @lombok.Builder.Default
+        @Builder.Default
         private boolean continueOnError = true;
     }
     
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class MigrationResult {
         private String migrationId;
         private LocalDateTime startTime;
@@ -536,8 +536,8 @@ public class DataMigrationService {
         }
     }
     
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class EntityMigrationResult {
         private String entityType;
         private long totalCount;
@@ -547,8 +547,8 @@ public class DataMigrationService {
         private MigrationStatus status;
     }
     
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class ValidationResult {
         private String migrationId;
         private LocalDateTime validationTime;
@@ -557,8 +557,8 @@ public class DataMigrationService {
         private String errorMessage;
     }
     
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class EntityValidationResult {
         private String entityType;
         private long expectedCount;

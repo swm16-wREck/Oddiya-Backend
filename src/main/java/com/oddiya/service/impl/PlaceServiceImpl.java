@@ -5,13 +5,10 @@ import com.oddiya.dto.request.CreatePlaceRequest;
 import com.oddiya.dto.response.PageResponse;
 import com.oddiya.dto.response.PlaceResponse;
 import com.oddiya.entity.Place;
-import com.oddiya.entity.dynamodb.DynamoDBPlace;
 import com.oddiya.exception.NotFoundException;
 import com.oddiya.repository.PlaceRepository;
-import com.oddiya.repository.dynamodb.DynamoDBPlaceRepository;
 import com.oddiya.service.PlaceService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,14 +24,11 @@ public class PlaceServiceImpl implements PlaceService {
     
     private final ProfileConfiguration profileConfiguration;
     private final PlaceRepository placeRepository;
-    private final DynamoDBPlaceRepository dynamoDBPlaceRepository;
     
     public PlaceServiceImpl(ProfileConfiguration profileConfiguration,
-                           @Autowired(required = false) PlaceRepository placeRepository,
-                           @Autowired(required = false) DynamoDBPlaceRepository dynamoDBPlaceRepository) {
+                           PlaceRepository placeRepository) {
         this.profileConfiguration = profileConfiguration;
         this.placeRepository = placeRepository;
-        this.dynamoDBPlaceRepository = dynamoDBPlaceRepository;
         
         log.info("PlaceServiceImpl initialized with storage type: {}", 
                 profileConfiguration.getStorageType());
@@ -43,18 +37,6 @@ public class PlaceServiceImpl implements PlaceService {
     @Override
     @Transactional
     public PlaceResponse createPlace(CreatePlaceRequest request) {
-        if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.DYNAMODB) {
-            return createPlaceDynamoDB(request);
-        } else {
-            return createPlaceJPA(request);
-        }
-    }
-    
-    private PlaceResponse createPlaceJPA(CreatePlaceRequest request) {
-        if (placeRepository == null) {
-            throw new IllegalStateException("JPA PlaceRepository not available");
-        }
-        
         Place place = Place.builder()
                 .name(request.getName())
                 .description(request.getDescription())
@@ -73,16 +55,59 @@ public class PlaceServiceImpl implements PlaceService {
                 .build();
         
         place = placeRepository.save(place);
-        return mapJpaToResponse(place);
+        return mapToResponse(place);
     }
     
-    private PlaceResponse createPlaceDynamoDB(CreatePlaceRequest request) {
-        if (dynamoDBPlaceRepository == null) {
-            throw new IllegalStateException("DynamoDB PlaceRepository not available");
-        }
+    @Override
+    @Transactional(readOnly = true)
+    public PlaceResponse getPlace(String id) {
+        Place place = placeRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Place not found with id: " + id));
+        return mapToResponse(place);
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<PlaceResponse> searchPlaces(String query, Pageable pageable) {
+        Page<Place> places = placeRepository.searchByNameOrDescriptionContaining(query, query, pageable);
+        return mapToPageResponse(places);
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<PlaceResponse> findPlacesByCategory(String category, Pageable pageable) {
+        Page<Place> places = placeRepository.findByCategory(category, pageable);
+        return mapToPageResponse(places);
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List<PlaceResponse> findNearbyPlaces(double latitude, double longitude, double radiusInKm) {
+        List<Place> places = placeRepository.findAll();
         
-        DynamoDBPlace place = new DynamoDBPlace();
-        place.setPlaceId(java.util.UUID.randomUUID().toString());
+        // Filter places within radius
+        List<Place> nearbyPlaces = places.stream()
+                .filter(place -> {
+                    if (place.getLatitude() == null || place.getLongitude() == null) {
+                        return false;
+                    }
+                    double distance = calculateDistance(latitude, longitude, 
+                            place.getLatitude(), place.getLongitude());
+                    return distance <= radiusInKm;
+                })
+                .collect(Collectors.toList());
+        
+        return nearbyPlaces.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
+    @Override
+    @Transactional
+    public PlaceResponse updatePlace(String id, CreatePlaceRequest request) {
+        Place place = placeRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Place not found with id: " + id));
+        
         place.setName(request.getName());
         place.setDescription(request.getDescription());
         place.setAddress(request.getAddress());
@@ -92,270 +117,23 @@ public class PlaceServiceImpl implements PlaceService {
         place.setPhoneNumber(request.getPhoneNumber());
         place.setWebsite(request.getWebsite());
         place.setOpeningHours(request.getOpeningHours());
-        place.setImages(request.getImages() != null ? request.getImages() : new ArrayList<>());
-        place.setTags(request.getTags() != null ? request.getTags() : new ArrayList<>());
-        place.setRating(0.0);
-        place.setReviewCount(0);
-        place.setBookmarkCount(0);
-        place.setCreatedAt(java.time.LocalDateTime.now());
-        place.setUpdatedAt(java.time.LocalDateTime.now());
-        
-        place = dynamoDBPlaceRepository.save(place);
-        return mapDynamoToResponse(place);
-    }
-    
-    @Override
-    public PlaceResponse getPlace(String id) {
-        if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.DYNAMODB) {
-            return getPlaceDynamoDB(id);
-        } else {
-            return getPlaceJPA(id);
-        }
-    }
-    
-    private PlaceResponse getPlaceJPA(String id) {
-        if (placeRepository == null) {
-            throw new IllegalStateException("JPA PlaceRepository not available");
-        }
-        
-        Place place = placeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Place not found"));
-        return mapJpaToResponse(place);
-    }
-    
-    private PlaceResponse getPlaceDynamoDB(String id) {
-        if (dynamoDBPlaceRepository == null) {
-            throw new IllegalStateException("DynamoDB PlaceRepository not available");
-        }
-        
-        DynamoDBPlace place = dynamoDBPlaceRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Place not found"));
-        return mapDynamoToResponse(place);
-    }
-    
-    @Override
-    @Transactional
-    public PlaceResponse updatePlace(String id, CreatePlaceRequest request) {
-        if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.DYNAMODB) {
-            return updatePlaceDynamoDB(id, request);
-        } else {
-            return updatePlaceJPA(id, request);
-        }
-    }
-    
-    private PlaceResponse updatePlaceJPA(String id, CreatePlaceRequest request) {
-        if (placeRepository == null) {
-            throw new IllegalStateException("JPA PlaceRepository not available");
-        }
-        
-        Place place = placeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Place not found"));
-        
-        if (request.getName() != null) {
-            place.setName(request.getName());
-        }
-        if (request.getDescription() != null) {
-            place.setDescription(request.getDescription());
-        }
-        if (request.getAddress() != null) {
-            place.setAddress(request.getAddress());
-        }
-        if (request.getLatitude() != null) {
-            place.setLatitude(request.getLatitude());
-        }
-        if (request.getLongitude() != null) {
-            place.setLongitude(request.getLongitude());
-        }
-        if (request.getCategory() != null) {
-            place.setCategory(request.getCategory());
-        }
-        if (request.getPhoneNumber() != null) {
-            place.setPhoneNumber(request.getPhoneNumber());
-        }
-        if (request.getWebsite() != null) {
-            place.setWebsite(request.getWebsite());
-        }
-        if (request.getOpeningHours() != null) {
-            place.setOpeningHours(request.getOpeningHours());
-        }
-        if (request.getImages() != null) {
-            place.setImages(request.getImages());
-        }
-        if (request.getTags() != null) {
-            place.setTags(request.getTags());
-        }
+        place.setImages(request.getImages());
+        place.setTags(request.getTags());
         
         place = placeRepository.save(place);
-        return mapJpaToResponse(place);
-    }
-    
-    private PlaceResponse updatePlaceDynamoDB(String id, CreatePlaceRequest request) {
-        if (dynamoDBPlaceRepository == null) {
-            throw new IllegalStateException("DynamoDB PlaceRepository not available");
-        }
-        
-        DynamoDBPlace place = dynamoDBPlaceRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Place not found"));
-        
-        if (request.getName() != null) {
-            place.setName(request.getName());
-        }
-        if (request.getDescription() != null) {
-            place.setDescription(request.getDescription());
-        }
-        if (request.getAddress() != null) {
-            place.setAddress(request.getAddress());
-        }
-        if (request.getLatitude() != null) {
-            place.setLatitude(request.getLatitude());
-        }
-        if (request.getLongitude() != null) {
-            place.setLongitude(request.getLongitude());
-        }
-        if (request.getCategory() != null) {
-            place.setCategory(request.getCategory());
-        }
-        if (request.getPhoneNumber() != null) {
-            place.setPhoneNumber(request.getPhoneNumber());
-        }
-        if (request.getWebsite() != null) {
-            place.setWebsite(request.getWebsite());
-        }
-        if (request.getOpeningHours() != null) {
-            place.setOpeningHours(request.getOpeningHours());
-        }
-        if (request.getImages() != null) {
-            place.setImages(request.getImages());
-        }
-        if (request.getTags() != null) {
-            place.setTags(request.getTags());
-        }
-        
-        place.setUpdatedAt(java.time.LocalDateTime.now());
-        place = dynamoDBPlaceRepository.save(place);
-        return mapDynamoToResponse(place);
+        return mapToResponse(place);
     }
     
     @Override
     @Transactional
     public void deletePlace(String id) {
-        if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.DYNAMODB) {
-            if (dynamoDBPlaceRepository == null) {
-                throw new IllegalStateException("DynamoDB PlaceRepository not available");
-            }
-            DynamoDBPlace place = dynamoDBPlaceRepository.findById(id)
-                    .orElseThrow(() -> new NotFoundException("Place not found"));
-            dynamoDBPlaceRepository.delete(place);
-        } else {
-            if (placeRepository == null) {
-                throw new IllegalStateException("JPA PlaceRepository not available");
-            }
-            Place place = placeRepository.findById(id)
-                    .orElseThrow(() -> new NotFoundException("Place not found"));
-            placeRepository.delete(place);
+        if (!placeRepository.existsById(id)) {
+            throw new NotFoundException("Place not found with id: " + id);
         }
+        placeRepository.deleteById(id);
     }
     
-    @Override
-    public PageResponse<PlaceResponse> searchPlaces(String query, Pageable pageable) {
-        if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.DYNAMODB) {
-            // For DynamoDB, implement a simple search (in production, use OpenSearch or similar)
-            return PageResponse.<PlaceResponse>builder()
-                    .content(new ArrayList<>())
-                    .pageNumber(0)
-                    .pageSize(10)
-                    .totalElements(0)
-                    .totalPages(0)
-                    .first(true)
-                    .last(true)
-                    .empty(true)
-                    .build();
-        } else {
-            if (placeRepository == null) {
-                throw new IllegalStateException("JPA PlaceRepository not available");
-            }
-            Page<Place> page = placeRepository.findByNameContainingIgnoreCaseOrAddressContainingIgnoreCase(
-                    query, query, pageable);
-            return mapToPageResponse(page);
-        }
-    }
-    
-    @Override
-    public List<PlaceResponse> getNearbyPlaces(double latitude, double longitude, double radius) {
-        // For now, return empty list. In production, this would use spatial queries
-        // with PostGIS or similar spatial database extensions for JPA,
-        // or geospatial queries for DynamoDB
-        return new ArrayList<>();
-    }
-    
-    @Override
-    public PageResponse<PlaceResponse> getPlacesByCategory(String category, Pageable pageable) {
-        if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.DYNAMODB) {
-            // For DynamoDB, use GSI on category (simplified implementation)
-            return PageResponse.<PlaceResponse>builder()
-                    .content(new ArrayList<>())
-                    .pageNumber(0)
-                    .pageSize(10)
-                    .totalElements(0)
-                    .totalPages(0)
-                    .first(true)
-                    .last(true)
-                    .empty(true)
-                    .build();
-        } else {
-            if (placeRepository == null) {
-                throw new IllegalStateException("JPA PlaceRepository not available");
-            }
-            Page<Place> page = placeRepository.findByCategory(category, pageable);
-            return mapToPageResponse(page);
-        }
-    }
-    
-    @Override
-    public PageResponse<PlaceResponse> getPopularPlaces(Pageable pageable) {
-        if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.DYNAMODB) {
-            // For DynamoDB, implement popularity scoring (simplified implementation)
-            return PageResponse.<PlaceResponse>builder()
-                    .content(new ArrayList<>())
-                    .pageNumber(0)
-                    .pageSize(10)
-                    .totalElements(0)
-                    .totalPages(0)
-                    .first(true)
-                    .last(true)
-                    .empty(true)
-                    .build();
-        } else {
-            if (placeRepository == null) {
-                throw new IllegalStateException("JPA PlaceRepository not available");
-            }
-            Page<Place> page = placeRepository.findAllByOrderByPopularityScoreDesc(pageable);
-            return mapToPageResponse(page);
-        }
-    }
-    
-    @Override
-    @Transactional
-    public void incrementViewCount(String id) {
-        if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.DYNAMODB) {
-            if (dynamoDBPlaceRepository != null) {
-                dynamoDBPlaceRepository.findById(id).ifPresent(place -> {
-                    // Increment view count logic could be added here
-                    place.setUpdatedAt(java.time.LocalDateTime.now());
-                    dynamoDBPlaceRepository.save(place);
-                });
-            }
-        } else {
-            if (placeRepository != null) {
-                placeRepository.findById(id).ifPresent(place -> {
-                    // Increment view count logic could be added here
-                    placeRepository.save(place);
-                });
-            }
-        }
-    }
-    
-    private PlaceResponse mapJpaToResponse(Place place) {
+    private PlaceResponse mapToResponse(Place place) {
         return PlaceResponse.builder()
                 .id(place.getId())
                 .name(place.getName())
@@ -367,58 +145,40 @@ public class PlaceServiceImpl implements PlaceService {
                 .phoneNumber(place.getPhoneNumber())
                 .website(place.getWebsite())
                 .openingHours(place.getOpeningHours())
-                .priceRange(null)
-                .averageRating(place.getRating())
-                .reviewCount(place.getReviewCount())
                 .images(place.getImages())
                 .tags(place.getTags())
-                .googlePlaceId(null)
-                .metadata(null)
-                .isSaved(false)
+                .rating(place.getRating())
+                .reviewCount(place.getReviewCount())
+                .bookmarkCount(place.getBookmarkCount())
                 .createdAt(place.getCreatedAt())
                 .updatedAt(place.getUpdatedAt())
                 .build();
     }
     
-    private PlaceResponse mapDynamoToResponse(DynamoDBPlace place) {
-        return PlaceResponse.builder()
-                .id(place.getPlaceId())
-                .name(place.getName())
-                .description(place.getDescription())
-                .address(place.getAddress())
-                .latitude(place.getLatitude())
-                .longitude(place.getLongitude())
-                .category(place.getCategory())
-                .phoneNumber(place.getPhoneNumber())
-                .website(place.getWebsite())
-                .openingHours(place.getOpeningHours())
-                .priceRange(null)
-                .averageRating(place.getRating())
-                .reviewCount(place.getReviewCount())
-                .images(place.getImages())
-                .tags(place.getTags())
-                .googlePlaceId(null)
-                .metadata(null)
-                .isSaved(false)
-                .createdAt(place.getCreatedAt())
-                .updatedAt(place.getUpdatedAt())
-                .build();
-    }
-    
-    private PageResponse<PlaceResponse> mapToPageResponse(Page<Place> page) {
-        List<PlaceResponse> content = page.getContent().stream()
-                .map(this::mapJpaToResponse)
+    private PageResponse<PlaceResponse> mapToPageResponse(Page<Place> placePage) {
+        List<PlaceResponse> content = placePage.getContent().stream()
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
         
         return PageResponse.<PlaceResponse>builder()
                 .content(content)
-                .pageNumber(page.getNumber())
-                .pageSize(page.getSize())
-                .totalElements(page.getTotalElements())
-                .totalPages(page.getTotalPages())
-                .first(page.isFirst())
-                .last(page.isLast())
-                .empty(page.isEmpty())
+                .pageNumber(placePage.getNumber())
+                .pageSize(placePage.getSize())
+                .totalElements(placePage.getTotalElements())
+                .totalPages(placePage.getTotalPages())
+                .last(placePage.isLast())
                 .build();
+    }
+    
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        // Haversine formula to calculate distance between two points
+        double R = 6371; // Earth's radius in kilometers
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 }
