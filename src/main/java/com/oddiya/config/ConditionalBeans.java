@@ -39,8 +39,6 @@ public class ConditionalBeans {
      */
     @Configuration
     @Profile("!" + ProfileConfiguration.DYNAMODB_PROFILE)
-    @EnableJpaRepositories(basePackages = "com.oddiya.repository")
-    @EnableJpaAuditing
     static class JpaRepositoryConfiguration {
         
         @Bean
@@ -56,7 +54,6 @@ public class ConditionalBeans {
      */
     @Configuration
     @Profile(ProfileConfiguration.DYNAMODB_PROFILE)
-    @EnableJpaAuditing // Still needed for entity timestamps
     static class DynamoDBRepositoryConfiguration {
         
         @Bean
@@ -88,16 +85,9 @@ public class ConditionalBeans {
     
     /**
      * S3 Storage Service - Active for AWS profiles
+     * Note: S3StorageService bean is auto-configured by S3Config class
+     * This configuration is removed to avoid duplicate bean definition
      */
-    @Bean
-    @Primary
-    @Profile({ProfileConfiguration.AWS_PROFILE, ProfileConfiguration.DYNAMODB_PROFILE})
-    @ConditionalOnProperty(name = "app.aws.s3.enabled", havingValue = "true", matchIfMissing = true)
-    public StorageService s3StorageService() {
-        log.info("Configuring S3 Storage Service");
-        // S3StorageService is auto-configured by Spring
-        return null; // Let Spring handle the injection
-    }
     
     /**
      * Fallback Local Storage Service for AWS profiles when S3 is disabled
@@ -128,16 +118,9 @@ public class ConditionalBeans {
     
     /**
      * SQS Messaging Service - Active for AWS profiles
+     * Note: SQSMessagingService bean is auto-configured by SQSConfig class
+     * This configuration is removed to avoid duplicate bean definition
      */
-    @Bean
-    @Primary
-    @Profile({ProfileConfiguration.AWS_PROFILE, ProfileConfiguration.DYNAMODB_PROFILE})
-    @ConditionalOnProperty(name = "app.aws.sqs.enabled", havingValue = "true", matchIfMissing = true)
-    public MessagingService sqsMessagingService() {
-        log.info("Configuring SQS Messaging Service");
-        // SQSMessagingService is auto-configured by Spring
-        return null; // Let Spring handle the injection
-    }
     
     /**
      * Fallback Local Messaging Service for AWS profiles when SQS is disabled

@@ -8,8 +8,8 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: oddiya
-  ECS_SERVICE: oddiya-dev-service
-  ECS_CLUSTER: oddiya-dev-cluster
+  ECS_SERVICE: oddiya-dev
+  ECS_CLUSTER: oddiya-dev
   ECS_TASK_DEFINITION: oddiya-dev
   CONTAINER_NAME: oddiya
 
