@@ -10,6 +10,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Travel Plan Suggestion Response DTO
+ * Enhanced for AI-generated travel plan suggestions with detailed information
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -23,11 +27,17 @@ public class TravelPlanSuggestion {
     @Schema(description = "Plan description")
     private String description;
     
-    @Schema(description = "Destination", example = "Seoul")
+    @Schema(description = "Destination", example = "Seoul, South Korea")
     private String destination;
     
-    @Schema(description = "Duration in days", example = "5")
-    private Integer duration;
+    @Schema(description = "Duration description", example = "5 days")
+    private String duration;
+    
+    @Schema(description = "Budget range", example = "mid-range")
+    private String budgetRange; // budget, mid-range, luxury
+    
+    @Schema(description = "Key highlights of this suggestion")
+    private List<String> highlights;
     
     @Schema(description = "Daily itinerary")
     private List<DayPlan> dailyItinerary;
@@ -38,11 +48,20 @@ public class TravelPlanSuggestion {
     @Schema(description = "Estimated total cost", example = "$2000")
     private String estimatedCost;
     
-    @Schema(description = "Travel tips")
+    @Schema(description = "Travel tips and recommendations")
     private List<String> tips;
     
-    @Schema(description = "Recommended places")
+    @Schema(description = "Recommended places to visit")
     private List<String> recommendedPlaces;
+    
+    @Schema(description = "Travel style", example = "cultural")
+    private String travelStyle;
+    
+    @Schema(description = "Best season to visit", example = "Spring (March-May)")
+    private String seasonalInfo;
+    
+    @Schema(description = "AI confidence score", example = "0.85")
+    private Double confidenceScore;
     
     @Schema(description = "Generated timestamp")
     private Date generatedAt;

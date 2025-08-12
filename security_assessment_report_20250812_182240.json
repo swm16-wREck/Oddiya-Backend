@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-08-12T18:22:38.088242",
+  "target": "http://oddiya-dev-alb-1801802442.ap-northeast-2.elb.amazonaws.com",
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "category": "SSL/TLS",
+      "title": "HTTPS Not Available",
+      "description": "No HTTPS endpoint found. All traffic is transmitted over unencrypted HTTP.",
+      "evidence": "Connection refused on port 443",
+      "recommendation": "Configure SSL/TLS certificate and enable HTTPS"
+    }
+  ]
+}

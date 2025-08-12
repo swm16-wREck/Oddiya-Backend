@@ -5,13 +5,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.test.annotation.Rollback;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -23,8 +32,12 @@ import static org.assertj.core.api.Assertions.*;
  * - Relationship handling
  * - Database constraints
  * - Pagination and sorting
+ * - Transaction boundaries and rollback scenarios
+ * - Concurrent access and locking
+ * - Performance and batch operations
  */
 @DisplayName("UserRepository Tests")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class UserRepositoryTest extends RepositoryTestBase {
 
     @Autowired
@@ -610,6 +623,337 @@ class UserRepositoryTest extends RepositoryTestBase {
                 userRepository.save(user2);
                 entityManager.flush();
             }).isInstanceOf(org.springframework.orm.ObjectOptimisticLockingFailureException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("Transaction Boundaries and Rollback Scenarios")
+    class TransactionBoundariesAndRollbackScenarios {
+
+        @Test
+        @Transactional
+        @Rollback
+        @DisplayName("Should rollback transaction on exception")
+        void shouldRollbackTransactionOnException() {
+            // Given
+            String originalEmail = testUser1.getEmail();
+            String originalBio = testUser1.getBio();
+
+            // When - Simulate transaction failure
+            assertThatThrownBy(() -> {
+                testUser1.setEmail("updated@test.com");
+                testUser1.setBio("Updated bio");
+                userRepository.save(testUser1);
+                entityManager.flush();
+                
+                // Force constraint violation to trigger rollback
+                User duplicateUser = User.builder()
+                    .email("updated@test.com")
+                    .nickname("Duplicate User")
+                    .provider("google")
+                    .providerId("google-duplicate")
+                    .build();
+                userRepository.save(duplicateUser);
+                entityManager.flush();
+            }).isInstanceOf(DataIntegrityViolationException.class);
+
+            // Then - Verify rollback occurred
+            entityManager.clear();
+            User reloadedUser = userRepository.findById(testUser1.getId()).orElse(null);
+            assertThat(reloadedUser).isNotNull();
+            assertThat(reloadedUser.getEmail()).isEqualTo(originalEmail);
+            assertThat(reloadedUser.getBio()).isEqualTo(originalBio);
+        }
+
+        @Test
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        @DisplayName("Should handle nested transactions correctly")
+        void shouldHandleNestedTransactionsCorrectly() {
+            // Given
+            User outerUser = createTestUser("outer@test.com", "Outer User", "google", "google-outer", true);
+            
+            // When - Simulate nested transaction
+            try {
+                // Outer transaction modifies user
+                outerUser.setBio("Modified in outer transaction");
+                userRepository.save(outerUser);
+                
+                // Inner transaction (new propagation) fails
+                this.performInnerTransactionThatFails();
+                
+            } catch (DataIntegrityViolationException e) {
+                // Expected exception from inner transaction
+            }
+
+            // Then - Verify outer transaction state
+            entityManager.flush();
+            entityManager.clear();
+            User reloadedUser = userRepository.findById(outerUser.getId()).orElse(null);
+            assertThat(reloadedUser).isNotNull();
+            assertThat(reloadedUser.getBio()).isEqualTo("Modified in outer transaction");
+        }
+
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        private void performInnerTransactionThatFails() {
+            // This will fail due to constraint violation
+            User invalidUser = User.builder()
+                .email("outer@test.com") // Duplicate email
+                .nickname("Invalid User")
+                .provider("google")
+                .providerId("google-invalid")
+                .build();
+            userRepository.save(invalidUser);
+            entityManager.flush();
+        }
+
+        @Test
+        @DisplayName("Should maintain data consistency during concurrent modifications")
+        void shouldMaintainDataConsistencyDuringConcurrentModifications() throws Exception {
+            // Given
+            User concurrentUser = createTestUser("concurrent@test.com", "Concurrent User", 
+                                               "google", "google-concurrent", true);
+            ExecutorService executor = Executors.newFixedThreadPool(3);
+
+            // When - Perform concurrent modifications
+            CompletableFuture<Void> future1 = CompletableFuture.runAsync(() -> {
+                try {
+                    User user = userRepository.findById(concurrentUser.getId()).orElse(null);
+                    user.setBio("Updated by thread 1");
+                    userRepository.save(user);
+                    Thread.sleep(100); // Simulate processing time
+                } catch (Exception e) {
+                    // Expected in concurrent scenario
+                }
+            }, executor);
+
+            CompletableFuture<Void> future2 = CompletableFuture.runAsync(() -> {
+                try {
+                    User user = userRepository.findById(concurrentUser.getId()).orElse(null);
+                    user.setNickname("Updated by thread 2");
+                    userRepository.save(user);
+                    Thread.sleep(100); // Simulate processing time
+                } catch (Exception e) {
+                    // Expected in concurrent scenario
+                }
+            }, executor);
+
+            CompletableFuture<Void> future3 = CompletableFuture.runAsync(() -> {
+                try {
+                    User user = userRepository.findById(concurrentUser.getId()).orElse(null);
+                    user.getPreferences().put("concurrent", "thread3");
+                    userRepository.save(user);
+                    Thread.sleep(100); // Simulate processing time
+                } catch (Exception e) {
+                    // Expected in concurrent scenario
+                }
+            }, executor);
+
+            // Then - Wait for completion and verify final state
+            CompletableFuture.allOf(future1, future2, future3).join();
+            executor.shutdown();
+
+            // Verify that the entity still exists and has consistent state
+            User finalUser = userRepository.findById(concurrentUser.getId()).orElse(null);
+            assertThat(finalUser).isNotNull();
+            assertThat(finalUser.getEmail()).isEqualTo("concurrent@test.com");
+        }
+    }
+
+    @Nested
+    @DisplayName("Advanced Sorting and Complex Queries")
+    class AdvancedSortingAndComplexQueries {
+
+        @Test
+        @DisplayName("Should support complex sorting combinations")
+        void shouldSupportComplexSortingCombinations() {
+            // Given - Create users with different characteristics
+            User user1 = createTestUser("sort1@test.com", "Alpha User", "google", "sort-1", true);
+            User user2 = createTestUser("sort2@test.com", "Beta User", "apple", "sort-2", true);
+            User user3 = createTestUser("sort3@test.com", "Alpha User", "apple", "sort-3", true);
+            
+            // When - Sort by nickname ASC, then provider DESC
+            Sort complexSort = Sort.by(
+                Sort.Order.asc("nickname"),
+                Sort.Order.desc("provider")
+            );
+            Pageable pageable = PageRequest.of(0, 10, complexSort);
+            Page<User> sortedResults = userRepository.findActiveUsers(pageable);
+
+            // Then - Verify sorting order
+            List<User> users = sortedResults.getContent();
+            assertThat(users.size()).isGreaterThanOrEqualTo(3);
+            
+            // Find our test users in the results
+            List<User> testUsers = users.stream()
+                .filter(u -> u.getEmail().startsWith("sort"))
+                .toList();
+            
+            assertThat(testUsers).hasSize(3);
+            // First should be "Alpha User" with "google" provider (nickname ASC, provider DESC)
+            assertThat(testUsers.get(0).getNickname()).isEqualTo("Alpha User");
+            assertThat(testUsers.get(0).getProvider()).isEqualTo("google");
+        }
+
+        @Test
+        @DisplayName("Should handle search with special characters and SQL injection attempts")
+        void shouldHandleSearchWithSpecialCharactersAndSQLInjectionAttempts() {
+            // Given
+            User specialUser = createTestUser("special@test.com", "User's \"Special\" Name", 
+                                           "google", "special-chars", true);
+            specialUser.setBio("Bio with 'quotes' and %wildcards% and --comments");
+            userRepository.save(specialUser);
+
+            Pageable pageable = PageRequest.of(0, 10);
+
+            // When - Search with special characters
+            Page<User> results1 = userRepository.searchUsers("User's", pageable);
+            Page<User> results2 = userRepository.searchUsers("quotes", pageable);
+            Page<User> results3 = userRepository.searchUsers("%wildcards%", pageable);
+
+            // Then - Should find user safely without SQL injection
+            assertThat(results1.getContent()).hasSize(1);
+            assertThat(results1.getContent().get(0).getNickname()).contains("User's");
+
+            assertThat(results2.getContent()).hasSize(1);
+            assertThat(results2.getContent().get(0).getBio()).contains("quotes");
+
+            assertThat(results3.getContent()).hasSize(1);
+            assertThat(results3.getContent().get(0).getBio()).contains("wildcards");
+
+            // When - Attempt SQL injection
+            Page<User> injectionAttempt = userRepository.searchUsers("'; DROP TABLE users; --", pageable);
+
+            // Then - Should not cause issues (returns empty or safe results)
+            assertThat(injectionAttempt.getContent()).isEmpty();
+            
+            // Verify users table still exists and is functional
+            assertThat(userRepository.count()).isGreaterThan(0);
+        }
+
+        @Test
+        @DisplayName("Should perform efficient batch operations")
+        void shouldPerformEfficientBatchOperations() {
+            // Given - Create multiple users for batch processing
+            List<User> batchUsers = List.of(
+                User.builder().email("batch1@test.com").nickname("Batch User 1").provider("google").providerId("batch-1").build(),
+                User.builder().email("batch2@test.com").nickname("Batch User 2").provider("google").providerId("batch-2").build(),
+                User.builder().email("batch3@test.com").nickname("Batch User 3").provider("google").providerId("batch-3").build(),
+                User.builder().email("batch4@test.com").nickname("Batch User 4").provider("google").providerId("batch-4").build(),
+                User.builder().email("batch5@test.com").nickname("Batch User 5").provider("google").providerId("batch-5").build()
+            );
+
+            // When - Save all users in batch
+            List<User> savedUsers = userRepository.saveAll(batchUsers);
+            entityManager.flush();
+
+            // Then - Verify batch save
+            assertThat(savedUsers).hasSize(5);
+            assertThat(savedUsers).allMatch(user -> user.getId() != null);
+            assertThat(savedUsers).allMatch(user -> user.getCreatedAt() != null);
+
+            // When - Find all saved users
+            List<String> userIds = savedUsers.stream().map(User::getId).toList();
+            List<User> foundUsers = userRepository.findAllById(userIds);
+
+            // Then - Verify batch retrieval
+            assertThat(foundUsers).hasSize(5);
+            assertThat(foundUsers)
+                .extracting(User::getEmail)
+                .containsExactlyInAnyOrder("batch1@test.com", "batch2@test.com", "batch3@test.com", 
+                                         "batch4@test.com", "batch5@test.com");
+
+            // When - Delete all batch users
+            userRepository.deleteAllById(userIds);
+
+            // Then - Verify batch deletion
+            List<User> deletedUsers = userRepository.findAllById(userIds);
+            assertThat(deletedUsers).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("Element Collection and Map Handling")
+    class ElementCollectionAndMapHandling {
+
+        @Test
+        @DisplayName("Should handle complex preference updates atomically")
+        void shouldHandleComplexPreferenceUpdatesAtomically() {
+            // Given
+            User user = testUser1;
+            Map<String, String> originalPrefs = Map.copyOf(user.getPreferences());
+            Map<String, String> originalTravelPrefs = Map.copyOf(user.getTravelPreferences());
+
+            // When - Update multiple preferences
+            user.getPreferences().clear();
+            user.getPreferences().putAll(Map.of(
+                "theme", "dark",
+                "language", "en",
+                "notifications", "enabled",
+                "currency", "USD"
+            ));
+
+            user.getTravelPreferences().clear();
+            user.getTravelPreferences().putAll(Map.of(
+                "budget", "high",
+                "accommodation", "hotel",
+                "transportation", "flight",
+                "activity_level", "moderate"
+            ));
+
+            User savedUser = userRepository.save(user);
+            entityManager.flush();
+            entityManager.clear();
+
+            // Then - Verify atomic update
+            User reloadedUser = userRepository.findById(savedUser.getId()).orElse(null);
+            assertThat(reloadedUser).isNotNull();
+            
+            assertThat(reloadedUser.getPreferences()).hasSize(4);
+            assertThat(reloadedUser.getPreferences())
+                .containsEntry("theme", "dark")
+                .containsEntry("language", "en")
+                .containsEntry("notifications", "enabled")
+                .containsEntry("currency", "USD");
+
+            assertThat(reloadedUser.getTravelPreferences()).hasSize(4);
+            assertThat(reloadedUser.getTravelPreferences())
+                .containsEntry("budget", "high")
+                .containsEntry("accommodation", "hotel")
+                .containsEntry("transportation", "flight")
+                .containsEntry("activity_level", "moderate");
+        }
+
+        @Test
+        @DisplayName("Should handle empty and null preference collections")
+        void shouldHandleEmptyAndNullPreferenceCollections() {
+            // Given
+            User user = User.builder()
+                .email("empty-prefs@test.com")
+                .nickname("Empty Prefs User")
+                .provider("google")
+                .providerId("empty-prefs")
+                .build();
+
+            // When - Save user with default empty collections
+            User savedUser = userRepository.save(user);
+            entityManager.flush();
+            entityManager.clear();
+
+            // Then - Verify empty collections are handled properly
+            User reloadedUser = userRepository.findById(savedUser.getId()).orElse(null);
+            assertThat(reloadedUser).isNotNull();
+            assertThat(reloadedUser.getPreferences()).isNotNull().isEmpty();
+            assertThat(reloadedUser.getTravelPreferences()).isNotNull().isEmpty();
+
+            // When - Add preferences after initial save
+            reloadedUser.getPreferences().put("added", "later");
+            reloadedUser.getTravelPreferences().put("travel", "preference");
+            User updatedUser = userRepository.save(reloadedUser);
+            entityManager.flush();
+
+            // Then - Verify preferences were added
+            assertThat(updatedUser.getPreferences()).hasSize(1).containsEntry("added", "later");
+            assertThat(updatedUser.getTravelPreferences()).hasSize(1).containsEntry("travel", "preference");
         }
     }
 }

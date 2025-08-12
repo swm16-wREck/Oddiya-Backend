@@ -1,0 +1,408 @@
+name: Blue-Green Deploy to ECS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      skip_tests:
+        description: 'Skip test execution'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: oddiya
+
+jobs:
+  # Pre-deployment validation
+  validate-deployment:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      should-deploy: ${{ steps.validation.outputs.should-deploy }}
+      
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Determine environment
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENV="prod"
+          else
+            ENV="dev"
+          fi
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "🎯 Target environment: $ENV"
+
+      - name: Validate deployment readiness
+        id: validation
+        run: |
+          # Check if this is a valid deployment
+          if [[ "${{ github.event.inputs.skip_tests }}" == "true" ]]; then
+            echo "⚠️ Tests will be skipped - manual override"
+          fi
+          
+          # Check for deployment markers
+          if git log --oneline -1 | grep -qiE '\[skip deploy\]|\[no deploy\]'; then
+            echo "❌ Deployment skipped due to commit message marker"
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Deployment validation passed"
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          fi
+
+  # Run comprehensive tests (unless skipped)
+  test-suite:
+    name: Comprehensive Test Suite
+    needs: validate-deployment
+    if: needs.validate-deployment.outputs.should-deploy == 'true' && github.event.inputs.skip_tests != 'true'
+    uses: ./.github/workflows/ci-pipeline.yml
+    secrets: inherit
+
+  # Build and prepare deployment
+  build-and-prepare:
+    name: Build & Prepare
+    needs: [validate-deployment, test-suite]
+    if: always() && needs.validate-deployment.outputs.should-deploy == 'true' && (needs.test-suite.result == 'success' || github.event.inputs.skip_tests == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    outputs:
+      image-tag: ${{ steps.build.outputs.image-tag }}
+      image-uri: ${{ steps.build.outputs.image-uri }}
+      
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Build application
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build -x test
+          echo "✅ Application build completed"
+
+      - name: Build and push Docker image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          ENVIRONMENT: ${{ needs.validate-deployment.outputs.environment }}
+        run: |
+          # Build image with multiple tags
+          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          
+          docker build -t $IMAGE_URI \
+            --build-arg SPRING_PROFILES_ACTIVE=$ENVIRONMENT \
+            --build-arg BUILD_VERSION=$IMAGE_TAG \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            .
+          
+          # Push with commit SHA tag
+          docker push $IMAGE_URI
+          
+          # Also tag and push with environment-specific tags
+          docker tag $IMAGE_URI "$ECR_REGISTRY/$ECR_REPOSITORY:$ENVIRONMENT-latest"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$ENVIRONMENT-latest"
+          
+          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image-uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "✅ Docker image built and pushed: $IMAGE_URI"
+
+  # Blue-Green Deployment
+  deploy-blue-green:
+    name: Blue-Green Deployment
+    needs: [validate-deployment, build-and-prepare]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: 
+      name: ${{ needs.validate-deployment.outputs.environment }}
+      url: https://${{ needs.validate-deployment.outputs.environment == 'prod' && 'api.oddiya.com' || format('{0}-api.oddiya.com', needs.validate-deployment.outputs.environment) }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set deployment variables
+        id: vars
+        env:
+          ENVIRONMENT: ${{ needs.validate-deployment.outputs.environment }}
+        run: |
+          echo "cluster=oddiya-${ENVIRONMENT}-cluster" >> $GITHUB_OUTPUT
+          echo "service=oddiya-${ENVIRONMENT}-app" >> $GITHUB_OUTPUT
+          echo "task-family=oddiya-${ENVIRONMENT}-app" >> $GITHUB_OUTPUT
+
+      - name: Download current task definition
+        id: current-task-def
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ steps.vars.outputs.task-family }} \
+            --query taskDefinition > current-task-definition.json
+          
+          echo "✅ Current task definition downloaded"
+
+      - name: Create new task definition
+        id: new-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: current-task-definition.json
+          container-name: oddiya-app
+          image: ${{ needs.build-and-prepare.outputs.image-uri }}
+
+      - name: Deploy to ECS (Blue-Green)
+        id: deploy
+        run: |
+          # Register new task definition
+          echo "📝 Registering new task definition..."
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://${{ steps.new-task-def.outputs.task-definition }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          
+          echo "new-task-def-arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "✅ New task definition registered: $NEW_TASK_DEF_ARN"
+          
+          # Get current service info
+          echo "📊 Getting current service state..."
+          CURRENT_TASK_DEF=$(aws ecs describe-services \
+            --cluster ${{ steps.vars.outputs.cluster }} \
+            --services ${{ steps.vars.outputs.service }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          
+          DESIRED_COUNT=$(aws ecs describe-services \
+            --cluster ${{ steps.vars.outputs.cluster }} \
+            --services ${{ steps.vars.outputs.service }} \
+            --query 'services[0].desiredCount' \
+            --output text)
+          
+          echo "current-task-def=$CURRENT_TASK_DEF" >> $GITHUB_OUTPUT
+          echo "desired-count=$DESIRED_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "Current task definition: $CURRENT_TASK_DEF"
+          echo "Current desired count: $DESIRED_COUNT"
+          
+          # Update service with new task definition
+          echo "🔄 Starting blue-green deployment..."
+          aws ecs update-service \
+            --cluster ${{ steps.vars.outputs.cluster }} \
+            --service ${{ steps.vars.outputs.service }} \
+            --task-definition $NEW_TASK_DEF_ARN \
+            --force-new-deployment \
+            > /dev/null
+          
+          echo "✅ Service update initiated"
+
+      - name: Wait for deployment to complete
+        run: |
+          echo "⏳ Waiting for deployment to stabilize..."
+          echo "This may take several minutes as tasks start and pass health checks..."
+          
+          # Wait for service to stabilize with timeout
+          if timeout 20m aws ecs wait services-stable \
+              --cluster ${{ steps.vars.outputs.cluster }} \
+              --services ${{ steps.vars.outputs.service }}; then
+            echo "✅ Deployment completed successfully!"
+          else
+            echo "❌ Deployment failed or timed out"
+            exit 1
+          fi
+
+      - name: Verify deployment health
+        id: health-check
+        run: |
+          echo "🏥 Performing post-deployment health checks..."
+          
+          # Get service status
+          RUNNING_COUNT=$(aws ecs describe-services \
+            --cluster ${{ steps.vars.outputs.cluster }} \
+            --services ${{ steps.vars.outputs.service }} \
+            --query 'services[0].runningCount' \
+            --output text)
+          
+          DESIRED_COUNT=$(aws ecs describe-services \
+            --cluster ${{ steps.vars.outputs.cluster }} \
+            --services ${{ steps.vars.outputs.service }} \
+            --query 'services[0].desiredCount' \
+            --output text)
+          
+          PENDING_COUNT=$(aws ecs describe-services \
+            --cluster ${{ steps.vars.outputs.cluster }} \
+            --services ${{ steps.vars.outputs.service }} \
+            --query 'services[0].pendingCount' \
+            --output text)
+          
+          echo "Service Status:"
+          echo "  Running: $RUNNING_COUNT"
+          echo "  Desired: $DESIRED_COUNT" 
+          echo "  Pending: $PENDING_COUNT"
+          
+          if [[ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" && "$PENDING_COUNT" -eq "0" ]]; then
+            echo "✅ Service is healthy: $RUNNING_COUNT/$DESIRED_COUNT tasks running"
+            echo "health-status=healthy" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Service may be unhealthy: $RUNNING_COUNT/$DESIRED_COUNT tasks running, $PENDING_COUNT pending"
+            echo "health-status=unhealthy" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Run smoke tests
+        id: smoke-tests
+        env:
+          ENVIRONMENT: ${{ needs.validate-deployment.outputs.environment }}
+        run: |
+          echo "🧪 Running smoke tests..."
+          
+          # Determine the correct endpoint
+          if [[ "$ENVIRONMENT" == "prod" ]]; then
+            ENDPOINT="https://api.oddiya.com"
+          else
+            ENDPOINT="https://${ENVIRONMENT}-api.oddiya.com"
+          fi
+          
+          echo "Testing endpoint: $ENDPOINT"
+          
+          # Health check
+          if curl -f -s --max-time 30 "$ENDPOINT/actuator/health" > /dev/null; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed"
+            exit 1
+          fi
+          
+          # Additional smoke tests can be added here
+          echo "✅ All smoke tests passed"
+
+      - name: Cleanup old task definitions
+        if: steps.health-check.outputs.health-status == 'healthy'
+        run: |
+          echo "🧹 Cleaning up old task definitions..."
+          
+          # Keep last 5 task definition revisions
+          aws ecs list-task-definitions \
+            --family-prefix ${{ steps.vars.outputs.task-family }} \
+            --sort DESC \
+            --query 'taskDefinitionArns[5:]' \
+            --output text | tr '\t' '\n' | while read -r task_def_arn; do
+            if [[ -n "$task_def_arn" ]]; then
+              echo "Deregistering old task definition: $task_def_arn"
+              aws ecs deregister-task-definition --task-definition "$task_def_arn" > /dev/null || true
+            fi
+          done
+          
+          echo "✅ Old task definitions cleaned up"
+
+  # Rollback capability
+  rollback:
+    name: Rollback Deployment
+    needs: [validate-deployment, deploy-blue-green]
+    if: failure() && needs.deploy-blue-green.steps.deploy.outputs.current-task-def != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Rollback to previous task definition
+        env:
+          CLUSTER: oddiya-${{ needs.validate-deployment.outputs.environment }}-cluster
+          SERVICE: oddiya-${{ needs.validate-deployment.outputs.environment }}-app
+        run: |
+          echo "🔄 Rolling back to previous task definition..."
+          
+          PREVIOUS_TASK_DEF="${{ needs.deploy-blue-green.steps.deploy.outputs.current-task-def }}"
+          
+          aws ecs update-service \
+            --cluster $CLUSTER \
+            --service $SERVICE \
+            --task-definition $PREVIOUS_TASK_DEF \
+            --force-new-deployment \
+            > /dev/null
+          
+          echo "⏳ Waiting for rollback to complete..."
+          aws ecs wait services-stable \
+            --cluster $CLUSTER \
+            --services $SERVICE
+          
+          echo "✅ Rollback completed successfully"
+
+  # Post-deployment notifications
+  notify:
+    name: Deployment Notifications
+    needs: [validate-deployment, deploy-blue-green]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deployment Success Notification
+        if: needs.deploy-blue-green.result == 'success'
+        run: |
+          echo "🎉 Deployment Successful!"
+          echo ""
+          echo "Environment: ${{ needs.validate-deployment.outputs.environment }}"
+          echo "Image: ${{ needs.build-and-prepare.outputs.image-uri }}"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          echo "Application is now live and serving traffic."
+
+      - name: Deployment Failure Notification
+        if: needs.deploy-blue-green.result == 'failure'
+        run: |
+          echo "❌ Deployment Failed!"
+          echo ""
+          echo "Environment: ${{ needs.validate-deployment.outputs.environment }}"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          echo "Check the logs above for details. Rollback may have been attempted."
+          exit 1

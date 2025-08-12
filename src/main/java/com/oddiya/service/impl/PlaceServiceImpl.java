@@ -208,4 +208,11 @@ public class PlaceServiceImpl implements PlaceService {
                 .last(placePage.isLast())
                 .build();
     }
+    
+    @Override
+    public boolean verifyPlaceData(String placeId) {
+        log.info("Verifying place data for place ID: {}", placeId);
+        // Mock implementation - in real implementation would verify against external APIs
+        return placeRepository.existsById(placeId);
+    }
 }

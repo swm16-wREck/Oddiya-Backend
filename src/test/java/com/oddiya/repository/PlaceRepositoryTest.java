@@ -5,12 +5,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.test.annotation.Rollback;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,8 +30,11 @@ import static org.assertj.core.api.Assertions.*;
  * - Rating and popularity queries
  * - Database constraints
  * - Pagination and sorting
+ * - Transaction boundaries and rollback scenarios
+ * - Entity relationships and cascading
  */
 @DisplayName("PlaceRepository Tests")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class PlaceRepositoryTest extends RepositoryTestBase {
 
     @Autowired
@@ -747,6 +754,329 @@ class PlaceRepositoryTest extends RepositoryTestBase {
             assertThat(reloadedPlace.getOpeningHours()).hasSize(3);
             assertThat(reloadedPlace.getOpeningHours()).containsEntry("Monday", "09:00-18:00");
             assertThat(reloadedPlace.getOpeningHours()).containsEntry("Sunday", "10:00-17:00");
+        }
+    }
+
+    @Nested
+    @DisplayName("Transaction Boundaries and Rollback Scenarios")
+    class TransactionBoundariesAndRollbackScenarios {
+
+        @Test
+        @Transactional
+        @Rollback
+        @DisplayName("Should rollback place transaction on constraint violation")
+        void shouldRollbackPlaceTransactionOnConstraintViolation() {
+            // Given
+            String originalDescription = testPlace1.getDescription();
+            Double originalRating = testPlace1.getRating();
+
+            // When - Simulate transaction failure
+            assertThatThrownBy(() -> {
+                // Modify existing place
+                testPlace1.setDescription("Updated description");
+                testPlace1.setRating(5.0);
+                placeRepository.save(testPlace1);
+                entityManager.flush();
+
+                // Create duplicate Naver Place ID to trigger rollback
+                Place duplicatePlace = Place.builder()
+                    .naverPlaceId("naver-place-1") // Same as testPlace1
+                    .name("Duplicate Place")
+                    .category("restaurant")
+                    .address("Test Address")
+                    .latitude(37.5000)
+                    .longitude(126.9000)
+                    .build();
+                placeRepository.save(duplicatePlace);
+                entityManager.flush();
+            }).isInstanceOf(DataIntegrityViolationException.class);
+
+            // Then - Verify rollback occurred
+            entityManager.clear();
+            Place reloadedPlace = placeRepository.findById(testPlace1.getId()).orElse(null);
+            assertThat(reloadedPlace).isNotNull();
+            assertThat(reloadedPlace.getDescription()).isEqualTo(originalDescription);
+            assertThat(reloadedPlace.getRating()).isEqualTo(originalRating);
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("Should handle bulk operations atomically")
+        void shouldHandleBulkOperationsAtomically() {
+            // Given
+            List<Place> placesToSave = Arrays.asList(
+                Place.builder()
+                    .naverPlaceId("bulk-1")
+                    .name("Bulk Place 1")
+                    .category("restaurant")
+                    .address("Address 1")
+                    .latitude(37.5001)
+                    .longitude(126.9001)
+                    .build(),
+                Place.builder()
+                    .naverPlaceId("bulk-2")
+                    .name("Bulk Place 2")
+                    .category("cafe")
+                    .address("Address 2")
+                    .latitude(37.5002)
+                    .longitude(126.9002)
+                    .build(),
+                Place.builder()
+                    .naverPlaceId("bulk-3")
+                    .name("Bulk Place 3")
+                    .category("hotel")
+                    .address("Address 3")
+                    .latitude(37.5003)
+                    .longitude(126.9003)
+                    .build()
+            );
+
+            // When
+            List<Place> savedPlaces = placeRepository.saveAll(placesToSave);
+            entityManager.flush();
+
+            // Then
+            assertThat(savedPlaces).hasSize(3);
+            assertThat(savedPlaces).allMatch(place -> place.getId() != null);
+            assertThat(savedPlaces).allMatch(place -> place.getCreatedAt() != null);
+            
+            // Verify all were saved
+            List<String> savedIds = savedPlaces.stream().map(Place::getId).toList();
+            List<Place> foundPlaces = placeRepository.findAllById(savedIds);
+            assertThat(foundPlaces).hasSize(3);
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("Should handle cascading collection updates in transaction")
+        void shouldHandleCascadingCollectionUpdatesInTransaction() {
+            // Given
+            Place place = testPlace1;
+
+            // When - Update multiple collections in single transaction
+            place.getTags().clear();
+            place.getTags().addAll(Arrays.asList("updated-tag-1", "updated-tag-2", "updated-tag-3"));
+            
+            place.getImages().clear();
+            place.getImages().addAll(Arrays.asList(
+                "http://new1.jpg", "http://new2.jpg", "http://new3.jpg"
+            ));
+            
+            place.getOpeningHours().clear();
+            place.getOpeningHours().put("Monday", "10:00-20:00");
+            place.getOpeningHours().put("Tuesday", "10:00-20:00");
+
+            Place savedPlace = placeRepository.save(place);
+            entityManager.flush();
+            entityManager.clear();
+
+            // Then - Verify all collections updated atomically
+            Place reloadedPlace = placeRepository.findById(savedPlace.getId()).orElse(null);
+            assertThat(reloadedPlace).isNotNull();
+
+            assertThat(reloadedPlace.getTags()).hasSize(3)
+                .containsExactlyInAnyOrder("updated-tag-1", "updated-tag-2", "updated-tag-3");
+
+            assertThat(reloadedPlace.getImages()).hasSize(3)
+                .containsExactlyInAnyOrder("http://new1.jpg", "http://new2.jpg", "http://new3.jpg");
+
+            assertThat(reloadedPlace.getOpeningHours()).hasSize(2)
+                .containsEntry("Monday", "10:00-20:00")
+                .containsEntry("Tuesday", "10:00-20:00");
+        }
+    }
+
+    @Nested
+    @DisplayName("Advanced Query Performance and Edge Cases")
+    class AdvancedQueryPerformanceAndEdgeCases {
+
+        @Test
+        @DisplayName("Should handle complex multi-condition queries efficiently")
+        void shouldHandleComplexMultiConditionQueriesEfficiently() {
+            // Given - Create places with varied characteristics
+            Place premiumPlace = createTestPlace("premium-place", "Premium Restaurant", 
+                "restaurant", 37.5100, 126.9100, false);
+            premiumPlace.setRating(4.8);
+            premiumPlace.setPopularityScore(90.0);
+            premiumPlace.setVerified(true);
+            premiumPlace.getTags().addAll(Arrays.asList("premium", "fine-dining", "romantic"));
+            placeRepository.save(premiumPlace);
+
+            Place casualPlace = createTestPlace("casual-place", "Casual Cafe", 
+                "cafe", 37.5200, 126.9200, false);
+            casualPlace.setRating(4.2);
+            casualPlace.setPopularityScore(70.0);
+            casualPlace.setVerified(true);
+            casualPlace.getTags().addAll(Arrays.asList("casual", "coffee", "wifi"));
+            placeRepository.save(casualPlace);
+
+            Pageable pageable = PageRequest.of(0, 10);
+
+            // When - Test various complex queries
+            Page<Place> highRatedRestaurants = placeRepository.findByMinimumRating(4.5, pageable);
+            Page<Place> premiumTaggedPlaces = placeRepository.findByTags(Arrays.asList("premium"), pageable);
+            Page<Place> restaurantCategory = placeRepository.findByCategoryAndIsDeletedFalse("restaurant", pageable);
+
+            // Then
+            assertThat(highRatedRestaurants.getContent()).hasSize(1);
+            assertThat(highRatedRestaurants.getContent().get(0).getName()).isEqualTo("Premium Restaurant");
+
+            assertThat(premiumTaggedPlaces.getContent()).hasSize(1);
+            assertThat(premiumTaggedPlaces.getContent().get(0).getName()).isEqualTo("Premium Restaurant");
+
+            assertThat(restaurantCategory.getContent()).hasSize(1);
+            assertThat(restaurantCategory.getContent().get(0).getName()).isEqualTo("Premium Restaurant");
+        }
+
+        @Test
+        @DisplayName("Should handle search with special characters and edge cases")
+        void shouldHandleSearchWithSpecialCharactersAndEdgeCases() {
+            // Given
+            Place specialPlace = createTestPlace("special-chars", "Café & Restaurant (Seoul)", 
+                "restaurant", 37.5300, 126.9300, false);
+            specialPlace.setDescription("Authentic Korean cuisine with 100% organic ingredients!");
+            placeRepository.save(specialPlace);
+
+            Pageable pageable = PageRequest.of(0, 10);
+
+            // When - Test search with various special characters
+            Page<Place> cafeResults = placeRepository.searchPlaces("Café", pageable);
+            Page<Place> ampersandResults = placeRepository.searchPlaces("&", pageable);
+            Page<Place> percentResults = placeRepository.searchPlaces("100%", pageable);
+            Page<Place> parenthesesResults = placeRepository.searchPlaces("(Seoul)", pageable);
+
+            // Then
+            assertThat(cafeResults.getContent()).hasSize(1);
+            assertThat(ampersandResults.getContent()).hasSize(1);
+            assertThat(percentResults.getContent()).hasSize(1);
+            assertThat(parenthesesResults.getContent()).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("Should handle empty and null collections gracefully")
+        void shouldHandleEmptyAndNullCollectionsGracefully() {
+            // Given
+            Place emptyCollectionsPlace = Place.builder()
+                .naverPlaceId("empty-collections")
+                .name("Empty Collections Place")
+                .category("restaurant")
+                .address("Test Address")
+                .latitude(37.5400)
+                .longitude(126.9400)
+                .build();
+
+            // When
+            Place savedPlace = placeRepository.save(emptyCollectionsPlace);
+            entityManager.flush();
+            entityManager.clear();
+
+            // Then
+            Place reloadedPlace = placeRepository.findById(savedPlace.getId()).orElse(null);
+            assertThat(reloadedPlace).isNotNull();
+            assertThat(reloadedPlace.getTags()).isNotNull().isEmpty();
+            assertThat(reloadedPlace.getImages()).isNotNull().isEmpty();
+            assertThat(reloadedPlace.getOpeningHours()).isNotNull().isEmpty();
+
+            // When - Search by empty tags should work
+            Pageable pageable = PageRequest.of(0, 10);
+            Page<Place> emptyTagResults = placeRepository.findByTags(Arrays.asList(), pageable);
+
+            // Then - Should return empty results gracefully
+            assertThat(emptyTagResults.getContent()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should handle large result sets with proper pagination")
+        void shouldHandleLargeResultSetsWithProperPagination() {
+            // Given - Create many places for pagination testing
+            for (int i = 1; i <= 50; i++) {
+                Place place = createTestPlace("large-test-" + i, "Large Test Place " + i, 
+                    "restaurant", 37.5000 + i * 0.0001, 126.9000 + i * 0.0001, false);
+                place.setRating(3.0 + (i % 3)); // Ratings between 3.0 and 5.0
+                place.setPopularityScore(50.0 + i);
+                placeRepository.save(place);
+            }
+
+            // When - Test various pagination scenarios
+            Pageable firstPage = PageRequest.of(0, 10);
+            Pageable middlePage = PageRequest.of(2, 10);
+            Pageable lastPage = PageRequest.of(4, 10);
+
+            Page<Place> firstResults = placeRepository.searchPlaces("Large Test", firstPage);
+            Page<Place> middleResults = placeRepository.searchPlaces("Large Test", middlePage);
+            Page<Place> lastResults = placeRepository.searchPlaces("Large Test", lastPage);
+
+            // Then - Verify pagination works correctly
+            assertThat(firstResults.getContent()).hasSize(10);
+            assertThat(firstResults.getTotalElements()).isEqualTo(50);
+            assertThat(firstResults.getTotalPages()).isEqualTo(5);
+            assertThat(firstResults.isFirst()).isTrue();
+            assertThat(firstResults.hasNext()).isTrue();
+
+            assertThat(middleResults.getContent()).hasSize(10);
+            assertThat(middleResults.hasNext()).isTrue();
+            assertThat(middleResults.hasPrevious()).isTrue();
+
+            assertThat(lastResults.getContent()).hasSize(10);
+            assertThat(lastResults.isLast()).isTrue();
+            assertThat(lastResults.hasPrevious()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("Statistical and Aggregation Operations")
+    class StatisticalAndAggregationOperations {
+
+        @Test
+        @DisplayName("Should handle place statistics correctly")
+        void shouldHandlePlaceStatisticsCorrectly() {
+            // Given
+            Place place = testPlace1;
+            place.setViewCount(100L);
+            place.setReviewCount(25);
+            place.setBookmarkCount(15);
+            
+            // When
+            Place savedPlace = placeRepository.save(place);
+            entityManager.flush();
+
+            // Then
+            assertThat(savedPlace.getViewCount()).isEqualTo(100L);
+            assertThat(savedPlace.getReviewCount()).isEqualTo(25);
+            assertThat(savedPlace.getBookmarkCount()).isEqualTo(15);
+        }
+
+        @Test
+        @DisplayName("Should maintain data integrity during concurrent updates")
+        void shouldMaintainDataIntegrityDuringConcurrentUpdates() {
+            // Given
+            Place concurrentPlace = createTestPlace("concurrent-place", "Concurrent Test Place", 
+                "restaurant", 37.5500, 126.9500, false);
+            concurrentPlace.setViewCount(0L);
+            concurrentPlace.setBookmarkCount(0);
+            Place savedPlace = placeRepository.save(concurrentPlace);
+            entityManager.flush();
+
+            // When - Simulate concurrent updates (in real scenario, this would be multiple threads)
+            Place place1 = placeRepository.findById(savedPlace.getId()).orElse(null);
+            Place place2 = placeRepository.findById(savedPlace.getId()).orElse(null);
+
+            place1.setViewCount(place1.getViewCount() + 1);
+            place2.setBookmarkCount(place2.getBookmarkCount() + 1);
+
+            // Save first change
+            placeRepository.save(place1);
+            entityManager.flush();
+
+            // Save second change - this should work as they modify different fields
+            placeRepository.save(place2);
+            entityManager.flush();
+
+            // Then - Verify both changes are applied
+            Place finalPlace = placeRepository.findById(savedPlace.getId()).orElse(null);
+            assertThat(finalPlace).isNotNull();
+            assertThat(finalPlace.getViewCount()).isEqualTo(1L);
+            assertThat(finalPlace.getBookmarkCount()).isEqualTo(1);
         }
     }
 }

@@ -1,0 +1,171 @@
+{
+  "test_users": [
+    {
+      "id": 1001,
+      "email": "minsu.adventure@test.com",
+      "username": "adventure_minsu",
+      "nickname": "모험가민수",
+      "profileImageUrl": "https://example.com/avatars/minsu.jpg",
+      "bio": "혼자 떠나는 여행을 좋아하는 모험가입니다. 새로운 경험을 추구합니다.",
+      "provider": "local",
+      "providerId": "local_1001",
+      "isEmailVerified": true,
+      "isPremium": false,
+      "isActive": true,
+      "preferences": {
+        "language": "ko",
+        "notifications": "enabled",
+        "privacy": "public",
+        "theme": "dark"
+      },
+      "travelPreferences": {
+        "여행스타일": "모험적",
+        "숙박선호": "게스트하우스",
+        "예산수준": "경제적",
+        "동행타입": "솔로",
+        "관심분야": "자연"
+      }
+    },
+    {
+      "id": 1002,
+      "email": "family.mom@test.com",
+      "username": "family_travel",
+      "nickname": "가족여행맘",
+      "profileImageUrl": "https://example.com/avatars/family.jpg",
+      "bio": "아이들과 함께하는 안전하고 교육적인 여행을 계획합니다.",
+      "provider": "google",
+      "providerId": "google_family",
+      "isEmailVerified": true,
+      "isPremium": false,
+      "isActive": true,
+      "preferences": {
+        "language": "ko",
+        "notifications": "enabled",
+        "privacy": "private",
+        "theme": "light"
+      },
+      "travelPreferences": {
+        "여행스타일": "여유로운",
+        "숙박선호": "리조트",
+        "예산수준": "중상급",
+        "동행타입": "가족",
+        "관심분야": "역사문화"
+      }
+    },
+    {
+      "id": 1003,
+      "email": "luxury.jiyoung@test.com",
+      "username": "luxury_travel",
+      "nickname": "럭셔리지영",
+      "profileImageUrl": "https://example.com/avatars/jiyoung.jpg",
+      "bio": "프리미엄 서비스와 고급 여행을 선호합니다. 품격있는 여행을 추구해요.",
+      "provider": "apple",
+      "providerId": "apple_luxury",
+      "isEmailVerified": true,
+      "isPremium": true,
+      "isActive": true,
+      "preferences": {
+        "language": "en",
+        "notifications": "premium",
+        "privacy": "public",
+        "theme": "light"
+      },
+      "travelPreferences": {
+        "여행스타일": "문화탐방",
+        "숙박선호": "럭셔리호텔",
+        "예산수준": "프리미엄",
+        "동행타입": "커플",
+        "관심분야": "예술"
+      }
+    },
+    {
+      "id": 1004,
+      "email": "foodie.hunter@test.com",
+      "username": "food_hunter",
+      "nickname": "맛집헌터",
+      "profileImageUrl": "https://example.com/avatars/foodie.jpg",
+      "bio": "전국 맛집을 찾아다니는 미식가입니다. 숨은 맛집 정보를 공유합니다.",
+      "provider": "kakao",
+      "providerId": "kakao_foodie",
+      "isEmailVerified": true,
+      "isPremium": false,
+      "isActive": true,
+      "preferences": {
+        "language": "ko",
+        "notifications": "enabled",
+        "privacy": "public",
+        "theme": "light"
+      },
+      "travelPreferences": {
+        "여행스타일": "맛집투어",
+        "숙박선호": "부티크호텔",
+        "예산수준": "중급",
+        "동행타입": "친구",
+        "관심분야": "음식"
+      }
+    },
+    {
+      "id": 1005,
+      "email": "kpop.lover@test.com",
+      "username": "kpop_fan",
+      "nickname": "케이팝러버",
+      "profileImageUrl": "https://example.com/avatars/kpop.jpg",
+      "bio": "K-pop과 한류 문화를 사랑하는 팬입니다. 성지순례 여행을 자주 갑니다.",
+      "provider": "naver",
+      "providerId": "naver_kpop",
+      "isEmailVerified": true,
+      "isPremium": false,
+      "isActive": true,
+      "preferences": {
+        "language": "ko",
+        "notifications": "enabled",
+        "privacy": "public",
+        "theme": "dark"
+      },
+      "travelPreferences": {
+        "여행스타일": "문화탐방",
+        "숙박선호": "부티크호텔",
+        "예산수준": "중급",
+        "동행타입": "친구",
+        "관심분야": "K-pop"
+      }
+    }
+  ],
+  "user_personas": {
+    "solo_adventurer": {
+      "nickname": "모험가민수",
+      "travelStyle": "모험적",
+      "companionType": "솔로",
+      "budgetLevel": "경제적",
+      "interests": ["자연", "액티비티", "체험"]
+    },
+    "family_traveler": {
+      "nickname": "가족여행맘",
+      "travelStyle": "여유로운",
+      "companionType": "가족",
+      "budgetLevel": "중상급",
+      "interests": ["역사문화", "체험", "안전"]
+    },
+    "luxury_traveler": {
+      "nickname": "럭셔리지영",
+      "travelStyle": "문화탐방",
+      "companionType": "커플",
+      "budgetLevel": "프리미엄",
+      "interests": ["예술", "고급", "문화"]
+    },
+    "foodie": {
+      "nickname": "맛집헌터",
+      "travelStyle": "맛집투어",
+      "companionType": "친구",
+      "budgetLevel": "중급",
+      "interests": ["음식", "미식", "현지맛집"]
+    },
+    "kpop_fan": {
+      "nickname": "케이팝러버",
+      "travelStyle": "문화탐방",
+      "companionType": "친구",
+      "budgetLevel": "중급",
+      "interests": ["K-pop", "한류", "성지순례"]
+    }
+  }
+}

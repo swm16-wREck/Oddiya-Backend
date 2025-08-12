@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -88,4 +89,7 @@ public class User extends BaseEntity {
     
     @Column(name = "refresh_token")
     private String refreshToken;
+    
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
 }

@@ -1,0 +1,429 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 2'  # Weekly on Tuesday at 3 AM
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+  pull-requests: write
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+
+jobs:
+  codeql:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'java' ]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-and-quality
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Build application for CodeQL analysis
+        run: |
+          ./gradlew clean compileJava --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  trivy:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner - Repository
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'repo'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-repo-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'
+      
+      - name: Upload Trivy repository results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-repo-results.sarif'
+      
+      - name: Run Trivy vulnerability scanner - Filesystem
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'json'
+          output: 'trivy-fs-results.json'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+          exit-code: '0'
+      
+      - name: Parse Trivy results
+        run: |
+          if [ -f trivy-fs-results.json ]; then
+            echo "## 🔍 Trivy Security Scan Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Parse JSON results
+            CRITICAL=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' trivy-fs-results.json | wc -l)
+            HIGH=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' trivy-fs-results.json | wc -l)
+            MEDIUM=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' trivy-fs-results.json | wc -l)
+            LOW=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | .VulnerabilityID' trivy-fs-results.json | wc -l)
+            
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+            echo "| Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+            if [ $TOTAL -eq 0 ]; then
+              echo "✅ No vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ $TOTAL vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+              if [ $CRITICAL -gt 0 ] || [ $HIGH -gt 0 ]; then
+                echo "🚨 Critical or High severity vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "❌ Trivy results not found" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload Trivy results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: |
+            trivy-*.json
+            trivy-*.sarif
+          retention-days: 30
+          if-no-files-found: warn
+
+  docker-security:
+    name: Docker Image Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Build application JAR
+        run: ./gradlew clean bootJar --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+      
+      - name: Build Docker image
+        run: |
+          docker build -t oddiya-security-scan:latest .
+      
+      - name: Run Trivy vulnerability scanner - Docker Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'oddiya-security-scan:latest'
+          format: 'sarif'
+          output: 'trivy-docker-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'
+      
+      - name: Upload Trivy Docker results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-docker-results.sarif'
+      
+      - name: Run Trivy vulnerability scanner - Docker Image (JSON)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'oddiya-security-scan:latest'
+          format: 'json'
+          output: 'trivy-docker-results.json'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+          exit-code: '0'
+      
+      - name: Parse Docker security results
+        run: |
+          if [ -f trivy-docker-results.json ]; then
+            echo "## 🐳 Docker Security Scan Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Parse JSON results
+            CRITICAL=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' trivy-docker-results.json | wc -l)
+            HIGH=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH") | .VulnerabilityID' trivy-docker-results.json | wc -l)
+            MEDIUM=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM") | .VulnerabilityID' trivy-docker-results.json | wc -l)
+            LOW=$(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "LOW") | .VulnerabilityID' trivy-docker-results.json | wc -l)
+            
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+            echo "| Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+            if [ $TOTAL -eq 0 ]; then
+              echo "✅ No Docker vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ $TOTAL Docker vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ Docker scan results not found" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload Docker security results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-security-results
+          path: |
+            trivy-docker-*
+          retention-days: 30
+          if-no-files-found: warn
+
+  secrets-scan:
+    name: Secrets Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Run TruffleHog OSS
+        id: trufflehog
+        uses: trufflesecurity/trufflehog@main
+        continue-on-error: true
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+      
+      - name: Run GitLeaks
+        id: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      
+      - name: Generate secrets scan summary
+        run: |
+          echo "## 🔐 Secrets Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          TRUFFLEHOG_STATUS="${{ steps.trufflehog.outcome }}"
+          GITLEAKS_STATUS="${{ steps.gitleaks.outcome }}"
+          
+          echo "| Tool | Status | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| TruffleHog | $TRUFFLEHOG_STATUS | Detects secrets in git history |" >> $GITHUB_STEP_SUMMARY
+          echo "| GitLeaks | $GITLEAKS_STATUS | Scans for hardcoded secrets |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$TRUFFLEHOG_STATUS" = "success" ] && [ "$GITLEAKS_STATUS" = "success" ]; then
+            echo "✅ No secrets detected" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Potential secrets detected - please review results" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload secrets scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets-scan-results
+          path: |
+            results.json
+            gitleaks-report.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [codeql, trivy, docker-security, secrets-scan]
+    if: always()
+    
+    steps:
+      - name: Download all security results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-results"
+          merge-multiple: true
+          path: security-results
+      
+      - name: Generate security summary
+        run: |
+          echo "## 🛡️ Security Scan Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "| Security Tool | Status | Coverage |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL | ${{ needs.codeql.result }} | Static analysis for security vulnerabilities |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy | ${{ needs.trivy.result }} | Repository and filesystem vulnerability scan |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Security | ${{ needs.docker-security.result }} | Container image security scan |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secrets Scan | ${{ needs.secrets-scan.result }} | Secret detection in code and history |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count successful scans
+          SUCCESS_COUNT=0
+          TOTAL_COUNT=4
+          
+          for result in "${{ needs.codeql.result }}" "${{ needs.trivy.result }}" "${{ needs.docker-security.result }}" "${{ needs.secrets-scan.result }}"; do
+            if [ "$result" = "success" ]; then
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            fi
+          done
+          
+          echo "### Security Scan Results: $SUCCESS_COUNT/$TOTAL_COUNT passed" >> $GITHUB_STEP_SUMMARY
+          
+          if [ $SUCCESS_COUNT -eq $TOTAL_COUNT ]; then
+            echo "✅ All security scans completed successfully!" >> $GITHUB_STEP_SUMMARY
+          elif [ $SUCCESS_COUNT -ge 3 ]; then
+            echo "⚠️ Most security scans passed with some warnings. Review failed scans." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Multiple security issues detected. Immediate attention required!" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 What was scanned:" >> $GITHUB_STEP_SUMMARY
+          echo "- Source code for security vulnerabilities (CodeQL)" >> $GITHUB_STEP_SUMMARY
+          echo "- Dependencies and filesystem (Trivy)" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker container image security" >> $GITHUB_STEP_SUMMARY
+          echo "- Secrets in code and git history" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload combined security results
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-security-results
+          path: security-results/
+          retention-days: 90  # Keep security results longer
+      
+      - name: Post security summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            
+            const results = {
+              'CodeQL': '${{ needs.codeql.result }}',
+              'Trivy': '${{ needs.trivy.result }}',
+              'Docker Security': '${{ needs.docker-security.result }}',
+              'Secrets Scan': '${{ needs.secrets-scan.result }}'
+            };
+            
+            let successCount = 0;
+            const totalCount = Object.keys(results).length;
+            
+            let tableRows = '';
+            for (const [tool, result] of Object.entries(results)) {
+              const emoji = result === 'success' ? '✅' : result === 'failure' ? '❌' : '⚠️';
+              if (result === 'success') successCount++;
+              tableRows += `| ${tool} | ${emoji} ${result} |\n`;
+            }
+            
+            const overallStatus = successCount === totalCount ? '✅ All Clear' : 
+                                successCount >= 3 ? '⚠️ Some Issues' : '❌ Security Concerns';
+            
+            const comment = `## 🛡️ Security Scan Summary
+            
+            **Overall Status:** ${overallStatus} (${successCount}/${totalCount} scans passed)
+            **Commit:** \`${{ github.sha }}\`
+            
+            | Security Tool | Status |
+            |---------------|--------|
+            ${tableRows}
+            
+            ### 🔍 Scans Performed:
+            - **CodeQL:** Static analysis for security vulnerabilities in Java code
+            - **Trivy:** Repository and filesystem vulnerability scanning  
+            - **Docker Security:** Container image security assessment
+            - **Secrets Scan:** Detection of hardcoded secrets and credentials
+            
+            ${successCount < totalCount ? 
+              '⚠️ **Action Required:** Please review and address the security findings before merging.' : 
+              '🎉 **All security scans passed!** The code meets security standards.'
+            }
+            
+            View detailed results in the [Security tab](https://github.com/${{ github.repository }}/security) and [Actions tab](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+            `;
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
+      
+      - name: Block merge on critical security issues
+        if: github.event_name == 'pull_request' && (needs.codeql.result == 'failure' || needs.secrets-scan.result == 'failure')
+        run: |
+          echo "❌ Critical security issues detected. Blocking merge."
+          echo "## ❌ Critical Security Issues Detected" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following critical security scans failed:" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.codeql.result }}" = "failure" ]; then
+            echo "- CodeQL: Security vulnerabilities in source code" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ needs.secrets-scan.result }}" = "failure" ]; then
+            echo "- Secrets Scan: Hardcoded secrets detected" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please address these security issues before merging." >> $GITHUB_STEP_SUMMARY
+          exit 1

@@ -1,0 +1,342 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+  COVERAGE_THRESHOLD: '80'
+  BRANCH_THRESHOLD: '70'
+
+jobs:
+  coverage:
+    name: Code Coverage Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: oddiya
+          POSTGRES_PASSWORD: oddiya123
+          POSTGRES_DB: oddiya_coverage_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            build/cache
+          key: ${{ runner.os }}-gradle-coverage-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-coverage-
+            ${{ runner.os }}-gradle-
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Wait for services
+        run: |
+          echo "Waiting for PostgreSQL..."
+          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U oddiya; do sleep 2; done'
+          
+          echo "Waiting for Redis..."
+          timeout 60 bash -c 'until redis-cli -h localhost -p 6379 ping | grep PONG; do sleep 2; done'
+          
+          echo "All services are ready!"
+      
+      - name: Run tests with coverage
+        run: |
+          ./gradlew clean test jacocoTestReport --no-daemon --continue
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          DATABASE_URL: jdbc:postgresql://localhost:5432/oddiya_coverage_test
+          DATABASE_USERNAME: oddiya
+          DATABASE_PASSWORD: oddiya123
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          TESTCONTAINERS_RYUK_DISABLED: true
+      
+      - name: Generate coverage verification report
+        continue-on-error: true
+        run: |
+          ./gradlew jacocoTestCoverageVerification --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+      
+      - name: Parse coverage results
+        id: coverage
+        run: |
+          if [ -f build/reports/jacoco/test/jacocoTestReport.xml ]; then
+            # Extract coverage percentages from JaCoCo XML report
+            LINE_COVERAGE=$(grep -o 'type="LINE"[^>]*>' build/reports/jacoco/test/jacocoTestReport.xml | grep -o 'covered="[0-9]*"' | cut -d'"' -f2)
+            LINE_MISSED=$(grep -o 'type="LINE"[^>]*>' build/reports/jacoco/test/jacocoTestReport.xml | grep -o 'missed="[0-9]*"' | cut -d'"' -f2)
+            BRANCH_COVERAGE=$(grep -o 'type="BRANCH"[^>]*>' build/reports/jacoco/test/jacocoTestReport.xml | grep -o 'covered="[0-9]*"' | cut -d'"' -f2 | head -1)
+            BRANCH_MISSED=$(grep -o 'type="BRANCH"[^>]*>' build/reports/jacoco/test/jacocoTestReport.xml | grep -o 'missed="[0-9]*"' | cut -d'"' -f2 | head -1)
+            
+            if [ -n "$LINE_COVERAGE" ] && [ -n "$LINE_MISSED" ]; then
+              TOTAL_LINES=$((LINE_COVERAGE + LINE_MISSED))
+              if [ $TOTAL_LINES -gt 0 ]; then
+                LINE_PERCENTAGE=$(echo "scale=2; $LINE_COVERAGE * 100 / $TOTAL_LINES" | bc -l)
+              else
+                LINE_PERCENTAGE="0"
+              fi
+            else
+              LINE_PERCENTAGE="0"
+            fi
+            
+            if [ -n "$BRANCH_COVERAGE" ] && [ -n "$BRANCH_MISSED" ]; then
+              TOTAL_BRANCHES=$((BRANCH_COVERAGE + BRANCH_MISSED))
+              if [ $TOTAL_BRANCHES -gt 0 ]; then
+                BRANCH_PERCENTAGE=$(echo "scale=2; $BRANCH_COVERAGE * 100 / $TOTAL_BRANCHES" | bc -l)
+              else
+                BRANCH_PERCENTAGE="0"
+              fi
+            else
+              BRANCH_PERCENTAGE="0"
+            fi
+            
+            echo "line_coverage=${LINE_PERCENTAGE}" >> $GITHUB_OUTPUT
+            echo "branch_coverage=${BRANCH_PERCENTAGE}" >> $GITHUB_OUTPUT
+            echo "line_covered=${LINE_COVERAGE}" >> $GITHUB_OUTPUT
+            echo "line_missed=${LINE_MISSED}" >> $GITHUB_OUTPUT
+            echo "branch_covered=${BRANCH_COVERAGE}" >> $GITHUB_OUTPUT
+            echo "branch_missed=${BRANCH_MISSED}" >> $GITHUB_OUTPUT
+          else
+            echo "line_coverage=0" >> $GITHUB_OUTPUT
+            echo "branch_coverage=0" >> $GITHUB_OUTPUT
+            echo "line_covered=0" >> $GITHUB_OUTPUT
+            echo "line_missed=0" >> $GITHUB_OUTPUT
+            echo "branch_covered=0" >> $GITHUB_OUTPUT
+            echo "branch_missed=0" >> $GITHUB_OUTPUT
+          fi
+          
+          # Install bc for calculations
+          sudo apt-get update && sudo apt-get install -y bc
+      
+      - name: Evaluate coverage thresholds
+        id: threshold
+        run: |
+          LINE_COVERAGE="${{ steps.coverage.outputs.line_coverage }}"
+          BRANCH_COVERAGE="${{ steps.coverage.outputs.branch_coverage }}"
+          
+          # Check if coverage meets thresholds
+          LINE_MEETS_THRESHOLD=$(echo "$LINE_COVERAGE >= ${{ env.COVERAGE_THRESHOLD }}" | bc -l)
+          BRANCH_MEETS_THRESHOLD=$(echo "$BRANCH_COVERAGE >= ${{ env.BRANCH_THRESHOLD }}" | bc -l)
+          
+          if [ "$LINE_MEETS_THRESHOLD" = "1" ] && [ "$BRANCH_MEETS_THRESHOLD" = "1" ]; then
+            echo "coverage_passes=true" >> $GITHUB_OUTPUT
+            echo "status_emoji=✅" >> $GITHUB_OUTPUT
+            echo "status_text=Passed" >> $GITHUB_OUTPUT
+          else
+            echo "coverage_passes=false" >> $GITHUB_OUTPUT
+            echo "status_emoji=❌" >> $GITHUB_OUTPUT
+            echo "status_text=Failed" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "line_meets_threshold=$LINE_MEETS_THRESHOLD" >> $GITHUB_OUTPUT
+          echo "branch_meets_threshold=$BRANCH_MEETS_THRESHOLD" >> $GITHUB_OUTPUT
+      
+      - name: Generate coverage report
+        run: |
+          echo "## 📊 Code Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Coverage Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Type | Coverage | Covered | Missed | Threshold | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|----------|---------|---------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          LINE_STATUS="${{ steps.threshold.outputs.line_meets_threshold }}"
+          BRANCH_STATUS="${{ steps.threshold.outputs.branch_meets_threshold }}"
+          
+          if [ "$LINE_STATUS" = "1" ]; then
+            LINE_EMOJI="✅"
+          else
+            LINE_EMOJI="❌"
+          fi
+          
+          if [ "$BRANCH_STATUS" = "1" ]; then
+            BRANCH_EMOJI="✅"
+          else
+            BRANCH_EMOJI="❌"
+          fi
+          
+          echo "| Line | ${{ steps.coverage.outputs.line_coverage }}% | ${{ steps.coverage.outputs.line_covered }} | ${{ steps.coverage.outputs.line_missed }} | ${{ env.COVERAGE_THRESHOLD }}% | $LINE_EMOJI |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ steps.coverage.outputs.branch_coverage }}% | ${{ steps.coverage.outputs.branch_covered }} | ${{ steps.coverage.outputs.branch_missed }} | ${{ env.BRANCH_THRESHOLD }}% | $BRANCH_EMOJI |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Overall Status: ${{ steps.threshold.outputs.status_emoji }} ${{ steps.threshold.outputs.status_text }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.threshold.outputs.coverage_passes }}" = "false" ]; then
+            echo "⚠️ **Coverage is below the required thresholds:**" >> $GITHUB_STEP_SUMMARY
+            if [ "$LINE_STATUS" != "1" ]; then
+              echo "- Line coverage: ${{ steps.coverage.outputs.line_coverage }}% < ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ "$BRANCH_STATUS" != "1" ]; then
+              echo "- Branch coverage: ${{ steps.coverage.outputs.branch_coverage }}% < ${{ env.BRANCH_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "🎉 **All coverage thresholds met!**" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            build/reports/jacoco/test/
+            build/jacoco/
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./build/reports/jacoco/test/jacocoTestReport.xml
+          name: oddiya-coverage
+          fail_ci_if_error: false
+          verbose: true
+      
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const statusEmoji = '${{ steps.threshold.outputs.status_emoji }}';
+            const statusText = '${{ steps.threshold.outputs.status_text }}';
+            const lineCoverage = '${{ steps.coverage.outputs.line_coverage }}';
+            const branchCoverage = '${{ steps.coverage.outputs.branch_coverage }}';
+            const lineCovered = '${{ steps.coverage.outputs.line_covered }}';
+            const lineMissed = '${{ steps.coverage.outputs.line_missed }}';
+            const branchCovered = '${{ steps.coverage.outputs.branch_covered }}';
+            const branchMissed = '${{ steps.coverage.outputs.branch_missed }}';
+            
+            const lineStatus = '${{ steps.threshold.outputs.line_meets_threshold }}' === '1' ? '✅' : '❌';
+            const branchStatus = '${{ steps.threshold.outputs.branch_meets_threshold }}' === '1' ? '✅' : '❌';
+            
+            const comment = `## 📊 Code Coverage Report
+            
+            **Overall Status:** ${statusEmoji} ${statusText}
+            
+            | Type | Coverage | Covered | Missed | Threshold | Status |
+            |------|----------|---------|---------|-----------|--------|
+            | Line | ${lineCoverage}% | ${lineCovered} | ${lineMissed} | ${{ env.COVERAGE_THRESHOLD }}% | ${lineStatus} |
+            | Branch | ${branchCoverage}% | ${branchCovered} | ${branchMissed} | ${{ env.BRANCH_THRESHOLD }}% | ${branchStatus} |
+            
+            ### 📈 Coverage Analysis
+            ${statusText === 'Passed' ? 
+              '🎉 All coverage thresholds met! Great job on maintaining code quality.' :
+              '⚠️ Coverage is below required thresholds. Please add more tests to improve coverage.'
+            }
+            
+            **Commit:** \`${{ github.sha }}\`
+            
+            View detailed coverage report in the [Actions tab](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+            `;
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
+      
+      - name: Block merge on coverage failure
+        if: steps.threshold.outputs.coverage_passes != 'true' && github.event_name == 'pull_request'
+        run: |
+          echo "❌ Code coverage is below required thresholds"
+          echo "Line coverage: ${{ steps.coverage.outputs.line_coverage }}% (required: ${{ env.COVERAGE_THRESHOLD }}%)"
+          echo "Branch coverage: ${{ steps.coverage.outputs.branch_coverage }}% (required: ${{ env.BRANCH_THRESHOLD }}%)"
+          echo ""
+          echo "Please add more tests to improve coverage before merging."
+          exit 1
+
+  coverage-trend:
+    name: Coverage Trend Analysis
+    runs-on: ubuntu-latest
+    needs: coverage
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports
+          path: coverage-reports
+      
+      - name: Store coverage data
+        run: |
+          # Create coverage history directory
+          mkdir -p coverage-history
+          
+          # Store current coverage data with timestamp
+          DATE=$(date +%Y-%m-%d)
+          echo "{" > coverage-history/coverage-$DATE.json
+          echo "  \"date\": \"$DATE\"," >> coverage-history/coverage-$DATE.json
+          echo "  \"commit\": \"${{ github.sha }}\"," >> coverage-history/coverage-$DATE.json
+          echo "  \"line_coverage\": ${{ needs.coverage.outputs.line_coverage }}," >> coverage-history/coverage-$DATE.json
+          echo "  \"branch_coverage\": ${{ needs.coverage.outputs.branch_coverage }}," >> coverage-history/coverage-$DATE.json
+          echo "  \"line_covered\": ${{ needs.coverage.outputs.line_covered }}," >> coverage-history/coverage-$DATE.json
+          echo "  \"line_missed\": ${{ needs.coverage.outputs.line_missed }}," >> coverage-history/coverage-$DATE.json
+          echo "  \"branch_covered\": ${{ needs.coverage.outputs.branch_covered }}," >> coverage-history/coverage-$DATE.json
+          echo "  \"branch_missed\": ${{ needs.coverage.outputs.branch_missed }}" >> coverage-history/coverage-$DATE.json
+          echo "}" >> coverage-history/coverage-$DATE.json
+      
+      - name: Upload coverage history
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-history
+          path: coverage-history/
+          retention-days: 365

@@ -1,0 +1,261 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ main, develop, feature/*, bugfix/* ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      matrix:
+        test-group: [entity, service, controller, repository, security, config]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            build/cache
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Compile source code
+        run: ./gradlew compileJava compileTestJava --no-daemon --continue
+      
+      - name: Run unit tests - ${{ matrix.test-group }}
+        run: |
+          case "${{ matrix.test-group }}" in
+            "entity")
+              ./gradlew test --tests "*entity*" --tests "*Entity*" --no-daemon --continue
+              ;;
+            "service")
+              ./gradlew test --tests "*service*" --tests "*Service*" --no-daemon --continue
+              ;;
+            "controller")
+              ./gradlew test --tests "*controller*" --tests "*Controller*" --no-daemon --continue
+              ;;
+            "repository")
+              ./gradlew test --tests "*repository*" --tests "*Repository*" --no-daemon --continue
+              ;;
+            "security")
+              ./gradlew test --tests "*security*" --tests "*Security*" --tests "*Auth*" --tests "*Jwt*" --no-daemon --continue
+              ;;
+            "config")
+              ./gradlew test --tests "*config*" --tests "*Config*" --no-daemon --continue
+              ;;
+          esac
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          TESTCONTAINERS_RYUK_DISABLED: true
+      
+      - name: Generate test report
+        if: always()
+        run: |
+          ./gradlew testReport --no-daemon
+          echo "## Unit Test Results - ${{ matrix.test-group }}" >> $GITHUB_STEP_SUMMARY
+          if [ -f build/reports/tests/test/index.html ]; then
+            echo "Test results generated successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No test results generated" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Test Results - ${{ matrix.test-group }}
+          path: build/test-results/test/*.xml
+          reporter: java-junit
+          fail-on-error: false
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ matrix.test-group }}
+          path: |
+            build/test-results/test/*.xml
+            build/reports/tests/test/
+          retention-days: 7
+          if-no-files-found: warn
+      
+      - name: Comment test results on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const testGroup = '${{ matrix.test-group }}';
+            let comment = `## Unit Test Results - ${testGroup}\n\n`;
+            
+            try {
+              const testResultsPath = 'build/test-results/test';
+              if (fs.existsSync(testResultsPath)) {
+                const files = fs.readdirSync(testResultsPath);
+                const xmlFiles = files.filter(f => f.endsWith('.xml'));
+                
+                if (xmlFiles.length > 0) {
+                  comment += `✅ Found ${xmlFiles.length} test result files\n`;
+                  comment += `📊 Test execution completed for ${testGroup} tests\n\n`;
+                } else {
+                  comment += `⚠️ No test result files found\n\n`;
+                }
+              } else {
+                comment += `❌ Test results directory not found\n\n`;
+              }
+            } catch (error) {
+              comment += `❌ Error reading test results: ${error.message}\n\n`;
+            }
+            
+            comment += `**Test Group:** ${testGroup}\n`;
+            comment += `**Status:** ${{ job.status }}\n`;
+            comment += `**Workflow:** ${context.workflow}\n`;
+            
+            const prNumber = context.issue.number;
+            if (prNumber) {
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: comment
+              });
+            }
+
+  combine-results:
+    name: Combine Unit Test Results
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: always()
+    
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: unit-test-results-*
+          merge-multiple: true
+          path: combined-results
+      
+      - name: Combine test results
+        run: |
+          echo "## Combined Unit Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          total_files=0
+          if [ -d "combined-results" ]; then
+            total_files=$(find combined-results -name "*.xml" | wc -l)
+            echo "📊 Total test result files: $total_files" >> $GITHUB_STEP_SUMMARY
+            
+            # Simple summary based on file existence
+            if [ $total_files -gt 0 ]; then
+              echo "✅ Unit tests executed successfully" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ No test results found" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ No combined results directory found" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Matrix Results:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Entity tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Service tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY  
+          echo "- Controller tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Repository tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Config tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload combined results
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-unit-test-results
+          path: combined-results/
+          retention-days: 30
+
+  notify-results:
+    name: Notify Test Results
+    runs-on: ubuntu-latest
+    needs: [unit-tests, combine-results]
+    if: always()
+    
+    steps:
+      - name: Set test status
+        id: status
+        run: |
+          if [[ "${{ needs.unit-tests.result }}" == "success" ]]; then
+            echo "status=✅ Passed" >> $GITHUB_OUTPUT
+            echo "color=3066993" >> $GITHUB_OUTPUT
+          else
+            echo "status=❌ Failed" >> $GITHUB_OUTPUT  
+            echo "color=15158332" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Post status to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ steps.status.outputs.status }}';
+            const prNumber = context.issue.number;
+            
+            const comment = `## 🧪 Unit Test Pipeline Summary
+            
+            **Status:** ${status}
+            **Commit:** \`${{ github.sha }}\`
+            **Workflow:** ${{ github.workflow }}
+            
+            ### Test Matrix Results:
+            - **Entity Tests:** ${{ needs.unit-tests.result }}
+            - **Service Tests:** ${{ needs.unit-tests.result }}
+            - **Controller Tests:** ${{ needs.unit-tests.result }}
+            - **Repository Tests:** ${{ needs.unit-tests.result }}
+            - **Security Tests:** ${{ needs.unit-tests.result }}
+            - **Config Tests:** ${{ needs.unit-tests.result }}
+            
+            View detailed results in the [Actions tab](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+            `;
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });

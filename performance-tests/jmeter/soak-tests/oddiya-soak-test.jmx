@@ -1,0 +1,725 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Oddiya Soak Test Plan - 8 Hours" enabled="true">
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="BASE_URL" elementType="Argument">
+            <stringProp name="Argument.name">BASE_URL</stringProp>
+            <stringProp name="Argument.value">${__P(base.url,http://localhost:8080)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="API_VERSION" elementType="Argument">
+            <stringProp name="Argument.name">API_VERSION</stringProp>
+            <stringProp name="Argument.value">/api/v1</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="THREAD_COUNT" elementType="Argument">
+            <stringProp name="Argument.name">THREAD_COUNT</stringProp>
+            <stringProp name="Argument.value">${__P(soak.users,50)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="RAMP_TIME" elementType="Argument">
+            <stringProp name="Argument.name">RAMP_TIME</stringProp>
+            <stringProp name="Argument.value">${__P(ramp.time,300)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="TEST_DURATION" elementType="Argument">
+            <stringProp name="Argument.name">TEST_DURATION</stringProp>
+            <stringProp name="Argument.value">${__P(test.duration,28800)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <!-- CSV Data Set Config for Users -->
+      <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="User CSV Data" enabled="true">
+        <stringProp name="filename">../config/user-data.csv</stringProp>
+        <stringProp name="fileEncoding">UTF-8</stringProp>
+        <stringProp name="variableNames">userId,email,password,userType,accessToken,refreshToken</stringProp>
+        <boolProp name="ignoreFirstLine">true</boolProp>
+        <stringProp name="delimiter">,</stringProp>
+        <boolProp name="quotedData">false</boolProp>
+        <boolProp name="recycle">true</boolProp>
+        <boolProp name="stopThread">false</boolProp>
+        <stringProp name="shareMode">shareMode.all</stringProp>
+      </CSVDataSet>
+      <hashTree/>
+
+      <!-- HTTP Request Defaults -->
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+          <collectionProp name="Arguments.arguments"/>
+        </elementProp>
+        <stringProp name="HTTPSampler.domain">${__groovy(vars.get('BASE_URL').replaceAll('https?://',''))}</stringProp>
+        <stringProp name="HTTPSampler.port">8080</stringProp>
+        <stringProp name="HTTPSampler.protocol">http</stringProp>
+        <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+        <stringProp name="HTTPSampler.path">${API_VERSION}</stringProp>
+        <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
+        <boolProp name="HTTPSampler.image_parser">false</boolProp>
+        <boolProp name="HTTPSampler.concurrentDwn">false</boolProp>
+        <stringProp name="HTTPSampler.concurrentPool">6</stringProp>
+        <boolProp name="HTTPSampler.md5">false</boolProp>
+        <intProp name="HTTPSampler.ipSourceType">0</intProp>
+      </ConfigTestElement>
+      <hashTree/>
+
+      <!-- HTTP Header Manager -->
+      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+        <collectionProp name="HeaderManager.headers">
+          <elementProp name="Content-Type" elementType="Header">
+            <stringProp name="Header.name">Content-Type</stringProp>
+            <stringProp name="Header.value">application/json</stringProp>
+          </elementProp>
+          <elementProp name="Accept" elementType="Header">
+            <stringProp name="Header.name">Accept</stringProp>
+            <stringProp name="Header.value">application/json</stringProp>
+          </elementProp>
+          <elementProp name="User-Agent" elementType="Header">
+            <stringProp name="Header.name">User-Agent</stringProp>
+            <stringProp name="Header.value">Oddiya-SoakTest/1.0</stringProp>
+          </elementProp>
+          <elementProp name="X-Test-Type" elementType="Header">
+            <stringProp name="Header.name">X-Test-Type</stringProp>
+            <stringProp name="Header.value">soak-test</stringProp>
+          </elementProp>
+        </collectionProp>
+      </HeaderManager>
+      <hashTree/>
+
+      <!-- Connection Pool Config -->
+      <DNSCacheManager guiclass="DNSCachePanel" testclass="DNSCacheManager" testname="DNS Cache Manager" enabled="true">
+        <collectionProp name="DNSCacheManager.servers"/>
+        <boolProp name="DNSCacheManager.clearEachIteration">false</boolProp>
+        <boolProp name="DNSCacheManager.isCustomResolver">false</boolProp>
+      </DNSCacheManager>
+      <hashTree/>
+
+      <!-- Main Soak Test Thread Group -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Soak Test - 8 Hours Sustained Load" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlGui" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${THREAD_COUNT}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${RAMP_TIME}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${TEST_DURATION}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+        <!-- User Session Management -->
+        <OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Initial Authentication" enabled="true"/>
+        <hashTree>
+          <!-- Login Once -->
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /auth/login - Session Start" enabled="true">
+            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.value">{
+  "provider": "google",
+  "providerToken": "soak_test_token_${userId}_${__time(yyyyMMdd_HHmmss)}",
+  "email": "${email}",
+  "name": "Soak Test User ${userId}"
+}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                </elementProp>
+              </collectionProp>
+            </elementProp>
+            <stringProp name="HTTPSampler.domain"></stringProp>
+            <stringProp name="HTTPSampler.port"></stringProp>
+            <stringProp name="HTTPSampler.protocol"></stringProp>
+            <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+            <stringProp name="HTTPSampler.path">/auth/login</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+            <stringProp name="HTTPSampler.connect_timeout">10000</stringProp>
+            <stringProp name="HTTPSampler.response_timeout">15000</stringProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <!-- Extract Token for Session -->
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract Session Token" enabled="true">
+              <stringProp name="JSONPostProcessor.referenceNames">session_token</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.accessToken</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">NOT_FOUND</stringProp>
+            </JSONPostProcessor>
+            <hashTree/>
+
+            <!-- Login Success Assertion -->
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Login Success" enabled="true">
+              <collectionProp name="Asserion.test_strings">
+                <stringProp name="49586">200</stringProp>
+              </collectionProp>
+              <stringProp name="Assertion.custom_message">Initial login must succeed for soak test</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">1</intProp>
+            </ResponseAssertion>
+            <hashTree/>
+          </hashTree>
+        </hashTree>
+
+        <!-- Weighted Random Controller for User Actions -->
+        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="User Activity Pattern" enabled="true">
+          <intProp name="InterleaveControl.style">1</intProp>
+          <boolProp name="RandomController.reuse">false</boolProp>
+        </RandomController>
+        <hashTree>
+          <!-- Search Activity (40% of traffic) -->
+          <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="Search Activity - 40%" enabled="true">
+            <intProp name="ThroughputController.style">1</intProp>
+            <boolProp name="ThroughputController.perThread">false</boolProp>
+            <intProp name="ThroughputController.maxThroughput">1</intProp>
+            <FloatProperty>
+              <name>ThroughputController.percentThroughput</name>
+              <value>40.0</value>
+              <savedAsString>false</savedAsString>
+            </FloatProperty>
+          </ThroughputController>
+          <hashTree>
+            <!-- Place Search -->
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /places/search" enabled="true">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="query" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">${__chooseRandom(서울,부산,제주,강릉,경주,전주,대구,광주,인천,울산)}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                    <stringProp name="Argument.name">query</stringProp>
+                  </elementProp>
+                  <elementProp name="limit" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">${__Random(10,50)}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                    <stringProp name="Argument.name">limit</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <stringProp name="HTTPSampler.domain"></stringProp>
+              <stringProp name="HTTPSampler.port"></stringProp>
+              <stringProp name="HTTPSampler.protocol"></stringProp>
+              <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+              <stringProp name="HTTPSampler.path">/places/search</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+              <stringProp name="HTTPSampler.connect_timeout">5000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">10000</stringProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <!-- Memory Leak Detection - Response Size Check -->
+              <BeanShellAssertion guiclass="BeanShellAssertionGui" testclass="BeanShellAssertion" testname="Response Size Monitor" enabled="true">
+                <stringProp name="BeanShellAssertion.query">
+// Monitor response sizes to detect potential memory leaks
+int responseSize = prev.getResponseData().length;
+long currentTime = System.currentTimeMillis();
+
+// Log response size every 100 requests
+if (ctx.getThreadGroup().getNumberOfThreads() > 0) {
+    String key = "response_sizes";
+    String sizeData = props.get(key);
+    if (sizeData == null) {
+        sizeData = "";
+    }
+    
+    // Add current size
+    sizeData += responseSize + ",";
+    
+    // Keep only last 100 sizes
+    String[] sizes = sizeData.split(",");
+    if (sizes.length > 100) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = sizes.length - 100; i < sizes.length; i++) {
+            sb.append(sizes[i]).append(",");
+        }
+        sizeData = sb.toString();
+    }
+    
+    props.put(key, sizeData);
+}
+
+// Fail if response is unreasonably large (potential memory issue)
+if (responseSize > 5000000) { // 5MB
+    Failure = true;
+    FailureMessage = "Response size too large: " + responseSize + " bytes. Potential memory leak.";
+}
+                </stringProp>
+                <stringProp name="BeanShellAssertion.filename"></stringProp>
+                <stringProp name="BeanShellAssertion.parameters"></stringProp>
+                <boolProp name="BeanShellAssertion.resetInterpreter">false</boolProp>
+              </BeanShellAssertion>
+              <hashTree/>
+            </hashTree>
+          </hashTree>
+
+          <!-- Popular Places Activity (25% of traffic) -->
+          <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="Popular Places - 25%" enabled="true">
+            <intProp name="ThroughputController.style">1</intProp>
+            <boolProp name="ThroughputController.perThread">false</boolProp>
+            <intProp name="ThroughputController.maxThroughput">1</intProp>
+            <FloatProperty>
+              <name>ThroughputController.percentThroughput</name>
+              <value>25.0</value>
+              <savedAsString>false</savedAsString>
+            </FloatProperty>
+          </ThroughputController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /places/popular" enabled="true">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="category" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">${__chooseRandom(restaurant,attraction,hotel,cafe,shopping)}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                    <stringProp name="Argument.name">category</stringProp>
+                  </elementProp>
+                  <elementProp name="limit" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">20</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                    <stringProp name="Argument.name">limit</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <stringProp name="HTTPSampler.domain"></stringProp>
+              <stringProp name="HTTPSampler.port"></stringProp>
+              <stringProp name="HTTPSampler.protocol"></stringProp>
+              <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+              <stringProp name="HTTPSampler.path">/places/popular</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+              <stringProp name="HTTPSampler.connect_timeout">5000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">10000</stringProp>
+            </HTTPSamplerProxy>
+            <hashTree/>
+          </hashTree>
+
+          <!-- Travel Plan Activity (20% of traffic) -->
+          <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="Travel Plans - 20%" enabled="true">
+            <intProp name="ThroughputController.style">1</intProp>
+            <boolProp name="ThroughputController.perThread">false</boolProp>
+            <intProp name="ThroughputController.maxThroughput">1</intProp>
+            <FloatProperty>
+              <name>ThroughputController.percentThroughput</name>
+              <value>20.0</value>
+              <savedAsString>false</savedAsString>
+            </FloatProperty>
+          </ThroughputController>
+          <hashTree>
+            <!-- Alternating between creating and viewing plans -->
+            <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="Plan Actions" enabled="true">
+              <intProp name="InterleaveControl.style">1</intProp>
+              <boolProp name="RandomController.reuse">false</boolProp>
+            </RandomController>
+            <hashTree>
+              <!-- Create Travel Plan -->
+              <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /travel-plans" enabled="true">
+                <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+                <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                  <collectionProp name="Arguments.arguments">
+                    <elementProp name="" elementType="HTTPArgument">
+                      <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                      <stringProp name="Argument.value">{
+  "title": "Soak Test Plan ${__time(yyyy-MM-dd HH:mm:ss)}",
+  "destination": "${__chooseRandom(서울,부산,제주,강릉,경주)}",
+  "startDate": "${__timeShift(yyyy-MM-dd,,P+${__Random(1,30)}D,,)}",
+  "endDate": "${__timeShift(yyyy-MM-dd,,P+${__Random(31,45)}D,,)}",
+  "budget": ${__Random(500000,2000000)},
+  "travelers": ${__Random(2,6)},
+  "preferences": ["문화체험", "맛집투어", "자연관광"]
+}</stringProp>
+                      <stringProp name="Argument.metadata">=</stringProp>
+                    </elementProp>
+                  </collectionProp>
+                </elementProp>
+                <stringProp name="HTTPSampler.domain"></stringProp>
+                <stringProp name="HTTPSampler.port"></stringProp>
+                <stringProp name="HTTPSampler.protocol"></stringProp>
+                <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+                <stringProp name="HTTPSampler.path">/travel-plans</stringProp>
+                <stringProp name="HTTPSampler.method">POST</stringProp>
+                <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+                <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+                <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+                <stringProp name="HTTPSampler.connect_timeout">10000</stringProp>
+                <stringProp name="HTTPSampler.response_timeout">20000</stringProp>
+              </HTTPSamplerProxy>
+              <hashTree>
+                <!-- Authorization Header -->
+                <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization Header" enabled="true">
+                  <collectionProp name="HeaderManager.headers">
+                    <elementProp name="Authorization" elementType="Header">
+                      <stringProp name="Header.name">Authorization</stringProp>
+                      <stringProp name="Header.value">Bearer ${session_token}</stringProp>
+                    </elementProp>
+                  </collectionProp>
+                </HeaderManager>
+                <hashTree/>
+              </hashTree>
+
+              <!-- Get Travel Plans -->
+              <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /travel-plans" enabled="true">
+                <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+                  <collectionProp name="Arguments.arguments">
+                    <elementProp name="page" elementType="HTTPArgument">
+                      <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                      <stringProp name="Argument.value">0</stringProp>
+                      <stringProp name="Argument.metadata">=</stringProp>
+                      <stringProp name="Argument.name">page</stringProp>
+                    </elementProp>
+                    <elementProp name="size" elementType="HTTPArgument">
+                      <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                      <stringProp name="Argument.value">10</stringProp>
+                      <stringProp name="Argument.metadata">=</stringProp>
+                      <stringProp name="Argument.name">size</stringProp>
+                    </elementProp>
+                  </collectionProp>
+                </elementProp>
+                <stringProp name="HTTPSampler.domain"></stringProp>
+                <stringProp name="HTTPSampler.port"></stringProp>
+                <stringProp name="HTTPSampler.protocol"></stringProp>
+                <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+                <stringProp name="HTTPSampler.path">/travel-plans</stringProp>
+                <stringProp name="HTTPSampler.method">GET</stringProp>
+                <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+                <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+                <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+                <stringProp name="HTTPSampler.connect_timeout">5000</stringProp>
+                <stringProp name="HTTPSampler.response_timeout">10000</stringProp>
+              </HTTPSamplerProxy>
+              <hashTree>
+                <!-- Authorization Header -->
+                <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization Header" enabled="true">
+                  <collectionProp name="HeaderManager.headers">
+                    <elementProp name="Authorization" elementType="Header">
+                      <stringProp name="Header.name">Authorization</stringProp>
+                      <stringProp name="Header.value">Bearer ${session_token}</stringProp>
+                    </elementProp>
+                  </collectionProp>
+                </HeaderManager>
+                <hashTree/>
+              </hashTree>
+            </hashTree>
+          </hashTree>
+
+          <!-- Health Check Activity (10% of traffic) -->
+          <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="Health Checks - 10%" enabled="true">
+            <intProp name="ThroughputController.style">1</intProp>
+            <boolProp name="ThroughputController.perThread">false</boolProp>
+            <intProp name="ThroughputController.maxThroughput">1</intProp>
+            <FloatProperty>
+              <name>ThroughputController.percentThroughput</name>
+              <value>10.0</value>
+              <savedAsString>false</savedAsString>
+            </FloatProperty>
+          </ThroughputController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /actuator/health" enabled="true">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.domain"></stringProp>
+              <stringProp name="HTTPSampler.port"></stringProp>
+              <stringProp name="HTTPSampler.protocol"></stringProp>
+              <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+              <stringProp name="HTTPSampler.path">/actuator/health</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+              <stringProp name="HTTPSampler.connect_timeout">2000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">5000</stringProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <!-- Health Check Assertion -->
+              <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Health Status OK" enabled="true">
+                <collectionProp name="Asserion.test_strings">
+                  <stringProp name="49586">200</stringProp>
+                </collectionProp>
+                <stringProp name="Assertion.custom_message">Health check must pass during soak test</stringProp>
+                <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                <boolProp name="Assertion.assume_success">false</boolProp>
+                <intProp name="Assertion.test_type">1</intProp>
+              </ResponseAssertion>
+              <hashTree/>
+
+              <!-- Health Response Time -->
+              <DurationAssertion guiclass="DurationAssertionGui" testclass="DurationAssertion" testname="Health Response Time" enabled="true">
+                <stringProp name="DurationAssertion.duration">1000</stringProp>
+              </DurationAssertion>
+              <hashTree/>
+            </hashTree>
+          </hashTree>
+
+          <!-- Token Refresh Activity (5% of traffic) -->
+          <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="Token Refresh - 5%" enabled="true">
+            <intProp name="ThroughputController.style">1</intProp>
+            <boolProp name="ThroughputController.perThread">false</boolProp>
+            <intProp name="ThroughputController.maxThroughput">1</intProp>
+            <FloatProperty>
+              <name>ThroughputController.percentThroughput</name>
+              <value>5.0</value>
+              <savedAsString>false</savedAsString>
+            </FloatProperty>
+          </ThroughputController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /auth/refresh" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">{
+  "refreshToken": "${refreshToken}"
+}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <stringProp name="HTTPSampler.domain"></stringProp>
+              <stringProp name="HTTPSampler.port"></stringProp>
+              <stringProp name="HTTPSampler.protocol"></stringProp>
+              <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+              <stringProp name="HTTPSampler.path">/auth/refresh</stringProp>
+              <stringProp name="HTTPSampler.method">POST</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+              <stringProp name="HTTPSampler.connect_timeout">5000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">10000</stringProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <!-- Update session token -->
+              <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Update Session Token" enabled="true">
+                <stringProp name="JSONPostProcessor.referenceNames">session_token</stringProp>
+                <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.accessToken</stringProp>
+                <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+                <stringProp name="JSONPostProcessor.defaultValues">${session_token}</stringProp>
+              </JSONPostProcessor>
+              <hashTree/>
+            </hashTree>
+          </hashTree>
+        </hashTree>
+
+        <!-- Realistic User Think Time -->
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="User Think Time" enabled="true">
+          <stringProp name="ConstantTimer.delay">${__Random(5000,15000)}</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+
+        <!-- Memory Leak Detection - Periodic Memory Check -->
+        <ModuleController guiclass="ModuleControllerGui" testclass="ModuleController" testname="Periodic Memory Check" enabled="true">
+          <stringProp name="ModuleController.comments">Runs every 1000 iterations to check for memory issues</stringProp>
+        </ModuleController>
+        <hashTree>
+          <IfController guiclass="IfControllerGui" testclass="IfController" testname="Every 1000th Request" enabled="true">
+            <stringProp name="IfController.condition">${__groovy(vars.get("__jm__Thread Group__idx").toInteger() % 1000 == 0)}</stringProp>
+            <boolProp name="IfController.evaluateAll">false</boolProp>
+            <boolProp name="IfController.useExpression">true</boolProp>
+          </IfController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Memory Check - GET /actuator/metrics/jvm.memory.used" enabled="true">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+              <stringProp name="HTTPSampler.domain"></stringProp>
+              <stringProp name="HTTPSampler.port"></stringProp>
+              <stringProp name="HTTPSampler.protocol"></stringProp>
+              <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+              <stringProp name="HTTPSampler.path">/actuator/metrics/jvm.memory.used</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+              <stringProp name="HTTPSampler.connect_timeout">2000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">5000</stringProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <!-- Memory Usage Monitor -->
+              <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract Memory Usage" enabled="true">
+                <stringProp name="JSONPostProcessor.referenceNames">memory_used</stringProp>
+                <stringProp name="JSONPostProcessor.jsonPathExprs">$.measurements[0].value</stringProp>
+                <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+                <stringProp name="JSONPostProcessor.defaultValues">0</stringProp>
+              </JSONPostProcessor>
+              <hashTree/>
+
+              <!-- Memory Leak Detection -->
+              <BeanShellAssertion guiclass="BeanShellAssertionGui" testclass="BeanShellAssertion" testname="Memory Leak Detection" enabled="true">
+                <stringProp name="BeanShellAssertion.query">
+// Track memory usage over time to detect leaks
+String memoryStr = vars.get("memory_used");
+if (memoryStr == null || memoryStr.equals("0")) {
+    return; // Skip if memory info not available
+}
+
+long currentMemory = Long.parseLong(memoryStr);
+long currentTime = System.currentTimeMillis();
+
+// Store memory readings
+String key = "memory_readings_" + ctx.getThreadGroup().getName();
+String readings = props.get(key);
+if (readings == null) {
+    readings = "";
+}
+
+readings += currentTime + ":" + currentMemory + ",";
+
+// Keep only last 10 readings
+String[] readingArray = readings.split(",");
+if (readingArray.length > 10) {
+    StringBuilder sb = new StringBuilder();
+    for (int i = readingArray.length - 10; i < readingArray.length; i++) {
+        sb.append(readingArray[i]).append(",");
+    }
+    readings = sb.toString();
+}
+
+props.put(key, readings);
+
+// Check for memory leak pattern (consistently increasing memory)
+readingArray = readings.split(",");
+if (readingArray.length >= 5) {
+    long[] memValues = new long[readingArray.length];
+    for (int i = 0; i < readingArray.length - 1; i++) {
+        if (readingArray[i].contains(":")) {
+            String[] parts = readingArray[i].split(":");
+            if (parts.length == 2) {
+                memValues[i] = Long.parseLong(parts[1]);
+            }
+        }
+    }
+    
+    // Check if memory is consistently increasing
+    int increases = 0;
+    for (int i = 1; i < memValues.length - 1; i++) {
+        if (memValues[i] > memValues[i-1]) {
+            increases++;
+        }
+    }
+    
+    // If memory increased in 80% of measurements, potential leak
+    if (increases > (memValues.length - 1) * 0.8) {
+        log.warn("Potential memory leak detected. Memory consistently increasing.");
+    }
+}
+
+log.info("Current memory usage: " + (currentMemory / 1024 / 1024) + " MB");
+                </stringProp>
+                <stringProp name="BeanShellAssertion.filename"></stringProp>
+                <stringProp name="BeanShellAssertion.parameters"></stringProp>
+                <boolProp name="BeanShellAssertion.resetInterpreter">false</boolProp>
+              </BeanShellAssertion>
+              <hashTree/>
+            </hashTree>
+          </hashTree>
+        </hashTree>
+      </hashTree>
+
+      <!-- Results Collection and Monitoring -->
+      <SummaryReport guiclass="SummaryReportGui" testclass="SummaryReport" testname="8-Hour Soak Test Summary" enabled="true"/>
+      <hashTree/>
+
+      <!-- Aggregate Report for Final Analysis -->
+      <StatisticalReport guiclass="StatisticalReportGui" testclass="StatisticalReport" testname="Soak Test Statistics" enabled="true"/>
+      <hashTree/>
+
+      <!-- Simple Data Writer for CSV Results -->
+      <ResultCollector guiclass="SimpleDataWriter" testclass="ResultCollector" testname="Save Results to CSV" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time>
+            <latency>true</latency>
+            <timestamp>true</timestamp>
+            <success>true</success>
+            <label>true</label>
+            <code>true</code>
+            <message>true</message>
+            <threadName>true</threadName>
+            <dataType>true</dataType>
+            <encoding>false</encoding>
+            <assertions>false</assertions>
+            <subresults>false</subresults>
+            <responseData>false</responseData>
+            <samplerData>false</samplerData>
+            <xml>false</xml>
+            <fieldNames>true</fieldNames>
+            <responseHeaders>false</responseHeaders>
+            <requestHeaders>false</requestHeaders>
+            <responseDataOnError>false</responseDataOnError>
+            <saveAssertionResultsFailureMessage>false</saveAssertionResultsFailureMessage>
+            <assertionsResultsToSave>0</assertionsResultsToSave>
+            <bytes>true</bytes>
+            <sentBytes>true</sentBytes>
+            <url>false</url>
+            <threadCounts>true</threadCounts>
+            <idleTime>true</idleTime>
+            <connectTime>true</connectTime>
+          </value>
+        </objProp>
+        <stringProp name="filename">results/soak-test-results-${__time(yyyyMMdd-HHmmss)}.csv</stringProp>
+      </ResultCollector>
+      <hashTree/>
+
+      <!-- Response Times Over Time -->
+      <kg.apc.jmeter.vizualizers.ResponseTimesOverTimeGui guiclass="kg.apc.jmeter.vizualizers.ResponseTimesOverTimeGui" testclass="kg.apc.jmeter.vizualizers.ResponseTimesOverTimeGui" testname="Response Times Over 8 Hours" enabled="false">
+        <property name="TestPlan.comments">Requires JMeter Plugins - Critical for detecting performance degradation</property>
+      </kg.apc.jmeter.vizualizers.ResponseTimesOverTimeGui>
+      <hashTree/>
+
+      <!-- Memory Usage Over Time (Custom) -->
+      <BackendListener guiclass="BackendListenerGui" testclass="BackendListener" testname="Memory Monitoring Backend" enabled="false">
+        <elementProp name="arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+          <collectionProp name="Arguments.arguments">
+            <elementProp name="influxdbMetricsSender" elementType="Argument">
+              <stringProp name="Argument.name">influxdbMetricsSender</stringProp>
+              <stringProp name="Argument.value">org.apache.jmeter.visualizers.backend.influxdb.HttpMetricsSender</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="influxdbUrl" elementType="Argument">
+              <stringProp name="Argument.name">influxdbUrl</stringProp>
+              <stringProp name="Argument.value">http://localhost:8086/write?db=jmeter</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+          </collectionProp>
+        </elementProp>
+        <stringProp name="classname">org.apache.jmeter.visualizers.backend.influxdb.InfluxdbBackendListenerClient</stringProp>
+        <stringProp name="TestPlan.comments">Optional: Send metrics to InfluxDB for Grafana dashboards</stringProp>
+      </BackendListener>
+      <hashTree/>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

@@ -28,6 +28,26 @@ resource "aws_rds_cluster_parameter_group" "main" {
     name  = "log_statement"
     value = "all"
   }
+
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
+
+  parameter {
+    name  = "log_connections"
+    value = "1"
+  }
+
+  parameter {
+    name  = "log_disconnections"
+    value = "1"
+  }
+
+  tags = {
+    Name        = "oddiya-${var.environment}-cluster-pg"
+    Environment = var.environment
+  }
 }
 
 resource "aws_rds_cluster" "main" {
@@ -111,4 +131,38 @@ resource "aws_secretsmanager_secret" "db_password" {
 resource "aws_secretsmanager_secret_version" "db_password" {
   secret_id     = aws_secretsmanager_secret.db_password.id
   secret_string = random_password.db_password.result
+}
+
+# PostGIS Extension Setup
+resource "aws_secretsmanager_secret" "db_connection_string" {
+  name = "oddiya-${var.environment}-db-connection"
+  
+  tags = {
+    Name        = "oddiya-${var.environment}-db-connection"
+    Environment = var.environment
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "db_connection_string" {
+  secret_id = aws_secretsmanager_secret.db_connection_string.id
+  secret_string = jsonencode({
+    host     = aws_rds_cluster.main.endpoint
+    port     = aws_rds_cluster.main.port
+    database = aws_rds_cluster.main.database_name
+    username = aws_rds_cluster.main.master_username
+    password = random_password.db_password.result
+    reader_endpoint = aws_rds_cluster.main.reader_endpoint
+    postgis_init = <<-SQL
+      -- Create PostGIS extension
+      CREATE EXTENSION IF NOT EXISTS postgis;
+      CREATE EXTENSION IF NOT EXISTS postgis_topology;
+      CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+      CREATE EXTENSION IF NOT EXISTS postgis_tiger_geocoder;
+      
+      -- Grant permissions for PostGIS
+      GRANT USAGE ON SCHEMA topology TO ${aws_rds_cluster.main.master_username};
+      GRANT SELECT ON ALL SEQUENCES IN SCHEMA topology TO ${aws_rds_cluster.main.master_username};
+      GRANT SELECT ON ALL TABLES IN SCHEMA topology TO ${aws_rds_cluster.main.master_username};
+    SQL
+  })
 }

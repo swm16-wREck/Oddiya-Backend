@@ -21,7 +21,7 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        dialect: org.hibernate.spatial.dialect.postgis.PostgisDialect
         format_sql: true
         use_sql_comments: true
         default_batch_fetch_size: 16
@@ -31,6 +31,18 @@ spring:
         order_updates: true
     show-sql: false
     open-in-view: false
+    
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    locations: classpath:db/migration
+    table: flyway_schema_history
+    schemas: public
+    placeholder-replacement: true
+    placeholders:
+      app_name: oddiya
+      environment: ${spring.profiles.active:local}
     
   redis:
     host: ${SPRING_REDIS_HOST:localhost}
@@ -341,6 +353,15 @@ app:
   google:
     maps:
       api-key: ${GOOGLE_MAPS_API_KEY:}
+      
+  naver:
+    maps:
+      client-id: ${NAVER_MAPS_CLIENT_ID:}
+      client-secret: ${NAVER_MAPS_CLIENT_SECRET:}
+      search-url: https://openapi.naver.com/v1/search/local.json
+      geocode-url: https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode
+      reverse-geocode-url: https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc
+      direction-url: https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving
       
   supabase:
     url: ${SUPABASE_URL:}

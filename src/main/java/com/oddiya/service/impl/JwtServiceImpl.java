@@ -4,9 +4,11 @@ import com.oddiya.exception.UnauthorizedException;
 import com.oddiya.service.JwtService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -81,6 +83,24 @@ public class JwtServiceImpl implements JwtService {
     @Override
     public String extractUserId(String token) {
         return extractAllClaims(token).getSubject();
+    }
+    
+    @Override
+    public String extractUserIdFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            String token = bearerToken.substring(7);
+            return validateAccessToken(token);
+        }
+        
+        throw new UnauthorizedException("No valid JWT token found in request");
+    }
+    
+    @Override
+    public String extractEmail(String token) {
+        Claims claims = extractAllClaims(token);
+        return claims.get("email", String.class);
     }
     
     private String createToken(Map<String, Object> claims, String subject, long expiration) {

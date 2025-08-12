@@ -1,0 +1,291 @@
+{
+  "seoul_landmarks": [
+    {
+      "id": 2001,
+      "naverPlaceId": "test_gyeongbok",
+      "name": "경복궁",
+      "englishName": "Gyeongbokgung Palace",
+      "category": "관광지",
+      "description": "Korean royal palace from Joseon Dynasty",
+      "address": "서울 종로구 사직로 161",
+      "latitude": 37.5788,
+      "longitude": 126.9770,
+      "phoneNumber": "02-3700-3900",
+      "website": "http://www.royalpalace.go.kr",
+      "rating": 4.5,
+      "reviewCount": 1250,
+      "bookmarkCount": 340,
+      "viewCount": 15420,
+      "isVerified": true,
+      "popularityScore": 95.0,
+      "tags": ["역사", "궁궐", "한국문화"],
+      "images": [
+        "https://example.com/places/gyeongbok1.jpg",
+        "https://example.com/places/gyeongbok2.jpg",
+        "https://example.com/places/gyeongbok3.jpg"
+      ],
+      "openingHours": {
+        "월요일": "09:00-18:00",
+        "화요일": "09:00-18:00",
+        "수요일": "09:00-18:00",
+        "목요일": "09:00-18:00",
+        "금요일": "09:00-18:00",
+        "토요일": "09:00-18:00",
+        "일요일": "09:00-18:00"
+      }
+    },
+    {
+      "id": 2002,
+      "naverPlaceId": "test_namsan",
+      "name": "남산타워",
+      "englishName": "N Seoul Tower",
+      "category": "관광지",
+      "description": "Iconic Seoul tower with panoramic city views",
+      "address": "서울 용산구 남산공원길 105",
+      "latitude": 37.5512,
+      "longitude": 126.9882,
+      "phoneNumber": "02-3455-9277",
+      "website": "http://www.seoultower.co.kr",
+      "rating": 4.3,
+      "reviewCount": 2100,
+      "bookmarkCount": 567,
+      "viewCount": 28350,
+      "isVerified": true,
+      "popularityScore": 92.5,
+      "tags": ["전망", "랜드마크", "로맨틱"],
+      "images": [
+        "https://example.com/places/namsan1.jpg",
+        "https://example.com/places/namsan2.jpg"
+      ],
+      "openingHours": {
+        "월요일": "10:00-23:00",
+        "화요일": "10:00-23:00",
+        "수요일": "10:00-23:00",
+        "목요일": "10:00-23:00",
+        "금요일": "10:00-23:00",
+        "토요일": "10:00-23:00",
+        "일요일": "10:00-23:00"
+      }
+    },
+    {
+      "id": 2003,
+      "naverPlaceId": "test_myeongdong",
+      "name": "명동",
+      "englishName": "Myeongdong",
+      "category": "쇼핑",
+      "description": "Famous shopping and cultural district",
+      "address": "서울 중구 명동",
+      "latitude": 37.5636,
+      "longitude": 126.9831,
+      "rating": 4.2,
+      "reviewCount": 890,
+      "bookmarkCount": 234,
+      "viewCount": 12750,
+      "isVerified": true,
+      "popularityScore": 88.0,
+      "tags": ["쇼핑", "음식", "관광"],
+      "images": [
+        "https://example.com/places/myeongdong1.jpg"
+      ]
+    },
+    {
+      "id": 2004,
+      "naverPlaceId": "test_hongdae",
+      "name": "홍대",
+      "englishName": "Hongdae",
+      "category": "유흥",
+      "description": "University area known for nightlife and indie culture",
+      "address": "서울 마포구 홍익로",
+      "latitude": 37.5563,
+      "longitude": 126.9236,
+      "rating": 4.4,
+      "reviewCount": 1560,
+      "bookmarkCount": 445,
+      "viewCount": 18920,
+      "isVerified": true,
+      "popularityScore": 90.5,
+      "tags": ["클럽", "술집", "음악"],
+      "images": [
+        "https://example.com/places/hongdae1.jpg",
+        "https://example.com/places/hongdae2.jpg"
+      ]
+    },
+    {
+      "id": 2005,
+      "naverPlaceId": "test_bukchon",
+      "name": "북촌한옥마을",
+      "englishName": "Bukchon Hanok Village",
+      "category": "문화지구",
+      "description": "Traditional Korean village with hanok houses",
+      "address": "서울 종로구 계동길 37",
+      "latitude": 37.5814,
+      "longitude": 126.9849,
+      "rating": 4.1,
+      "reviewCount": 756,
+      "bookmarkCount": 189,
+      "viewCount": 9870,
+      "isVerified": true,
+      "popularityScore": 85.0,
+      "tags": ["전통", "한옥", "사진촬영"],
+      "images": [
+        "https://example.com/places/bukchon1.jpg"
+      ]
+    }
+  ],
+  "seoul_restaurants": [
+    {
+      "id": 2006,
+      "naverPlaceId": "test_korean_rest",
+      "name": "미슐랭 한식당",
+      "englishName": "Michelin Korean Restaurant",
+      "category": "한식",
+      "description": "Premium Korean fine dining experience",
+      "address": "서울 강남구 테헤란로",
+      "latitude": 37.5123,
+      "longitude": 127.0591,
+      "phoneNumber": "02-1234-5678",
+      "rating": 4.7,
+      "reviewCount": 234,
+      "bookmarkCount": 89,
+      "viewCount": 3450,
+      "isVerified": true,
+      "popularityScore": 78.5,
+      "tags": ["미슐랭", "한식", "고급"],
+      "images": [
+        "https://example.com/places/korean_rest1.jpg"
+      ],
+      "openingHours": {
+        "월요일": "11:30-22:00",
+        "화요일": "11:30-22:00",
+        "수요일": "11:30-22:00",
+        "목요일": "11:30-22:00",
+        "금요일": "11:30-22:00",
+        "토요일": "11:30-22:00",
+        "일요일": "휴무"
+      }
+    },
+    {
+      "id": 2007,
+      "naverPlaceId": "test_myeongdong_kyoja",
+      "name": "명동교자",
+      "englishName": "Myeongdong Kyoja",
+      "category": "면요리",
+      "description": "Famous kalguksu and mandu restaurant",
+      "address": "서울 중구 명동10길 29",
+      "latitude": 37.5652,
+      "longitude": 126.9810,
+      "phoneNumber": "02-776-5348",
+      "rating": 4.4,
+      "reviewCount": 567,
+      "bookmarkCount": 145,
+      "viewCount": 6780,
+      "isVerified": true,
+      "popularityScore": 72.0,
+      "tags": ["칼국수", "만두", "전통"],
+      "images": [
+        "https://example.com/places/kyoja1.jpg"
+      ],
+      "openingHours": {
+        "월요일": "10:30-21:30",
+        "화요일": "10:30-21:30",
+        "수요일": "10:30-21:30",
+        "목요일": "10:30-21:30",
+        "금요일": "10:30-21:30",
+        "토요일": "10:30-21:30",
+        "일요일": "10:30-21:30"
+      }
+    },
+    {
+      "id": 2008,
+      "naverPlaceId": "test_gangnam_bbq",
+      "name": "강남 BBQ",
+      "englishName": "Gangnam BBQ",
+      "category": "고기구이",
+      "description": "Premium Korean BBQ with wagyu beef",
+      "address": "서울 강남구 강남대로",
+      "latitude": 37.5014,
+      "longitude": 127.0269,
+      "phoneNumber": "02-9876-5432",
+      "rating": 4.6,
+      "reviewCount": 345,
+      "bookmarkCount": 112,
+      "viewCount": 4890,
+      "isVerified": true,
+      "popularityScore": 80.0,
+      "tags": ["한우", "바베큐", "소고기"],
+      "images": [
+        "https://example.com/places/bbq1.jpg"
+      ]
+    }
+  ],
+  "seoul_hotels": [
+    {
+      "id": 2009,
+      "naverPlaceId": "test_shilla",
+      "name": "신라호텔",
+      "englishName": "The Shilla Seoul",
+      "category": "럭셔리호텔",
+      "description": "Luxury hotel with traditional Korean hospitality",
+      "address": "서울 중구 동호로 249",
+      "latitude": 37.5558,
+      "longitude": 127.0054,
+      "phoneNumber": "02-2233-3131",
+      "website": "http://www.shilla.net",
+      "rating": 4.8,
+      "reviewCount": 456,
+      "bookmarkCount": 234,
+      "viewCount": 8970,
+      "isVerified": true,
+      "popularityScore": 95.5,
+      "tags": ["럭셔리", "전통", "서비스"],
+      "images": [
+        "https://example.com/places/shilla1.jpg"
+      ]
+    },
+    {
+      "id": 2010,
+      "naverPlaceId": "test_lotte_hotel",
+      "name": "롯데호텔 명동",
+      "englishName": "Lotte Hotel Seoul",
+      "category": "호텔",
+      "description": "Premium hotel in the heart of Seoul",
+      "address": "서울 중구 을지로 30",
+      "latitude": 37.5651,
+      "longitude": 126.9810,
+      "phoneNumber": "02-771-1000",
+      "website": "http://www.lotte.co.kr",
+      "rating": 4.5,
+      "reviewCount": 789,
+      "bookmarkCount": 298,
+      "viewCount": 12340,
+      "isVerified": true,
+      "popularityScore": 87.5,
+      "tags": ["명동", "쇼핑", "중심가"],
+      "images": [
+        "https://example.com/places/lotte1.jpg"
+      ]
+    }
+  ],
+  "place_categories": [
+    "관광지",
+    "한식",
+    "면요리", 
+    "고기구이",
+    "쇼핑",
+    "유흥",
+    "문화지구",
+    "럭셔리호텔",
+    "호텔",
+    "카페",
+    "공원",
+    "박물관",
+    "체험장"
+  ],
+  "korean_tags": [
+    "역사", "궁궐", "한국문화", "전망", "랜드마크", "로맨틱",
+    "쇼핑", "음식", "관광", "클럽", "술집", "음악",
+    "전통", "한옥", "사진촬영", "미슐랭", "고급",
+    "칼국수", "만두", "한우", "바베큐", "소고기",
+    "럭셔리", "서비스", "명동", "중심가"
+  ]
+}

@@ -12,6 +12,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -485,6 +489,219 @@ class AuthServiceTest {
             // Then
             verify(userRepository).save(argThat(user -> 
                 user.getRefreshToken().equals(newRefreshToken)));
+        }
+    }
+
+    @Nested
+    @DisplayName("Parameterized Tests")
+    class ParameterizedTests {
+
+        @ParameterizedTest
+        @ValueSource(strings = {"google", "facebook", "github", "microsoft"})
+        @DisplayName("Should handle different OAuth providers")
+        void shouldHandleDifferentOAuthProviders(String provider) {
+            // Given
+            oAuthUserData.put("sub", provider + "123");
+            LoginRequest request = LoginRequest.builder()
+                    .provider(provider)
+                    .idToken("test-token")
+                    .build();
+            
+            when(oAuthService.verifyToken(provider, "test-token")).thenReturn(oAuthUserData);
+            when(userRepository.findByProviderAndProviderId(provider, provider + "123"))
+                    .thenReturn(Optional.of(testUser));
+            when(jwtService.generateAccessToken(anyString(), anyString())).thenReturn("access-token");
+            when(jwtService.generateRefreshToken(anyString())).thenReturn("refresh-token");
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            AuthResponse response = authService.login(request);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(response.getUserId()).isEqualTo("user123");
+            verify(oAuthService).verifyToken(provider, "test-token");
+        }
+
+        @ParameterizedTest
+        @CsvSource({
+            "test@example.com, test",
+            "user.name@domain.co.uk, user.name",
+            "very.long.username@example.org, very.long.username",
+            "simple@test.io, simple"
+        })
+        @DisplayName("Should extract nickname from different email formats")
+        void shouldExtractNicknameFromDifferentEmailFormats(String email, String expectedNickname) {
+            // Given
+            oAuthUserData.put("email", email);
+            oAuthUserData.put("name", null);
+            when(oAuthService.verifyToken("google", "test-id-token")).thenReturn(oAuthUserData);
+            when(userRepository.findByProviderAndProviderId("google", "google123"))
+                    .thenReturn(Optional.empty());
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+            when(jwtService.generateAccessToken(anyString(), anyString())).thenReturn("access-token");
+            when(jwtService.generateRefreshToken(anyString())).thenReturn("refresh-token");
+
+            // When
+            authService.login(loginRequest);
+
+            // Then
+            verify(userRepository).save(argThat(user -> 
+                user.getNickname().equals(expectedNickname)));
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @ValueSource(strings = {" ", "\t", "\n"})
+        @DisplayName("Should handle invalid token values gracefully")
+        void shouldHandleInvalidTokenValues(String invalidToken) {
+            // Given
+            RefreshTokenRequest request = RefreshTokenRequest.builder()
+                    .refreshToken(invalidToken)
+                    .build();
+            
+            when(jwtService.validateRefreshToken(invalidToken))
+                    .thenThrow(new UnauthorizedException("Invalid token format"));
+
+            // When & Then
+            assertThatThrownBy(() -> authService.refreshToken(request))
+                    .isInstanceOf(UnauthorizedException.class);
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {1, 100, 1000, 10000})
+        @DisplayName("Should handle different user ID lengths")
+        void shouldHandleDifferentUserIdLengths(int length) {
+            // Given
+            String longUserId = "u".repeat(length);
+            testUser.setId(longUserId);
+            
+            when(oAuthService.verifyToken("google", "test-id-token")).thenReturn(oAuthUserData);
+            when(userRepository.findByProviderAndProviderId("google", "google123"))
+                    .thenReturn(Optional.of(testUser));
+            when(jwtService.generateAccessToken(longUserId, "test@example.com")).thenReturn("access-token");
+            when(jwtService.generateRefreshToken(longUserId)).thenReturn("refresh-token");
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            AuthResponse response = authService.login(loginRequest);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(response.getUserId()).isEqualTo(longUserId);
+        }
+    }
+
+    @Nested
+    @DisplayName("Security Tests")
+    class SecurityTests {
+
+        @Test
+        @DisplayName("Should not expose sensitive data in response")
+        void shouldNotExposeSensitiveDataInResponse() {
+            // Given
+            when(oAuthService.verifyToken("google", "test-id-token")).thenReturn(oAuthUserData);
+            when(userRepository.findByProviderAndProviderId("google", "google123"))
+                    .thenReturn(Optional.of(testUser));
+            when(jwtService.generateAccessToken("user123", "test@example.com")).thenReturn("access-token");
+            when(jwtService.generateRefreshToken("user123")).thenReturn("refresh-token");
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            AuthResponse response = authService.login(loginRequest);
+
+            // Then
+            assertThat(response.toString()).doesNotContain("password");
+            assertThat(response.toString()).doesNotContain("providerId");
+            assertThat(response.toString()).doesNotContain("provider");
+        }
+
+        @Test
+        @DisplayName("Should validate token ownership during refresh")
+        void shouldValidateTokenOwnershipDuringRefresh() {
+            // Given
+            User differentUser = User.builder()
+                    .id("different-user")
+                    .refreshToken("different-token")
+                    .build();
+            
+            RefreshTokenRequest request = RefreshTokenRequest.builder()
+                    .refreshToken("old-refresh-token")
+                    .build();
+
+            when(jwtService.validateRefreshToken("old-refresh-token")).thenReturn("user123");
+            when(userRepository.findById("user123")).thenReturn(Optional.of(differentUser));
+
+            // When & Then
+            assertThatThrownBy(() -> authService.refreshToken(request))
+                    .isInstanceOf(UnauthorizedException.class)
+                    .hasMessage("Invalid refresh token");
+        }
+
+        @Test
+        @DisplayName("Should handle token injection attacks")
+        void shouldHandleTokenInjectionAttacks() {
+            // Given
+            String maliciousToken = "'; DROP TABLE users; --";
+            RefreshTokenRequest request = RefreshTokenRequest.builder()
+                    .refreshToken(maliciousToken)
+                    .build();
+            
+            when(jwtService.validateRefreshToken(maliciousToken))
+                    .thenThrow(new UnauthorizedException("Malformed token"));
+
+            // When & Then
+            assertThatThrownBy(() -> authService.refreshToken(request))
+                    .isInstanceOf(UnauthorizedException.class);
+            
+            verify(userRepository, never()).findById(anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("Performance Tests")
+    class PerformanceTests {
+
+        @Test
+        @DisplayName("Should minimize database calls during login")
+        void shouldMinimizeDatabaseCallsDuringLogin() {
+            // Given
+            when(oAuthService.verifyToken("google", "test-id-token")).thenReturn(oAuthUserData);
+            when(userRepository.findByProviderAndProviderId("google", "google123"))
+                    .thenReturn(Optional.of(testUser));
+            when(jwtService.generateAccessToken(anyString(), anyString())).thenReturn("access-token");
+            when(jwtService.generateRefreshToken(anyString())).thenReturn("refresh-token");
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            authService.login(loginRequest);
+
+            // Then
+            verify(userRepository, times(1)).findByProviderAndProviderId(anyString(), anyString());
+            verify(userRepository, times(1)).save(any(User.class));
+            verify(jwtService, times(1)).generateAccessToken(anyString(), anyString());
+            verify(jwtService, times(1)).generateRefreshToken(anyString());
+        }
+
+        @Test
+        @DisplayName("Should handle rapid successive login attempts")
+        void shouldHandleRapidSuccessiveLoginAttempts() {
+            // Given
+            when(oAuthService.verifyToken("google", "test-id-token")).thenReturn(oAuthUserData);
+            when(userRepository.findByProviderAndProviderId("google", "google123"))
+                    .thenReturn(Optional.of(testUser));
+            when(jwtService.generateAccessToken(anyString(), anyString())).thenReturn("access-token");
+            when(jwtService.generateRefreshToken(anyString())).thenReturn("refresh-token");
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            for (int i = 0; i < 5; i++) {
+                authService.login(loginRequest);
+            }
+
+            // Then
+            verify(userRepository, times(5)).save(any(User.class));
+            verify(jwtService, times(5)).generateAccessToken(anyString(), anyString());
         }
     }
 }

@@ -3,6 +3,14 @@ plugins {
     id 'org.springframework.boot' version '3.2.4'
     id 'io.spring.dependency-management' version '1.1.4'
     id 'jacoco'
+    id 'org.sonarqube' version '4.4.1.3373'
+    id 'org.owasp.dependencycheck' version '8.4.2'
+    id 'pmd'
+    id 'checkstyle'
+    id 'com.github.spotbugs' version '5.0.14'
+    // id 'org.springframework.cloud.contract' version '4.1.1'  // Temporarily commented for PITest setup
+    id 'info.solidsoft.pitest' version '1.15.0'
+    id 'maven-publish'
 }
 
 group = 'com.oddiya'
@@ -17,6 +25,12 @@ configurations {
 
 repositories {
     mavenCentral()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.cloud:spring-cloud-dependencies:2023.0.0'
+    }
 }
 
 dependencies {
@@ -35,8 +49,11 @@ dependencies {
     
     // Database
     implementation 'org.postgresql:postgresql:42.7.2'
+    implementation 'org.flywaydb:flyway-core:10.8.1'
+    implementation 'org.flywaydb:flyway-database-postgresql:10.8.1'
     implementation 'org.hibernate:hibernate-core:6.4.4.Final'
     implementation 'org.hibernate:hibernate-validator:8.0.1.Final'
+    implementation 'org.hibernate:hibernate-spatial:6.4.4.Final'
     
     // AWS SDK
     implementation platform('software.amazon.awssdk:bom:2.24.5')
@@ -112,6 +129,13 @@ dependencies {
     testImplementation 'com.github.tomakehurst:wiremock-jre8:3.0.1'
     testImplementation 'com.jayway.jsonpath:json-path:2.9.0'
     testImplementation 'org.awaitility:awaitility:4.2.0'
+    testImplementation 'net.datafaker:datafaker:2.0.2'
+    
+    // Spring Cloud Contract dependencies (temporarily commented for PITest setup)
+    // testImplementation 'org.springframework.cloud:spring-cloud-starter-contract-verifier'
+    // testImplementation 'org.springframework.cloud:spring-cloud-contract-wiremock'
+    // testImplementation 'org.springframework.cloud:spring-cloud-contract-stub-runner'
+    // contractTestImplementation 'org.springframework.cloud:spring-cloud-starter-contract-verifier'
 }
 
 tasks.named('test') {
@@ -157,10 +181,10 @@ jacocoTestCoverageVerification {
     }
 }
 
-// Temporarily disabled - coverage goals not yet met (18% vs 80% required)
-// check {
-//     dependsOn jacocoTestCoverageVerification
-// }
+// Enable coverage verification for CI/CD
+check {
+    dependsOn jacocoTestCoverageVerification
+}
 
 springBoot {
     buildInfo()
@@ -176,3 +200,239 @@ bootJar {
         enabled = true
     }
 }
+
+// ==========================================
+// Code Quality Tool Configurations
+// ==========================================
+
+// SonarQube Configuration
+sonarqube {
+    properties {
+        property "sonar.projectName", "Oddiya Backend"
+        property "sonar.projectKey", "oddiya-backend"
+        property "sonar.organization", "oddiya"
+        property "sonar.host.url", "https://sonarcloud.io"
+        property "sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml"
+        property "sonar.java.coveragePlugin", "jacoco"
+        property "sonar.coverage.exclusions", "**/test/**,**/config/**,**/dto/**,**/entity/**,**/exception/**"
+        property "sonar.exclusions", "**/test/**,build/**,gradle/**"
+        property "sonar.sources", "src/main/java"
+        property "sonar.tests", "src/test/java"
+        property "sonar.java.binaries", "build/classes"
+        property "sonar.java.libraries", "/home/runner/.gradle/caches/modules-2/**/*.jar"
+        property "sonar.qualitygate.wait", true
+    }
+}
+
+// OWASP Dependency Check Configuration
+dependencyCheck {
+    formats = ['HTML', 'JSON', 'XML', 'SARIF']
+    failBuildOnCVSS = 7.0
+    suppressionFile = 'dependency-check-suppressions.xml'
+    analyzedTypes = ['jar']
+    // analyzeConfiguration = true  // Deprecated property
+    skipTestGroups = true
+}
+
+// PMD Configuration
+pmd {
+    consoleOutput = true
+    toolVersion = '6.55.0'
+    ruleSets = ['basic', 'braces', 'design', 'empty', 'imports', 'unusedcode']
+    ignoreFailures = true
+}
+
+// Checkstyle Configuration
+checkstyle {
+    toolVersion = '10.12.4'
+    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+    ignoreFailures = true
+    maxWarnings = 0
+    maxErrors = 0
+}
+
+// SpotBugs Configuration
+spotbugs {
+    toolVersion = '4.7.3'
+    ignoreFailures = true
+    showStackTraces = false
+    showProgress = true
+    reportLevel = 'medium'
+    effort = 'default'
+    excludeFilter = file("${rootDir}/config/spotbugs/exclude.xml")
+}
+
+spotbugsMain {
+    reports {
+        html {
+            required = true
+            outputLocation = file("$buildDir/reports/spotbugs/main.html")
+        }
+        xml {
+            required = true
+            outputLocation = file("$buildDir/reports/spotbugs/main.xml")
+        }
+    }
+}
+
+spotbugsTest {
+    reports {
+        html {
+            required = true  
+            outputLocation = file("$buildDir/reports/spotbugs/test.html")
+        }
+        xml {
+            required = true
+            outputLocation = file("$buildDir/reports/spotbugs/test.xml")
+        }
+    }
+}
+
+// ==========================================
+// Spring Cloud Contract Configuration
+// ==========================================
+
+// ==========================================
+// Spring Cloud Contract Configuration (commented out for PITest setup)
+// ==========================================
+
+// contracts {
+//     testFramework = org.springframework.cloud.contract.verifier.config.TestFramework.JUNIT5
+//     testMode = 'MockMvc'
+//     baseClassForTests = 'com.oddiya.contract.ContractTestBase'
+//     generatedTestSourcesDir = file("${buildDir}/generated-test-sources/contracts")
+//     contractsDslDir = file("${projectDir}/src/contractTest/resources/contracts")
+//     stubsOutputDir = file("${buildDir}/stubs")
+//     packageWithBaseClasses = 'com.oddiya.contract'
+// }
+
+// // Configure contract test source sets
+// sourceSets {
+//     contractTest {
+//         java {
+//             srcDirs = ['src/contractTest/java']
+//         }
+//         resources {
+//             srcDirs = ['src/contractTest/resources']
+//         }
+//         compileClasspath += main.output + test.output
+//         runtimeClasspath += main.output + test.output
+//     }
+// }
+
+// configurations {
+//     contractTestImplementation.extendsFrom testImplementation
+//     contractTestRuntimeOnly.extendsFrom testRuntimeOnly
+// }
+
+// // Contract test task
+// task contractTest(type: Test) {
+//     testClassesDirs = sourceSets.contractTest.output.classesDirs
+//     classpath = sourceSets.contractTest.runtimeClasspath
+//     useJUnitPlatform()
+//     testLogging {
+//         events "passed", "skipped", "failed"
+//         exceptionFormat "full"
+//     }
+// }
+
+// // Ensure contracts are verified before build
+// check.dependsOn contractTest
+// contractTest.mustRunAfter test
+
+// Publishing configuration for contract stubs (temporarily commented for PITest setup)
+// publishing {
+//     publications {
+//         maven(MavenPublication) {
+//             artifact bootJar
+//             
+//             artifact(verifierStubsJar) {
+//                 classifier = "stubs"
+//             }
+//         }
+//     }
+// }
+
+// ==========================================
+// PITest Mutation Testing Configuration
+// ==========================================
+
+pitest {
+    // Java 21 support
+    pitestVersion = '1.16.1'
+    junit5PluginVersion = '1.2.1'
+    
+    // Test selection and target classes
+    targetClasses.set([
+        'com.oddiya.service.*',
+        'com.oddiya.controller.*', 
+        'com.oddiya.repository.*'
+    ])
+    
+    // Exclude certain classes from mutation testing
+    excludedClasses.set([
+        'com.oddiya.**.*Config*',
+        'com.oddiya.**.*Configuration*',
+        'com.oddiya.OddiyaApplication',
+        'com.oddiya.entity.**.*',
+        'com.oddiya.dto.**.*',
+        'com.oddiya.exception.**.*',
+        'com.oddiya.**.*Test*',
+        'com.oddiya.config.**.*',
+        '**.*Builder',
+        '**.*Factory'
+    ])
+    
+    // Mutation operators - comprehensive set
+    mutators.set([
+        'CONDITIONALS_BOUNDARY',
+        'INCREMENTS',
+        'INVERT_NEGS',
+        'MATH',
+        'NEGATE_CONDITIONALS',
+        'RETURN_VALS',
+        'VOID_METHOD_CALLS',
+        'NON_VOID_METHOD_CALLS',
+        'CONSTRUCTOR_CALLS',
+        'INLINE_CONSTS',
+        'REMOVE_CONDITIONALS'
+    ])
+    
+    // Coverage and thresholds
+    mutationThreshold.set(80)
+    coverageThreshold.set(75)
+    
+    // Performance settings
+    threads.set(Runtime.runtime.availableProcessors())
+    timeoutConstInMillis.set(4000)
+    timeoutFactor.set(1.25)
+    
+    // Output configuration
+    outputFormats.set(['HTML', 'XML', 'CSV'])
+    timestampedReports.set(true)
+    
+    // JVM arguments for Java 21 compatibility
+    jvmArgs.set([
+        '--add-opens', 'java.base/java.lang=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.util=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.text=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.util.concurrent=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.io=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.net=ALL-UNNAMED'
+    ])
+    
+    // Test plugin configuration for JUnit 5
+    testPlugin.set('junit5')
+}
+
+// Simplified PITest profile tasks - configure via command line properties
+// Usage:
+// ./gradlew pitest -Ppitest.targetClasses='com.oddiya.service.*'
+// ./gradlew pitest -Ppitest.mutationThreshold=90
+
+// Integration with other tasks
+tasks.pitest.dependsOn test
+tasks.pitest.shouldRunAfter jacocoTestReport
+
+// Add PITest to check task for CI/CD (uncomment when needed)
+//check.dependsOn pitestCritical
