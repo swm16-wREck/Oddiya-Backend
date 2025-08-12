@@ -58,7 +58,7 @@ class ApiResponseTest {
                 .name("Test User")
                 .bio("Test bio")
                 .isPublic(true)
-                .followersCount(100)
+                .followersCount(100L)
                 .createdAt(LocalDateTime.now())
                 .build();
             

@@ -110,12 +110,9 @@ public class ComprehensiveTestDataFactory {
                 .website(faker.internet().url())
                 .openingHours(generateOpeningHours())
                 // priceRange field doesn't exist in Place entity
-                .imageUrls(generateImageUrls())
-                .amenities(generateAmenities(category))
+                .images(generateImageUrls())
                 .isVerified(random.nextBoolean())
                 .popularityScore(random.nextDouble() * 100)
-                .createdAt(LocalDateTime.now().minusDays(random.nextInt(180)))
-                .updatedAt(LocalDateTime.now().minusDays(random.nextInt(30)))
                 .build();
     }
 

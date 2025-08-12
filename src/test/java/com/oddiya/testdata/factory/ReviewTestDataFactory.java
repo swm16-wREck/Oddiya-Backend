@@ -123,9 +123,7 @@ public class ReviewTestDataFactory {
             .images(generateReviewImages())
             .visitDate(generateVisitDate())
             .likesCount(random.nextInt(50))
-            .isVerifiedPurchase(random.nextBoolean())
-            .createdAt(generateCreatedDate())
-            .updatedAt(LocalDateTime.now());
+            .isVerifiedPurchase(random.nextBoolean());
     }
     
     /**
@@ -143,9 +141,7 @@ public class ReviewTestDataFactory {
             .images(generateReviewImages())
             .visitDate(generateVisitDate())
             .likesCount(rating >= 4 ? random.nextInt(30) + 5 : random.nextInt(10))
-            .isVerifiedPurchase(random.nextBoolean())
-            .createdAt(generateCreatedDate())
-            .updatedAt(LocalDateTime.now());
+            .isVerifiedPurchase(random.nextBoolean());
     }
     
     /**

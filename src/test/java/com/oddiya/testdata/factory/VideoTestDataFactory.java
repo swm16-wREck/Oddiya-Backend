@@ -78,7 +78,7 @@ public class VideoTestDataFactory {
                 .viewCount(10000L + random.nextLong(90000)) // 10k-100k views
                 .likeCount(500L + random.nextLong(4500)) // 500-5k likes
                 .isPublic(true)
-                .status(VideoStatus.PUBLISHED)
+                .status(VideoStatus.COMPLETED)
                 .build());
         }
         
@@ -95,15 +95,13 @@ public class VideoTestDataFactory {
             .description(generateVideoDescription())
             .videoUrl(generateVideoUrl())
             .thumbnailUrl(generateThumbnailUrl())
-            .duration(generateDuration())
+            .durationSeconds(generateDuration())
             .status(generateVideoStatus())
             .isPublic(random.nextBoolean())
             .tags(generateVideoTags())
             .viewCount(random.nextLong(10000))
             .likeCount(random.nextLong(500))
-            .shareCount(random.nextLong(100))
-            .createdAt(generateCreatedDate())
-            .updatedAt(LocalDateTime.now());
+            .shareCount(random.nextLong(100));
     }
     
     /**
@@ -244,10 +242,10 @@ public class VideoTestDataFactory {
         VideoStatus[] statuses = VideoStatus.values();
         double rand = random.nextDouble();
         
-        if (rand < 0.05) return VideoStatus.DRAFT;
+        if (rand < 0.05) return VideoStatus.UPLOADING;
         else if (rand < 0.15) return VideoStatus.PROCESSING;
-        else if (rand < 0.85) return VideoStatus.PUBLISHED;
-        else if (rand < 0.95) return VideoStatus.ARCHIVED;
+        else if (rand < 0.85) return VideoStatus.COMPLETED;
+        else if (rand < 0.95) return VideoStatus.FAILED;
         else return VideoStatus.DELETED;
     }
     

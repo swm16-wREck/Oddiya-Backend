@@ -62,12 +62,13 @@ public class ItineraryItemTestDataFactory {
         for (int sequence = 1; sequence <= actualItemCount; sequence++) {
             Place place = selectPlaceForTimeSlot(places, sequence);
             LocalTime startTime = startTimes[sequence - 1];
+            LocalDateTime startDateTime = LocalDateTime.now().with(startTime);
             
             ItineraryItem item = createItineraryItemBuilder(travelPlan, place)
                 .dayNumber(dayNumber)
                 .sequence(sequence)
-                .startTime(startTime)
-                .endTime(startTime.plusHours(1 + random.nextInt(3))) // 1-3 hours duration
+                .startTime(startDateTime)
+                .endTime(startDateTime.plusHours(1 + random.nextInt(3))) // 1-3 hours duration
                 .notes(generateTimeSlotNotes(sequence))
                 .build();
                 
@@ -105,9 +106,7 @@ public class ItineraryItemTestDataFactory {
             .sequence(1 + random.nextInt(10)) // 1-10 activities per day
             .startTime(generateRandomTime())
             .endTime(generateRandomTime())
-            .notes(generateItineraryNotes())
-            .createdAt(LocalDateTime.now().minusDays(random.nextInt(30)))
-            .updatedAt(LocalDateTime.now());
+            .notes(generateItineraryNotes());
     }
     
     private List<ItineraryItem> createSeoulDay1(TravelPlan travelPlan, List<Place> places) {
@@ -121,11 +120,9 @@ public class ItineraryItemTestDataFactory {
                 .place(palace)
                 .dayNumber(1)
                 .sequence(1)
-                .startTime(LocalTime.of(9, 0))
-                .endTime(LocalTime.of(11, 30))
+                .startTime(LocalDateTime.now().with(LocalTime.of(9, 0)))
+                .endTime(LocalDateTime.now().with(LocalTime.of(11, 30)))
                 .notes("조선왕조의 대표 궁궐. 수문장 교대식 관람 (10:00, 11:00)")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
                 .build());
         }
         
@@ -137,11 +134,9 @@ public class ItineraryItemTestDataFactory {
                 .place(restaurant)
                 .dayNumber(1)
                 .sequence(2)
-                .startTime(LocalTime.of(12, 0))
-                .endTime(LocalTime.of(13, 30))
+                .startTime(LocalDateTime.now().with(LocalTime.of(12, 0)))
+                .endTime(LocalDateTime.now().with(LocalTime.of(13, 30)))
                 .notes("전통 한식으로 점심. 궁중요리 체험 추천")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
                 .build());
         }
         
@@ -153,11 +148,9 @@ public class ItineraryItemTestDataFactory {
                 .place(hanokVillage)
                 .dayNumber(1)
                 .sequence(3)
-                .startTime(LocalTime.of(14, 0))
-                .endTime(LocalTime.of(16, 0))
+                .startTime(LocalDateTime.now().with(LocalTime.of(14, 0)))
+                .endTime(LocalDateTime.now().with(LocalTime.of(16, 0)))
                 .notes("전통 한옥마을 투어. 사진 촬영 명소")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
                 .build());
         }
         
@@ -175,11 +168,9 @@ public class ItineraryItemTestDataFactory {
                 .place(gangnam)
                 .dayNumber(2)
                 .sequence(1)
-                .startTime(LocalTime.of(10, 0))
-                .endTime(LocalTime.of(12, 0))
+                .startTime(LocalDateTime.now().with(LocalTime.of(10, 0)))
+                .endTime(LocalDateTime.now().with(LocalTime.of(12, 0)))
                 .notes("현대 서울의 중심지. 쇼핑과 K-pop 문화 체험")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
                 .build());
         }
         
@@ -191,11 +182,9 @@ public class ItineraryItemTestDataFactory {
                 .place(hanRiver)
                 .dayNumber(2)
                 .sequence(2)
-                .startTime(LocalTime.of(17, 0))
-                .endTime(LocalTime.of(19, 0))
+                .startTime(LocalDateTime.now().with(LocalTime.of(17, 0)))
+                .endTime(LocalDateTime.now().with(LocalTime.of(19, 0)))
                 .notes("한강 공원에서 피크닉. 치킨과 맥주 추천")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
                 .build());
         }
         
@@ -273,9 +262,9 @@ public class ItineraryItemTestDataFactory {
         return notes[random.nextInt(notes.length)];
     }
     
-    private LocalTime generateRandomTime() {
+    private LocalDateTime generateRandomTime() {
         int hour = 8 + random.nextInt(14); // 8 AM to 9 PM
         int minute = random.nextInt(4) * 15; // 0, 15, 30, 45 minutes
-        return LocalTime.of(hour, minute);
+        return LocalDateTime.now().with(LocalTime.of(hour, minute));
     }
 }

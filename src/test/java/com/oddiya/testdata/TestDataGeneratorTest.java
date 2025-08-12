@@ -71,7 +71,7 @@ class TestDataGeneratorTest {
         assertThat(testData.videos()).allSatisfy(video -> {
             assertThat(video.getTitle()).isNotNull();
             assertThat(video.getVideoUrl()).isNotNull();
-            assertThat(video.getDuration()).isPositive();
+            assertThat(video.getDurationSeconds()).isPositive();
         });
         
         System.out.println("✅ Complete test data generation successful!");

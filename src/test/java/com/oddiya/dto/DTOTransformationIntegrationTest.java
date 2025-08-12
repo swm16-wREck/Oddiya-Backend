@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -100,9 +101,9 @@ class DTOTransformationIntegrationTest {
                 .timezone(user.getPreferences().get("timezone"))
                 .notificationsEnabled(Boolean.valueOf(user.getPreferences().getOrDefault("notifications", "false")))
                 .isPublic(Boolean.valueOf(user.getPreferences().getOrDefault("isPublic", "false")))
-                .followersCount(0)
-                .followingCount(0)
-                .travelPlansCount(0)
+                .followersCount(0L)
+                .followingCount(0L)
+                .travelPlansCount(0L)
                 .reviewsCount(0)
                 .videosCount(0)
                 .isFollowing(false)
@@ -437,16 +438,16 @@ class DTOTransformationIntegrationTest {
                     .email(user.getEmail())
                     .name(user.getNickname())
                     .bio(user.getBio())
-                    .followersCount(0)
-                    .followingCount(0)
-                    .travelPlansCount(0)
+                    .followersCount(0L)
+                    .followingCount(0L)
+                    .travelPlansCount(0L)
                     .reviewsCount(0)
                     .videosCount(0)
                     .isFollowing(false)
                     .createdAt(user.getCreatedAt())
                     .updatedAt(user.getUpdatedAt())
                     .build())
-                .toList();
+                .collect(Collectors.toList());
 
             // Create paginated response
             PageResponse<UserProfileResponse> pageResponse = PageResponse.<UserProfileResponse>builder()
@@ -530,7 +531,7 @@ class DTOTransformationIntegrationTest {
                     .order(item.getSequence())
                     .notes(item.getNotes())
                     .build())
-                .toList();
+                .collect(Collectors.toList());
 
             TravelPlanResponse response = TravelPlanResponse.builder()
                 .id(travelPlan.getId())
@@ -601,9 +602,9 @@ class DTOTransformationIntegrationTest {
                 .timezone(user.getPreferences().get("timezone")) // null
                 .notificationsEnabled(null)
                 .isPublic(null)
-                .followersCount(0)
-                .followingCount(0)
-                .travelPlansCount(0)
+                .followersCount(0L)
+                .followingCount(0L)
+                .travelPlansCount(0L)
                 .reviewsCount(0)
                 .videosCount(0)
                 .isFollowing(false)
@@ -861,9 +862,9 @@ class DTOTransformationIntegrationTest {
                 .email(user.getEmail())
                 .name(user.getNickname())
                 .bio(user.getBio())
-                .followersCount(0)
-                .followingCount(0)
-                .travelPlansCount(0)
+                .followersCount(0L)
+                .followingCount(0L)
+                .travelPlansCount(0L)
                 .reviewsCount(0)
                 .videosCount(0)
                 .isFollowing(false)

@@ -60,7 +60,7 @@ public class TravelPlanTestDataFactory {
             .endDate(LocalDate.now().plusDays(16))
             .numberOfPeople(1)
             .budget(BigDecimal.valueOf(300000))
-            .status(TravelPlanStatus.PUBLISHED)
+            .status(TravelPlanStatus.CONFIRMED)
             .isPublic(true)
             .preferences(Map.of(
                 "여행스타일", "여유로운",
@@ -104,7 +104,7 @@ public class TravelPlanTestDataFactory {
             .endDate(LocalDate.now().plusDays(25))
             .numberOfPeople(1)
             .budget(BigDecimal.valueOf(500000))
-            .status(TravelPlanStatus.PUBLISHED)
+            .status(TravelPlanStatus.CONFIRMED)
             .isPublic(true)
             .preferences(Map.of(
                 "여행스타일", "비즈니스",
@@ -370,7 +370,7 @@ public class TravelPlanTestDataFactory {
         
         if (rand < 0.4) return TravelPlanStatus.DRAFT;
         else if (rand < 0.6) return TravelPlanStatus.PLANNING;
-        else if (rand < 0.85) return TravelPlanStatus.PUBLISHED;
+        else if (rand < 0.85) return TravelPlanStatus.CONFIRMED;
         else if (rand < 0.95) return TravelPlanStatus.COMPLETED;
         else return TravelPlanStatus.CANCELLED;
     }
