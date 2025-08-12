@@ -215,4 +215,27 @@ public class PlaceServiceImpl implements PlaceService {
         // Mock implementation - in real implementation would verify against external APIs
         return placeRepository.existsById(placeId);
     }
+    
+    @Override
+    public java.util.Map<String, Object> getPlaceStatistics(String placeId) {
+        log.debug("Getting statistics for place ID: {}", placeId);
+        
+        Place place = placeRepository.findById(placeId)
+                .orElseThrow(() -> new NotFoundException("Place not found with ID: " + placeId));
+        
+        java.util.Map<String, Object> stats = new java.util.HashMap<>();
+        stats.put("placeId", place.getId());
+        stats.put("name", place.getName());
+        stats.put("category", place.getCategory());
+        stats.put("rating", place.getRating() != null ? place.getRating() : 0.0);
+        stats.put("reviewCount", place.getReviewCount() != null ? place.getReviewCount() : 0);
+        stats.put("bookmarkCount", place.getBookmarkCount() != null ? place.getBookmarkCount() : 0);
+        stats.put("viewCount", place.getViewCount() != null ? place.getViewCount() : 0L);
+        stats.put("popularityScore", place.getPopularityScore() != null ? place.getPopularityScore() : 0.0);
+        stats.put("isVerified", place.isVerified() != null ? place.isVerified() : false);
+        stats.put("createdAt", place.getCreatedAt());
+        stats.put("updatedAt", place.getUpdatedAt());
+        
+        return stats;
+    }
 }
