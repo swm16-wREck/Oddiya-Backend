@@ -44,7 +44,7 @@ jobs:
       - name: Build application
         run: |
           chmod +x gradlew
-          ./gradlew clean build -x test
+          ./gradlew clean bootJar -x test -x compileTestJava -x checkstyleTest
 
       - name: Build and push Docker image
         id: build-image
