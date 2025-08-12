@@ -142,13 +142,13 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
         @DisplayName("Should check if user saved a specific travel plan")
         void shouldCheckIfUserSavedSpecificTravelPlan() {
             // When & Then
-            assertThat(savedPlanRepository.existsByUserIdAndTravelPlanId(
+            assertThat(savedPlanRepository.existsSavedPlan(
                 testUser1.getId(), testTravelPlan1.getId())).isTrue();
-            assertThat(savedPlanRepository.existsByUserIdAndTravelPlanId(
+            assertThat(savedPlanRepository.existsSavedPlan(
                 testUser2.getId(), testTravelPlan1.getId())).isTrue();
-            assertThat(savedPlanRepository.existsByUserIdAndTravelPlanId(
+            assertThat(savedPlanRepository.existsSavedPlan(
                 testUser3.getId(), testTravelPlan1.getId())).isFalse();
-            assertThat(savedPlanRepository.existsByUserIdAndTravelPlanId(
+            assertThat(savedPlanRepository.existsSavedPlan(
                 testUser1.getId(), testTravelPlan2.getId())).isFalse();
         }
 
@@ -157,11 +157,11 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
         void shouldFindSavedPlanByUserAndTravelPlan() {
             // When
             Optional<SavedPlan> foundPlan1 = savedPlanRepository
-                .findByUserIdAndTravelPlanId(testUser1.getId(), testTravelPlan1.getId());
+                .findSavedPlan(testUser1.getId(), testTravelPlan1.getId());
             Optional<SavedPlan> foundPlan2 = savedPlanRepository
-                .findByUserIdAndTravelPlanId(testUser2.getId(), testTravelPlan1.getId());
+                .findSavedPlan(testUser2.getId(), testTravelPlan1.getId());
             Optional<SavedPlan> notFoundPlan = savedPlanRepository
-                .findByUserIdAndTravelPlanId(testUser3.getId(), testTravelPlan1.getId());
+                .findSavedPlan(testUser3.getId(), testTravelPlan1.getId());
 
             // Then
             assertThat(foundPlan1).isPresent();
@@ -178,7 +178,7 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
         void shouldReturnEmptyWhenUserPlanCombinationDoesntExist() {
             // When
             Optional<SavedPlan> nonExistentPlan = savedPlanRepository
-                .findByUserIdAndTravelPlanId("non-existent-user", "non-existent-plan");
+                .findSavedPlan("non-existent-user", "non-existent-plan");
 
             // Then
             assertThat(nonExistentPlan).isEmpty();
@@ -196,9 +196,9 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
             Pageable pageable = PageRequest.of(0, 10);
 
             // When
-            Page<SavedPlan> user1Plans = savedPlanRepository.findByUserId(testUser1.getId(), pageable);
-            Page<SavedPlan> user2Plans = savedPlanRepository.findByUserId(testUser2.getId(), pageable);
-            Page<SavedPlan> user3Plans = savedPlanRepository.findByUserId(testUser3.getId(), pageable);
+            Page<SavedPlan> user1Plans = savedPlanRepository.findSavedPlansByUser(testUser1.getId(), pageable);
+            Page<SavedPlan> user2Plans = savedPlanRepository.findSavedPlansByUser(testUser2.getId(), pageable);
+            Page<SavedPlan> user3Plans = savedPlanRepository.findSavedPlansByUser(testUser3.getId(), pageable);
 
             // Then
             assertThat(user1Plans.getContent()).hasSize(1);
@@ -234,8 +234,8 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
             Pageable secondPage = PageRequest.of(1, 3);
 
             // When
-            Page<SavedPlan> firstPageResult = savedPlanRepository.findByUserId(testUser1.getId(), firstPage);
-            Page<SavedPlan> secondPageResult = savedPlanRepository.findByUserId(testUser1.getId(), secondPage);
+            Page<SavedPlan> firstPageResult = savedPlanRepository.findSavedPlansByUser(testUser1.getId(), firstPage);
+            Page<SavedPlan> secondPageResult = savedPlanRepository.findSavedPlansByUser(testUser1.getId(), secondPage);
 
             // Then
             assertThat(firstPageResult.getContent()).hasSize(3);
@@ -256,7 +256,7 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
             Pageable pageable = PageRequest.of(0, 10);
 
             // When
-            Page<SavedPlan> emptyResults = savedPlanRepository.findByUserId(testUser3.getId(), pageable);
+            Page<SavedPlan> emptyResults = savedPlanRepository.findSavedPlansByUser(testUser3.getId(), pageable);
 
             // Then
             assertThat(emptyResults.getContent()).isEmpty();
@@ -274,19 +274,19 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
         @DisplayName("Should delete by user ID and travel plan ID")
         void shouldDeleteByUserIdAndTravelPlanId() {
             // Given
-            assertThat(savedPlanRepository.existsByUserIdAndTravelPlanId(
+            assertThat(savedPlanRepository.existsSavedPlan(
                 testUser1.getId(), testTravelPlan1.getId())).isTrue();
 
             // When
-            savedPlanRepository.deleteByUserIdAndTravelPlanId(testUser1.getId(), testTravelPlan1.getId());
+            savedPlanRepository.deleteSavedPlan(testUser1.getId(), testTravelPlan1.getId());
             entityManager.flush();
 
             // Then
-            assertThat(savedPlanRepository.existsByUserIdAndTravelPlanId(
+            assertThat(savedPlanRepository.existsSavedPlan(
                 testUser1.getId(), testTravelPlan1.getId())).isFalse();
             
             // Verify other saved plan still exists
-            assertThat(savedPlanRepository.existsByUserIdAndTravelPlanId(
+            assertThat(savedPlanRepository.existsSavedPlan(
                 testUser2.getId(), testTravelPlan1.getId())).isTrue();
         }
 
@@ -294,7 +294,7 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
         @DisplayName("Should handle delete when no matching record exists")
         void shouldHandleDeleteWhenNoMatchingRecordExists() {
             // When & Then - Should not throw exception
-            savedPlanRepository.deleteByUserIdAndTravelPlanId("non-existent-user", "non-existent-plan");
+            savedPlanRepository.deleteSavedPlan("non-existent-user", "non-existent-plan");
             entityManager.flush();
             
             // Verify existing records are still there
@@ -316,7 +316,7 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
             assertThat(savedPlanRepository.findAll()).hasSize(3);
 
             // When - Delete specific user-plan combination
-            savedPlanRepository.deleteByUserIdAndTravelPlanId(testUser1.getId(), testTravelPlan1.getId());
+            savedPlanRepository.deleteSavedPlan(testUser1.getId(), testTravelPlan1.getId());
             entityManager.flush();
 
             // Then
@@ -520,7 +520,7 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
             Pageable sortedByCreatedAtDesc = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
 
             // When
-            Page<SavedPlan> sortedPlans = savedPlanRepository.findByUserId(testUser3.getId(), sortedByCreatedAtDesc);
+            Page<SavedPlan> sortedPlans = savedPlanRepository.findSavedPlansByUser(testUser3.getId(), sortedByCreatedAtDesc);
 
             // Then
             assertThat(sortedPlans.getContent()).hasSize(1);
@@ -534,7 +534,7 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
             Pageable beyondData = PageRequest.of(10, 10); // Page way beyond available data
 
             // When
-            Page<SavedPlan> result = savedPlanRepository.findByUserId(testUser1.getId(), beyondData);
+            Page<SavedPlan> result = savedPlanRepository.findSavedPlansByUser(testUser1.getId(), beyondData);
 
             // Then
             assertThat(result.getContent()).isEmpty();
@@ -569,7 +569,7 @@ class SavedPlanRepositoryTest extends RepositoryTestBase {
             Pageable sortedByCreatedAtAsc = PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "createdAt"));
 
             // When
-            Page<SavedPlan> sortedPlans = savedPlanRepository.findByUserId(testUser1.getId(), sortedByCreatedAtAsc);
+            Page<SavedPlan> sortedPlans = savedPlanRepository.findSavedPlansByUser(testUser1.getId(), sortedByCreatedAtAsc);
 
             // Then
             assertThat(sortedPlans.getContent()).hasSize(3);

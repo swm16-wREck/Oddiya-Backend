@@ -451,7 +451,7 @@ class TravelPlanServiceTest {
             // Given
             List<TravelPlan> plans = Arrays.asList(testTravelPlan);
             Page<TravelPlan> page = new PageImpl<>(plans, pageable, 1);
-            when(travelPlanRepository.findByUserId("user123", pageable)).thenReturn(page);
+            when(travelPlanRepository.findSavedPlansByUser("user123", pageable)).thenReturn(page);
 
             // When
             PageResponse<TravelPlanResponse> response = travelPlanService.getUserTravelPlans("user123", pageable);
@@ -467,7 +467,7 @@ class TravelPlanServiceTest {
         void shouldReturnEmptyPageForUserWithNoTravelPlans() {
             // Given
             Page<TravelPlan> emptyPage = new PageImpl<>(new ArrayList<>(), pageable, 0);
-            when(travelPlanRepository.findByUserId("user123", pageable)).thenReturn(emptyPage);
+            when(travelPlanRepository.findSavedPlansByUser("user123", pageable)).thenReturn(emptyPage);
 
             // When
             PageResponse<TravelPlanResponse> response = travelPlanService.getUserTravelPlans("user123", pageable);
@@ -719,7 +719,7 @@ class TravelPlanServiceTest {
             // Given
             when(userRepository.findById("user123")).thenReturn(Optional.of(testUser));
             when(travelPlanRepository.findById("plan123")).thenReturn(Optional.of(testTravelPlan));
-            when(savedPlanRepository.existsByUserIdAndTravelPlanId("user123", "plan123")).thenReturn(false);
+            when(savedPlanRepository.existsSavedPlan("user123", "plan123")).thenReturn(false);
             when(savedPlanRepository.save(any(SavedPlan.class))).thenReturn(new SavedPlan());
             when(travelPlanRepository.save(any(TravelPlan.class))).thenReturn(testTravelPlan);
 
@@ -740,7 +740,7 @@ class TravelPlanServiceTest {
             // Given
             when(userRepository.findById("user123")).thenReturn(Optional.of(testUser));
             when(travelPlanRepository.findById("plan123")).thenReturn(Optional.of(testTravelPlan));
-            when(savedPlanRepository.existsByUserIdAndTravelPlanId("user123", "plan123")).thenReturn(true);
+            when(savedPlanRepository.existsSavedPlan("user123", "plan123")).thenReturn(true);
 
             // When
             travelPlanService.saveTravelPlan("user123", "plan123");
@@ -761,7 +761,7 @@ class TravelPlanServiceTest {
 
             testTravelPlan.setSaveCount(5L);
             
-            when(savedPlanRepository.findByUserIdAndTravelPlanId("user123", "plan123")).thenReturn(Optional.of(savedPlan));
+            when(savedPlanRepository.findSavedPlan("user123", "plan123")).thenReturn(Optional.of(savedPlan));
             when(travelPlanRepository.findById("plan123")).thenReturn(Optional.of(testTravelPlan));
             when(travelPlanRepository.save(any(TravelPlan.class))).thenReturn(testTravelPlan);
 
@@ -787,7 +787,7 @@ class TravelPlanServiceTest {
 
             testTravelPlan.setSaveCount(0L);
             
-            when(savedPlanRepository.findByUserIdAndTravelPlanId("user123", "plan123")).thenReturn(Optional.of(savedPlan));
+            when(savedPlanRepository.findSavedPlan("user123", "plan123")).thenReturn(Optional.of(savedPlan));
             when(travelPlanRepository.findById("plan123")).thenReturn(Optional.of(testTravelPlan));
             when(travelPlanRepository.save(any(TravelPlan.class))).thenReturn(testTravelPlan);
 
@@ -805,7 +805,7 @@ class TravelPlanServiceTest {
         @DisplayName("Should throw exception when saved plan not found for unsave")
         void shouldThrowExceptionWhenSavedPlanNotFoundForUnsave() {
             // Given
-            when(savedPlanRepository.findByUserIdAndTravelPlanId("user123", "plan123")).thenReturn(Optional.empty());
+            when(savedPlanRepository.findSavedPlan("user123", "plan123")).thenReturn(Optional.empty());
 
             // When & Then
             assertThatThrownBy(() -> travelPlanService.unsaveTravelPlan("user123", "plan123"))
@@ -830,7 +830,7 @@ class TravelPlanServiceTest {
             List<SavedPlan> savedPlans = Arrays.asList(savedPlan);
             Page<SavedPlan> savedPlansPage = new PageImpl<>(savedPlans, pageable, 1);
             
-            when(savedPlanRepository.findByUserId("user123", pageable)).thenReturn(savedPlansPage);
+            when(savedPlanRepository.findSavedPlansByUser("user123", pageable)).thenReturn(savedPlansPage);
 
             // When
             PageResponse<TravelPlanResponse> response = travelPlanService.getSavedTravelPlans("user123", pageable);
@@ -845,7 +845,7 @@ class TravelPlanServiceTest {
         void shouldReturnEmptyPageForUserWithNoSavedPlans() {
             // Given
             Page<SavedPlan> emptyPage = new PageImpl<>(new ArrayList<>(), pageable, 0);
-            when(savedPlanRepository.findByUserId("user123", pageable)).thenReturn(emptyPage);
+            when(savedPlanRepository.findSavedPlansByUser("user123", pageable)).thenReturn(emptyPage);
 
             // When
             PageResponse<TravelPlanResponse> response = travelPlanService.getSavedTravelPlans("user123", pageable);
@@ -1243,7 +1243,7 @@ class TravelPlanServiceTest {
             }
             Page<TravelPlan> page = new PageImpl<>(manyPlans, largePage, 1000);
             
-            when(travelPlanRepository.findByUserId("user123", largePage)).thenReturn(page);
+            when(travelPlanRepository.findSavedPlansByUser("user123", largePage)).thenReturn(page);
 
             // When
             PageResponse<TravelPlanResponse> response = travelPlanService.getUserTravelPlans("user123", largePage);
@@ -1290,7 +1290,7 @@ class TravelPlanServiceTest {
             testTravelPlan.setSaveCount(5L);
             when(userRepository.findById("user123")).thenReturn(Optional.of(testUser));
             when(travelPlanRepository.findById("plan123")).thenReturn(Optional.of(testTravelPlan));
-            when(savedPlanRepository.existsByUserIdAndTravelPlanId("user123", "plan123")).thenReturn(false);
+            when(savedPlanRepository.existsSavedPlan("user123", "plan123")).thenReturn(false);
             when(savedPlanRepository.save(any(SavedPlan.class))).thenReturn(new SavedPlan());
             when(travelPlanRepository.save(any(TravelPlan.class))).thenReturn(testTravelPlan);
 
