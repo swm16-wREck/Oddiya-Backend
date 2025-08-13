@@ -1,0 +1,56 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:oddiya;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+        
+# Disable Redis for H2 profile
+  data:
+    redis:
+      repositories:
+        enabled: false
+  cache:
+    type: none
+
+# Override AWS settings for local H2 testing
+aws:
+  region: ap-northeast-2
+  s3:
+    bucket: oddiya-local-test
+  bedrock:
+    model-id: mock-model
+
+# JWT Configuration (Required!)
+jwt:
+  secret: test-secret-key-for-jwt-token-generation-must-be-at-least-256-bits-long-for-h2-profile
+  expiration: 3600000 # 1 hour
+  refresh-expiration: 604800000 # 7 days
+
+# Override external service configs
+supabase:
+  url: http://localhost:8080
+  anon-key: local-test-key
+  service-key: local-test-service-key
+
+naver:
+  maps:
+    client-id: local-test-id
+    client-secret: local-test-secret

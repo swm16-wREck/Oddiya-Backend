@@ -3,19 +3,13 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
 
-# Copy gradle files
-COPY gradlew .
-COPY gradle gradle
-COPY build.gradle .
+# Force rebuild - updated 2025-08-13-15:58
+# Copy everything at once to avoid caching issues
+COPY . .
 
-# Download dependencies
-RUN ./gradlew dependencies --no-daemon
-
-# Copy source code
-COPY src src
-
-# Build application
-RUN ./gradlew bootJar --no-daemon
+# Clean everything before building to ensure fresh build
+RUN rm -rf build/ .gradle/ && \
+    ./gradlew clean bootJar --no-daemon --no-build-cache -x test
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
@@ -53,7 +47,7 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:+HeapDumpOnOutOfMemoryError \
     -XX:HeapDumpPath=/app/logs \
     -Djava.security.egd=file:/dev/./urandom \
-    -Dspring.profiles.active=dynamodb"
+    -Dspring.profiles.active=docker"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \

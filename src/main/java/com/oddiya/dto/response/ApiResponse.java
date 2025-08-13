@@ -17,6 +17,7 @@ public class ApiResponse<T> {
     
     private boolean success;
     private T data;
+    private String message;
     private ResponseMeta meta;
     private ErrorDetail error;
     
@@ -24,6 +25,18 @@ public class ApiResponse<T> {
         return ApiResponse.<T>builder()
             .success(true)
             .data(data)
+            .meta(ResponseMeta.builder()
+                .timestamp(LocalDateTime.now())
+                .version("1.0.0")
+                .build())
+            .build();
+    }
+    
+    public static <T> ApiResponse<T> success(T data, String message) {
+        return ApiResponse.<T>builder()
+            .success(true)
+            .data(data)
+            .message(message)
             .meta(ResponseMeta.builder()
                 .timestamp(LocalDateTime.now())
                 .version("1.0.0")

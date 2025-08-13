@@ -1,0 +1,452 @@
+# GitHub Actions workflow with comprehensive monitoring integration
+name: Deploy with Monitoring
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      skip_tests:
+        description: 'Skip running tests'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: ap-northeast-2
+  PROJECT_NAME: oddiya
+  ECR_REPOSITORY: oddiya
+
+jobs:
+  # Determine deployment environment
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      should_deploy: ${{ steps.env.outputs.should_deploy }}
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Run tests with monitoring
+  test:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run tests with coverage
+        run: |
+          chmod +x ./gradlew
+          ./gradlew test jacocoTestReport --info
+          
+          # Generate test metrics
+          echo "TEST_RESULTS<<EOF" >> $GITHUB_ENV
+          find . -name "TEST-*.xml" -exec grep -l "testcase" {} \; | wc -l >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            build/reports/tests/
+            build/reports/jacoco/
+            build/test-results/
+
+      - name: Comment test results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const testCount = process.env.TEST_RESULTS || '0';
+            const body = `## Test Results 🧪
+            
+            - **Tests Run**: ${testCount}
+            - **Status**: ${{ job.status }}
+            - **Coverage Report**: Available in artifacts
+            
+            Full test reports are available in the workflow artifacts.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  # Build and push Docker image
+  build:
+    needs: [setup, test]
+    runs-on: ubuntu-latest
+    if: ${{ needs.setup.outputs.should_deploy == 'true' && (success() || github.event.inputs.skip_tests == 'true') }}
+    outputs:
+      image-uri: ${{ steps.build.outputs.image-uri }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build image
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          
+          # Push images
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          echo "image-uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Log build metrics
+        run: |
+          # Log build completion to CloudWatch
+          aws cloudwatch put-metric-data \
+            --namespace "Custom/$PROJECT_NAME/Pipeline" \
+            --metric-data MetricName="BuildSuccess",Value=1,Unit=Count,Dimensions="Stage=build,Build=${{ github.run_number }}" \
+            --region $AWS_REGION
+
+  # Deploy with comprehensive monitoring
+  deploy:
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+    if: ${{ needs.setup.outputs.should_deploy == 'true' }}
+    environment: ${{ needs.setup.outputs.environment }}
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      NOTIFICATION_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/*.sh
+
+      - name: Setup monitoring (if first deployment)
+        run: |
+          # Check if monitoring is already setup
+          if ! aws cloudwatch describe-dashboards --dashboard-names "$PROJECT_NAME-$ENVIRONMENT-apm" --region $AWS_REGION >/dev/null 2>&1; then
+            echo "Setting up monitoring infrastructure..."
+            PROJECT_NAME=$PROJECT_NAME ENVIRONMENT=$ENVIRONMENT ./scripts/setup-apm.sh --skip-scripts
+          else
+            echo "Monitoring already configured"
+          fi
+
+      - name: Pre-deployment validation
+        run: |
+          echo "Running pre-deployment validation..."
+          PROJECT_NAME=$PROJECT_NAME \
+          ENVIRONMENT=$ENVIRONMENT \
+          BUILD_NUMBER=$BUILD_NUMBER \
+          NOTIFICATION_WEBHOOK="$NOTIFICATION_WEBHOOK" \
+          ./scripts/cicd-monitoring-integration.sh pre-deploy
+
+      - name: Deploy to ECS
+        run: |
+          echo "Deploying to ECS..."
+          
+          # Update ECS service with new image
+          CLUSTER_NAME="$PROJECT_NAME-$ENVIRONMENT"
+          SERVICE_NAME="$PROJECT_NAME-$ENVIRONMENT"
+          
+          # Get current task definition
+          TASK_DEFINITION=$(aws ecs describe-services \
+            --cluster $CLUSTER_NAME \
+            --services $SERVICE_NAME \
+            --region $AWS_REGION \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          
+          if [ "$TASK_DEFINITION" != "None" ] && [ -n "$TASK_DEFINITION" ]; then
+            # Update service to force new deployment
+            aws ecs update-service \
+              --cluster $CLUSTER_NAME \
+              --service $SERVICE_NAME \
+              --force-new-deployment \
+              --region $AWS_REGION
+              
+            echo "✅ Deployment initiated"
+          else
+            echo "❌ Service not found: $SERVICE_NAME"
+            exit 1
+          fi
+
+      - name: Monitor deployment progress
+        run: |
+          echo "Monitoring deployment progress..."
+          PROJECT_NAME=$PROJECT_NAME \
+          ENVIRONMENT=$ENVIRONMENT \
+          BUILD_NUMBER=$BUILD_NUMBER \
+          NOTIFICATION_WEBHOOK="$NOTIFICATION_WEBHOOK" \
+          ./scripts/cicd-monitoring-integration.sh monitor
+
+      - name: Post-deployment validation
+        run: |
+          echo "Running post-deployment validation..."
+          PROJECT_NAME=$PROJECT_NAME \
+          ENVIRONMENT=$ENVIRONMENT \
+          BUILD_NUMBER=$BUILD_NUMBER \
+          NOTIFICATION_WEBHOOK="$NOTIFICATION_WEBHOOK" \
+          ./scripts/cicd-monitoring-integration.sh post-deploy
+
+      - name: Update deployment status
+        if: success()
+        run: |
+          # Log successful deployment
+          aws cloudwatch put-metric-data \
+            --namespace "Custom/$PROJECT_NAME/Pipeline" \
+            --metric-data MetricName="DeploymentSuccess",Value=1,Unit=Count,Dimensions="Environment=$ENVIRONMENT,Build=$BUILD_NUMBER" \
+            --region $AWS_REGION
+          
+          echo "✅ Deployment completed successfully"
+
+      - name: Handle deployment failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed"
+          
+          # Log failed deployment
+          aws cloudwatch put-metric-data \
+            --namespace "Custom/$PROJECT_NAME/Pipeline" \
+            --metric-data MetricName="DeploymentFailure",Value=1,Unit=Count,Dimensions="Environment=$ENVIRONMENT,Build=$BUILD_NUMBER" \
+            --region $AWS_REGION
+          
+          # Send failure notification
+          if [ -n "$NOTIFICATION_WEBHOOK" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{
+                "text": "🚨 Deployment Failed",
+                "attachments": [{
+                  "color": "#ff0000",
+                  "fields": [
+                    {"title": "Project", "value": "'$PROJECT_NAME'", "short": true},
+                    {"title": "Environment", "value": "'$ENVIRONMENT'", "short": true},
+                    {"title": "Build", "value": "'$BUILD_NUMBER'", "short": true},
+                    {"title": "Status", "value": "FAILED", "short": true},
+                    {"title": "Branch", "value": "'${{ github.ref_name }}'", "short": true},
+                    {"title": "Commit", "value": "'${{ github.sha }}'", "short": true}
+                  ]
+                }]
+              }' \
+              "$NOTIFICATION_WEBHOOK"
+          fi
+
+  # Smoke tests after deployment
+  smoke-tests:
+    needs: [setup, deploy]
+    runs-on: ubuntu-latest
+    if: ${{ needs.setup.outputs.should_deploy == 'true' && success() }}
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          
+          # Get ALB endpoint
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --region $AWS_REGION \
+            --query "LoadBalancers[?contains(LoadBalancerName, '$PROJECT_NAME')].DNSName" \
+            --output text | head -1)
+          
+          if [ -n "$ALB_DNS" ] && [ "$ALB_DNS" != "None" ]; then
+            BASE_URL="http://$ALB_DNS"
+            
+            echo "Testing endpoints on: $BASE_URL"
+            
+            # Test health endpoint
+            echo "Testing health endpoint..."
+            HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/actuator/health" || echo "000")
+            
+            if [ "$HEALTH_STATUS" = "200" ]; then
+              echo "✅ Health endpoint: OK ($HEALTH_STATUS)"
+            else
+              echo "❌ Health endpoint: FAIL ($HEALTH_STATUS)"
+              exit 1
+            fi
+            
+            # Test info endpoint
+            echo "Testing info endpoint..."
+            INFO_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/actuator/info" || echo "000")
+            
+            if [ "$INFO_STATUS" = "200" ]; then
+              echo "✅ Info endpoint: OK ($INFO_STATUS)"
+            else
+              echo "⚠️ Info endpoint: WARN ($INFO_STATUS)"
+            fi
+            
+            # Test main API endpoints (if they exist)
+            echo "Testing API endpoints..."
+            API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE_URL/api/health" || echo "000")
+            
+            if [ "$API_STATUS" = "200" ] || [ "$API_STATUS" = "404" ]; then
+              echo "✅ API endpoints: OK ($API_STATUS)"
+            else
+              echo "❌ API endpoints: FAIL ($API_STATUS)"
+            fi
+            
+            echo "✅ Smoke tests completed"
+            
+            # Log smoke test results
+            aws cloudwatch put-metric-data \
+              --namespace "Custom/$PROJECT_NAME/Pipeline" \
+              --metric-data MetricName="SmokeTestsPass",Value=1,Unit=Count,Dimensions="Environment=$ENVIRONMENT,Build=${{ github.run_number }}" \
+              --region $AWS_REGION
+              
+          else
+            echo "⚠️ No ALB found, skipping endpoint tests"
+          fi
+
+  # Generate deployment report
+  report:
+    needs: [setup, deploy, smoke-tests]
+    runs-on: ubuntu-latest
+    if: always() && needs.setup.outputs.should_deploy == 'true'
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Generate deployment report
+        run: |
+          echo "# Deployment Report 📊" > deployment-report.md
+          echo "" >> deployment-report.md
+          echo "**Environment**: $ENVIRONMENT" >> deployment-report.md
+          echo "**Build**: ${{ github.run_number }}" >> deployment-report.md
+          echo "**Commit**: ${{ github.sha }}" >> deployment-report.md
+          echo "**Branch**: ${{ github.ref_name }}" >> deployment-report.md
+          echo "**Timestamp**: $(date -Iseconds)" >> deployment-report.md
+          echo "" >> deployment-report.md
+          
+          echo "## Job Results" >> deployment-report.md
+          echo "| Job | Status |" >> deployment-report.md
+          echo "|-----|--------|" >> deployment-report.md
+          echo "| Test | ${{ needs.test.result || 'skipped' }} |" >> deployment-report.md
+          echo "| Build | ${{ needs.build.result }} |" >> deployment-report.md
+          echo "| Deploy | ${{ needs.deploy.result }} |" >> deployment-report.md
+          echo "| Smoke Tests | ${{ needs.smoke-tests.result }} |" >> deployment-report.md
+          echo "" >> deployment-report.md
+          
+          # Get monitoring dashboard URL
+          echo "## Monitoring" >> deployment-report.md
+          echo "- **Dashboard**: https://$AWS_REGION.console.aws.amazon.com/cloudwatch/home?region=$AWS_REGION#dashboards:name=$PROJECT_NAME-$ENVIRONMENT-apm" >> deployment-report.md
+          
+          # Get ALB URL if available
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --region $AWS_REGION \
+            --query "LoadBalancers[?contains(LoadBalancerName, '$PROJECT_NAME')].DNSName" \
+            --output text 2>/dev/null | head -1 || echo "")
+          
+          if [ -n "$ALB_DNS" ] && [ "$ALB_DNS" != "None" ]; then
+            echo "- **Application URL**: http://$ALB_DNS" >> deployment-report.md
+            echo "- **Health Check**: http://$ALB_DNS/actuator/health" >> deployment-report.md
+          fi
+          
+          echo "" >> deployment-report.md
+          echo "## Next Steps" >> deployment-report.md
+          echo "1. Monitor application performance via CloudWatch dashboard" >> deployment-report.md
+          echo "2. Check application logs: \`aws logs tail /ecs/$PROJECT_NAME-$ENVIRONMENT --follow\`" >> deployment-report.md
+          echo "3. Validate all features are working as expected" >> deployment-report.md
+          
+          cat deployment-report.md
+
+      - name: Upload deployment report
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report-${{ needs.setup.outputs.environment }}
+          path: deployment-report.md
+
+      - name: Comment deployment report on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('deployment-report.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });

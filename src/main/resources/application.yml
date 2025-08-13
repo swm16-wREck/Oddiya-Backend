@@ -21,7 +21,7 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        dialect: org.hibernate.spatial.dialect.postgis.PostgisDialect
         format_sql: true
         use_sql_comments: true
         default_batch_fetch_size: 16
@@ -31,6 +31,18 @@ spring:
         order_updates: true
     show-sql: false
     open-in-view: false
+    
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    locations: classpath:db/migration
+    table: flyway_schema_history
+    schemas: public
+    placeholder-replacement: true
+    placeholders:
+      app_name: oddiya
+      environment: ${spring.profiles.active:local}
     
   redis:
     host: ${SPRING_REDIS_HOST:localhost}
@@ -71,6 +83,19 @@ spring:
       pool:
         size: 5
         
+  # Spring Cloud AWS SQS Configuration
+  cloud:
+    aws:
+      sqs:
+        enabled: ${app.aws.sqs.enabled:false}
+        region: ${AWS_REGION:ap-northeast-2}
+        endpoint: ${SQS_ENDPOINT:}
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
+        
 server:
   port: ${SERVER_PORT:8080}
   compression:
@@ -85,12 +110,23 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,business-metrics,external-services
       base-path: /actuator
   health:
     redis:
       enabled: true
     db:
+      enabled: true
+    defaults:
+      enabled: true
+    show-details: when-authorized
+    show-components: always
+  info:
+    env:
+      enabled: true
+    java:
+      enabled: true
+    os:
       enabled: true
   metrics:
     export:
@@ -98,6 +134,19 @@ management:
         enabled: ${CLOUDWATCH_ENABLED:false}
         namespace: Oddiya
         region: ${AWS_REGION:ap-northeast-2}
+    tags:
+      application: oddiya
+      environment: ${SPRING_PROFILES_ACTIVE:local}
+    web:
+      server:
+        request:
+          autotime:
+            enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.75,0.9,0.95,0.99
         
 logging:
   level:
@@ -130,12 +179,18 @@ app:
       - DELETE
       - OPTIONS
     allowed-headers:
-      - "*"
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+      - Accept
+      - Accept-Language
+      - Cache-Control
     exposed-headers:
       - X-Total-Count
       - X-RateLimit-Limit
       - X-RateLimit-Remaining
       - X-RateLimit-Reset
+      - Authorization
     allow-credentials: true
     max-age: 3600
     
@@ -143,6 +198,36 @@ app:
     secret: ${JWT_SECRET:your-256-bit-secret-key-for-jwt-token-generation}
     expiration: 3600000 # 1 hour
     refresh-expiration: 604800000 # 7 days
+  
+  security:
+    enable-hsts: ${SECURITY_ENABLE_HSTS:true}
+    enable-csp: ${SECURITY_ENABLE_CSP:true}
+    strict-transport-security-max-age: ${SECURITY_HSTS_MAX_AGE:31536000}
+    strict-cors: ${SECURITY_STRICT_CORS:true}
+    rate-limiting:
+      enabled: ${SECURITY_RATE_LIMITING_ENABLED:true}
+      strict-mode: ${SECURITY_RATE_LIMITING_STRICT_MODE:false}
+    validation:
+      enabled: ${SECURITY_VALIDATION_ENABLED:true}
+      strict-mode: ${SECURITY_VALIDATION_STRICT_MODE:false}
+      block-on-violation: ${SECURITY_VALIDATION_BLOCK_ON_VIOLATION:true}
+    audit:
+      enabled: ${SECURITY_AUDIT_ENABLED:true}
+      include-ip: ${SECURITY_AUDIT_INCLUDE_IP:true}
+      include-user-agent: ${SECURITY_AUDIT_INCLUDE_USER_AGENT:true}
+      mask-sensitive-data: ${SECURITY_AUDIT_MASK_SENSITIVE_DATA:true}
+    error-details:
+      enabled: ${SECURITY_ERROR_DETAILS_ENABLED:false}
+    encryption:
+      key: ${ENCRYPTION_KEY:}
+  
+  privacy:
+    anonymization:
+      enabled: ${PRIVACY_ANONYMIZATION_ENABLED:true}
+    retention:
+      default-days: ${PRIVACY_RETENTION_DEFAULT_DAYS:2555}
+    consent:
+      required: ${PRIVACY_CONSENT_REQUIRED:true}
     
   rate-limit:
     auth: 10
@@ -152,28 +237,185 @@ app:
     general: 100
     window: 60 # seconds
     
+  file-upload:
+    allowed-image-types:
+      - image/jpeg
+      - image/jpg
+      - image/png
+      - image/gif
+      - image/webp
+    allowed-video-types:
+      - video/mp4
+      - video/avi
+      - video/mov
+      - video/wmv
+      - video/flv
+      - video/webm
+    allowed-document-types:
+      - application/pdf
+      - application/msword
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - application/vnd.ms-excel
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      - text/plain
+      - text/csv
+    max-image-size: 10485760 # 10MB
+    max-video-size: 104857600 # 100MB
+    max-document-size: 10485760 # 10MB
+  
+  storage:
+    local:
+      base-path: ${LOCAL_STORAGE_PATH:./uploads}
+      create-directories: true
+    
   aws:
     region: ${AWS_REGION:ap-northeast-2}
     access-key: ${AWS_ACCESS_KEY_ID:}
     secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    mock:
+      enabled: ${AWS_MOCK_ENABLED:false}
+    
     s3:
+      enabled: ${AWS_S3_ENABLED:false}
       bucket: ${S3_BUCKET:oddiya-media}
       region: ${AWS_REGION:ap-northeast-2}
+      presigned-url-expiration: ${S3_PRESIGNED_URL_EXPIRATION:3600}
+      multipart-threshold: ${S3_MULTIPART_THRESHOLD:16777216} # 16MB
+      connection-timeout: ${S3_CONNECTION_TIMEOUT:30000}
+      socket-timeout: ${S3_SOCKET_TIMEOUT:30000}
+      create-bucket-on-startup: ${S3_CREATE_BUCKET:false}
+      cors:
+        enabled: ${S3_CORS_ENABLED:true}
+        allowed-origins:
+          - http://localhost:3000
+          - https://app.oddiya.com
+          - https://admin.oddiya.com
+        allowed-methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - HEAD
+        allowed-headers:
+          - "*"
+        expose-headers:
+          - ETag
+        max-age-seconds: 3600
+      lifecycle:
+        enabled: ${S3_LIFECYCLE_ENABLED:false}
+        transition-to-ia-days: 30
+        transition-to-glacier-days: 90
+        transition-to-deep-archive-days: 180
+        delete-after-days: 365
+        delete-incomplete-multipart-uploads: true
+        incomplete-multipart-days: 7
+    
     dynamodb:
+      enabled: ${AWS_DYNAMODB_ENABLED:false}
       endpoint: ${DYNAMODB_ENDPOINT:}
+      table-prefix: ${DYNAMODB_TABLE_PREFIX:oddiya_}
+      billing-mode: ${DYNAMODB_BILLING_MODE:PAY_PER_REQUEST}
+      read-capacity: ${DYNAMODB_READ_CAPACITY:5}
+      write-capacity: ${DYNAMODB_WRITE_CAPACITY:5}
+      create-tables-on-startup: ${DYNAMODB_CREATE_TABLES:false}
+      connection-pool:
+        max-connections: ${DYNAMODB_MAX_CONNECTIONS:50}
+        connection-timeout: ${DYNAMODB_CONNECTION_TIMEOUT:10000}
+        socket-timeout: ${DYNAMODB_SOCKET_TIMEOUT:30000}
+        max-retries: 3
+        retry-delay-ms: 1000
+        enable-connection-pooling: true
+    
     sqs:
+      enabled: ${AWS_SQS_ENABLED:false}
       queue-url: ${SQS_QUEUE_URL:}
+      max-messages: ${SQS_MAX_MESSAGES:10}
+      visibility-timeout-seconds: ${SQS_VISIBILITY_TIMEOUT:300}
+      wait-time-seconds: ${SQS_WAIT_TIME:20}
+      max-receive-count: ${SQS_MAX_RECEIVE_COUNT:3}
+      dead-letter-queue-url: ${SQS_DLQ_URL:}
+      create-queues-on-startup: ${SQS_CREATE_QUEUES:false}
+      queue-names:
+        email-notifications: ${SQS_EMAIL_QUEUE:oddiya-email-notifications}
+        image-processing: ${SQS_IMAGE_QUEUE:oddiya-image-processing}
+        analytics-events: ${SQS_ANALYTICS_QUEUE:oddiya-analytics-events}
+        recommendation-updates: ${SQS_RECOMMENDATION_QUEUE:oddiya-recommendation-updates}
+        video-processing: ${SQS_VIDEO_QUEUE:oddiya-video-processing}
+      message-processing:
+        batch-size: 10
+        polling-interval-seconds: 30
+        max-retries: 3
+        retry-delay-seconds: 60
+        enable-dead-letter-queue: true
+        enable-fifo: false
+    
+    cloudwatch:
+      enabled: ${AWS_CLOUDWATCH_ENABLED:false}
+      namespace: ${CLOUDWATCH_NAMESPACE:Oddiya}
+      batch-size: ${CLOUDWATCH_BATCH_SIZE:20}
+      flush-interval: ${CLOUDWATCH_FLUSH_INTERVAL:PT60S}
+      enable-detailed-metrics: ${CLOUDWATCH_DETAILED_METRICS:false}
+      enable-custom-dashboard: ${CLOUDWATCH_DASHBOARD:false}
+      enable-alarms: ${CLOUDWATCH_ALARMS:false}
+      alarm-config:
+        enable-high-error-rate: true
+        enable-high-latency: true
+        enable-high-cpu-usage: true
+        enable-high-memory-usage: true
+        error-rate-threshold: 5.0
+        latency-threshold: 2000.0
+        cpu-threshold: 80.0
+        memory-threshold: 85.0
+        evaluation-periods: 2
+        datapoints-to-alarm: 2
+    
     bedrock:
       model-id: ${BEDROCK_MODEL_ID:anthropic.claude-3-sonnet-20240229-v1:0}
+    
+    # AWS Health Check Configuration (Default - services disabled for local)
+    health:
+      enabled: true
+      global-timeout-seconds: 5
+      cache-interval-seconds: 60
+      detailed-error-reporting: false
+      
+      dynamodb:
+        enabled: false  # Disabled by default for local
+        timeout-seconds: 5
+        
+      s3:
+        enabled: false  # Disabled by default for local
+        timeout-seconds: 5
+        
+      sqs:
+        enabled: false  # Disabled by default for local
+        timeout-seconds: 10
+        
+      cloudwatch:
+        enabled: false  # Disabled by default for local
+        timeout-seconds: 10
+    
+    # AWS Info Contributor Configuration  
+    info:
+      enabled: true
       
   google:
     maps:
       api-key: ${GOOGLE_MAPS_API_KEY:}
       
+  naver:
+    maps:
+      client-id: ${NAVER_MAPS_CLIENT_ID:}
+      client-secret: ${NAVER_MAPS_CLIENT_SECRET:}
+      search-url: https://openapi.naver.com/v1/search/local.json
+      geocode-url: https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode
+      reverse-geocode-url: https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc
+      direction-url: https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving
+      
   supabase:
-    url: ${SUPABASE_URL:}
-    anon-key: ${SUPABASE_ANON_KEY:}
-    service-key: ${SUPABASE_SERVICE_KEY:}
+    url: ${SUPABASE_URL:http://localhost:8000}
+    anon-key: ${SUPABASE_ANON_KEY:dummy-anon-key}
+    service-key: ${SUPABASE_SERVICE_KEY:dummy-service-key}
     
   external-api:
     korea-tourism:
@@ -191,15 +433,36 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
     
+# Comprehensive Monitoring Configuration moved to main app section above
+# to avoid duplicate key errors in YAML
+
 ---
 spring:
   config:
     activate:
       on-profile: docker
       
+  datasource:
+    url: jdbc:h2:mem:dockerdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    hikari:
+      driver-class-name: org.h2.Driver
+      
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        
+  flyway:
+    enabled: false
+    
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
       
 logging:
   level:
@@ -215,16 +478,175 @@ spring:
   datasource:
     url: jdbc:h2:mem:testdb
     driver-class-name: org.h2.Driver
+    username: sa
+    password: 
     
   jpa:
     hibernate:
       ddl-auto: create-drop
-      
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        
   redis:
     host: localhost
     port: 6380
+    enabled: false
+    
+  cache:
+    type: none
+
+# Test profile specific app configuration
+# Merged into the main app section by Spring Boot
+app.aws.mock.enabled: true
+app.aws.s3.enabled: false
+app.aws.dynamodb.enabled: false
+app.aws.sqs.enabled: false
+app.aws.cloudwatch.enabled: false
     
 logging:
   level:
     root: WARN
     com.oddiya: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+      
+logging:
+  level:
+    root: INFO
+    com.oddiya: DEBUG
+
+# Local profile specific app configuration
+# Using flat property syntax to avoid duplicate app key
+app.aws.mock.enabled: false
+app.aws.s3.enabled: false
+app.aws.dynamodb.enabled: false
+app.aws.sqs.enabled: false
+app.aws.cloudwatch.enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: aws
+      
+logging:
+  level:
+    root: INFO
+    com.oddiya: INFO
+    com.amazonaws: INFO
+    software.amazon.awssdk: INFO
+
+# AWS profile specific app configuration
+# Using flat property syntax to avoid duplicate app key
+app.aws.s3.enabled: true
+app.aws.s3.create-bucket-on-startup: true
+app.aws.s3.cors.enabled: true
+app.aws.s3.lifecycle.enabled: true
+app.aws.dynamodb.enabled: true
+app.aws.dynamodb.create-tables-on-startup: true
+app.aws.sqs.enabled: true
+app.aws.sqs.create-queues-on-startup: true
+app.aws.cloudwatch.enabled: true
+app.aws.cloudwatch.enable-detailed-metrics: true
+app.aws.cloudwatch.enable-custom-dashboard: true
+app.aws.cloudwatch.enable-alarms: true
+app.aws.mock.enabled: false
+# AWS Health Check Configuration  
+app.aws.health.enabled: true
+app.aws.health.global-timeout-seconds: 10
+app.aws.health.cache-interval-seconds: 30
+app.aws.health.detailed-error-reporting: true
+app.aws.health.dynamodb.enabled: true
+app.aws.health.dynamodb.timeout-seconds: 5
+app.aws.health.dynamodb.test-table-access: true
+app.aws.health.dynamodb.test-permissions: true
+app.aws.health.dynamodb.max-tables-check: 5
+app.aws.health.s3.enabled: true
+app.aws.health.s3.timeout-seconds: 5
+app.aws.health.s3.test-bucket-access: true
+app.aws.health.s3.test-presigned-urls: true
+app.aws.health.s3.check-configuration: true
+app.aws.health.s3.check-cors-configuration: true
+app.aws.health.sqs.enabled: true
+app.aws.health.sqs.timeout-seconds: 10
+app.aws.health.sqs.test-queue-access: true
+app.aws.health.sqs.monitor-queue-depth: true
+app.aws.health.sqs.check-dead-letter-queue: true
+app.aws.health.sqs.queue-depth-warning-threshold: 100
+app.aws.health.sqs.queue-depth-alert-threshold: 1000
+app.aws.health.cloudwatch.enabled: true
+app.aws.health.cloudwatch.timeout-seconds: 10
+app.aws.health.cloudwatch.test-metric-publishing: true
+app.aws.health.cloudwatch.check-alarms: true
+app.aws.health.cloudwatch.check-dashboards: true
+app.aws.health.cloudwatch.max-alarms-check: 100
+app.aws.info.enabled: true
+
+# Enable comprehensive monitoring in AWS profile
+app.tracing.xray.enabled: true
+app.alerting.enabled: true
+app.alerting.sns.enabled: true
+app.monitoring.dashboards.enabled: true
+app.monitoring.dashboards.cloudwatch.enabled: true
+app.cost-monitoring.enabled: true
+app.cost-monitoring.aws.enabled: true
+
+management:
+  metrics:
+    export:
+      cloudwatch:
+        enabled: true
+        namespace: Oddiya-Production
+        region: ${AWS_REGION:ap-northeast-2}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dynamodb
+      
+  # Dummy H2 configuration to satisfy JPA requirements
+  datasource:
+    url: jdbc:h2:mem:dummydb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    hikari:
+      driver-class-name: org.h2.Driver
+      maximum-pool-size: 1
+      minimum-idle: 0
+      
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        
+  flyway:
+    enabled: false
+    
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      
+logging:
+  level:
+    root: INFO
+    com.oddiya: INFO
+    com.amazonaws.services.dynamodbv2: DEBUG
+    
+# DynamoDB profile specific app configuration
+app.aws.dynamodb.enabled: true
+app.aws.dynamodb.create-tables-on-startup: true
+app.aws.s3.enabled: true
+app.aws.s3.create-bucket-on-startup: true
+app.aws.sqs.enabled: false
+app.aws.cloudwatch.enabled: true
+app.aws.mock.enabled: false

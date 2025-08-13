@@ -18,6 +18,8 @@ public class LoginRequest {
     @NotBlank(message = "ID token is required")
     private String idToken;
     
+    private String token; // Alternative field name for OAuth token
+    
     private String deviceId;
     private String deviceType;
 }

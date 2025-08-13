@@ -1,0 +1,394 @@
+name: Deployment Monitoring & Alerts
+
+on:
+  workflow_dispatch:
+    inputs:
+      monitoring_duration:
+        description: 'Monitoring duration in minutes'
+        required: true
+        default: '30'
+        type: string
+      environment:
+        description: 'Environment to monitor'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+        - development
+        - production
+  workflow_call:
+    inputs:
+      monitoring_duration:
+        required: false
+        type: string
+        default: '30'
+      environment:
+        required: true
+        type: string
+  # Auto-trigger after deployments
+  workflow_run:
+    workflows: ["Deploy to Amazon ECS", "CI/CD Pipeline"]
+    types:
+      - completed
+
+env:
+  AWS_REGION: ap-northeast-2
+  MONITORING_INTERVAL: 60  # seconds between checks
+  
+jobs:
+  deployment-monitoring:
+    name: Monitor Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    # Only run monitoring if deployment was successful
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Configure environment and duration
+        run: |
+          # Set environment based on trigger
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Auto-triggered after deployment - determine environment from branch
+            if [[ "${{ github.event.workflow_run.head_branch }}" == "main" ]]; then
+              echo "ENVIRONMENT=production" >> $GITHUB_ENV
+              echo "ECS_CLUSTER=oddiya-prod" >> $GITHUB_ENV
+              echo "ECS_SERVICE=oddiya-prod" >> $GITHUB_ENV
+            else
+              echo "ENVIRONMENT=development" >> $GITHUB_ENV
+              echo "ECS_CLUSTER=oddiya-dev" >> $GITHUB_ENV
+              echo "ECS_SERVICE=oddiya-dev" >> $GITHUB_ENV
+            fi
+            echo "MONITORING_DURATION=20" >> $GITHUB_ENV  # Shorter auto-monitoring
+          else
+            # Manual trigger
+            if [ "${{ inputs.environment }}" = "production" ]; then
+              echo "ENVIRONMENT=production" >> $GITHUB_ENV
+              echo "ECS_CLUSTER=oddiya-prod" >> $GITHUB_ENV
+              echo "ECS_SERVICE=oddiya-prod" >> $GITHUB_ENV
+            else
+              echo "ENVIRONMENT=development" >> $GITHUB_ENV
+              echo "ECS_CLUSTER=oddiya-dev" >> $GITHUB_ENV  
+              echo "ECS_SERVICE=oddiya-dev" >> $GITHUB_ENV
+            fi
+            echo "MONITORING_DURATION=${{ inputs.monitoring_duration }}" >> $GITHUB_ENV
+          fi
+          
+          echo "🔍 Monitoring Environment: $ENVIRONMENT"
+          echo "⏱️ Monitoring Duration: $MONITORING_DURATION minutes"
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Initialize monitoring
+        id: init-monitoring
+        run: |
+          echo "=== INITIALIZING DEPLOYMENT MONITORING ==="
+          echo "🚀 Starting monitoring at $(date)"
+          
+          # Get initial deployment state
+          INITIAL_STATE=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].{TaskDefinition:taskDefinition,RunningCount:runningCount,DesiredCount:desiredCount,Status:status,UpdatedAt:updatedAt}' \
+            --output json)
+          
+          echo "📊 Initial deployment state:"
+          echo "$INITIAL_STATE" | jq .
+          
+          # Store initial metrics
+          INITIAL_RUNNING=$(echo "$INITIAL_STATE" | jq -r '.RunningCount')
+          INITIAL_DESIRED=$(echo "$INITIAL_STATE" | jq -r '.DesiredCount')
+          INITIAL_TASK_DEF=$(echo "$INITIAL_STATE" | jq -r '.TaskDefinition')
+          
+          echo "initial_running=$INITIAL_RUNNING" >> $GITHUB_OUTPUT
+          echo "initial_desired=$INITIAL_DESIRED" >> $GITHUB_OUTPUT
+          echo "initial_task_def=$INITIAL_TASK_DEF" >> $GITHUB_OUTPUT
+          
+          # Initialize metric counters
+          echo "0" > /tmp/alert_count
+          echo "0" > /tmp/degraded_count
+          echo "$(date +%s)" > /tmp/monitoring_start
+          
+          # Create monitoring log file
+          echo "timestamp,running_count,desired_count,pending_count,deployment_status,health_status" > /tmp/monitoring_log.csv
+          
+      - name: Continuous monitoring
+        id: monitoring
+        run: |
+          echo "=== CONTINUOUS MONITORING ==="
+          
+          MONITORING_END=$(($(date +%s) + ${{ env.MONITORING_DURATION }} * 60))
+          ALERT_COUNT=0
+          DEGRADED_COUNT=0
+          CONSECUTIVE_HEALTHY=0
+          MAX_ALERTS=10
+          
+          echo "⏰ Monitoring until $(date -d @$MONITORING_END)"
+          
+          while [ $(date +%s) -lt $MONITORING_END ]; do
+            CURRENT_TIME=$(date +%s)
+            TIMESTAMP=$(date -d @$CURRENT_TIME '+%Y-%m-%d %H:%M:%S')
+            
+            # Get current service state
+            SERVICE_STATE=$(aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services ${{ env.ECS_SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'services[0].{RunningCount:runningCount,DesiredCount:desiredCount,PendingCount:pendingCount,Status:status,Deployments:deployments}' \
+              --output json)
+            
+            RUNNING_COUNT=$(echo "$SERVICE_STATE" | jq -r '.RunningCount')
+            DESIRED_COUNT=$(echo "$SERVICE_STATE" | jq -r '.DesiredCount')
+            PENDING_COUNT=$(echo "$SERVICE_STATE" | jq -r '.PendingCount')
+            SERVICE_STATUS=$(echo "$SERVICE_STATE" | jq -r '.Status')
+            
+            # Check deployment status
+            DEPLOYMENT_STATUS=$(echo "$SERVICE_STATE" | jq -r '.Deployments[] | select(.status=="PRIMARY") | .rolloutState')
+            
+            # Determine health status
+            HEALTH_STATUS="HEALTHY"
+            if [ "$SERVICE_STATUS" != "ACTIVE" ]; then
+              HEALTH_STATUS="FAILED"
+            elif [ "$RUNNING_COUNT" -lt "$DESIRED_COUNT" ]; then
+              HEALTH_STATUS="DEGRADED"
+            elif [ "$DEPLOYMENT_STATUS" = "IN_PROGRESS" ]; then
+              HEALTH_STATUS="DEPLOYING"
+            fi
+            
+            # Log metrics
+            echo "$TIMESTAMP,$RUNNING_COUNT,$DESIRED_COUNT,$PENDING_COUNT,$DEPLOYMENT_STATUS,$HEALTH_STATUS" >> /tmp/monitoring_log.csv
+            
+            # Print status update
+            echo "📊 $TIMESTAMP - Running: $RUNNING_COUNT/$DESIRED_COUNT, Status: $HEALTH_STATUS, Deployment: $DEPLOYMENT_STATUS"
+            
+            # Alert logic
+            if [ "$HEALTH_STATUS" = "FAILED" ]; then
+              ALERT_COUNT=$((ALERT_COUNT + 1))
+              echo "🚨 ALERT: Service failed! (Alert #$ALERT_COUNT)"
+              
+              if [ $ALERT_COUNT -ge $MAX_ALERTS ]; then
+                echo "❌ Maximum alerts reached, stopping monitoring"
+                echo "monitoring_result=max_alerts_reached" >> $GITHUB_OUTPUT
+                break
+              fi
+              
+            elif [ "$HEALTH_STATUS" = "DEGRADED" ]; then
+              DEGRADED_COUNT=$((DEGRADED_COUNT + 1))
+              echo "⚠️ WARNING: Service degraded for $DEGRADED_COUNT consecutive check(s)"
+              
+              if [ $DEGRADED_COUNT -ge 5 ]; then
+                echo "🚨 Service degraded for too long!"
+                ALERT_COUNT=$((ALERT_COUNT + 1))
+              fi
+              
+            else
+              # Service is healthy
+              CONSECUTIVE_HEALTHY=$((CONSECUTIVE_HEALTHY + 1))
+              DEGRADED_COUNT=0
+              
+              if [ $CONSECUTIVE_HEALTHY -ge 3 ]; then
+                echo "✅ Service stable and healthy"
+              fi
+            fi
+            
+            # Check for stuck deployments
+            if [ "$DEPLOYMENT_STATUS" = "IN_PROGRESS" ]; then
+              DEPLOYMENT_TIME=$(aws ecs describe-services \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --services ${{ env.ECS_SERVICE }} \
+                --region ${{ env.AWS_REGION }} \
+                --query 'services[0].deployments[] | [?status==`PRIMARY`] | [0].updatedAt' \
+                --output text)
+              
+              # Check if deployment has been running too long (simplified check)
+              echo "⏳ Deployment in progress since $DEPLOYMENT_TIME"
+            fi
+            
+            # Wait before next check
+            sleep ${{ env.MONITORING_INTERVAL }}
+          done
+          
+          # Final status
+          echo "monitoring_result=completed" >> $GITHUB_OUTPUT
+          echo "total_alerts=$ALERT_COUNT" >> $GITHUB_OUTPUT
+          echo "final_health=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+          
+          echo "🏁 Monitoring completed with $ALERT_COUNT alerts"
+          
+      - name: Performance metrics collection
+        continue-on-error: true
+        run: |
+          echo "=== COLLECTING PERFORMANCE METRICS ==="
+          
+          # Get CloudWatch metrics if available
+          END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          START_TIME=$(date -u -d "${{ env.MONITORING_DURATION }} minutes ago" +%Y-%m-%dT%H:%M:%SZ)
+          
+          echo "📊 Collecting CloudWatch metrics from $START_TIME to $END_TIME"
+          
+          # CPU utilization
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/ECS \
+            --metric-name CPUUtilization \
+            --dimensions Name=ServiceName,Value=${{ env.ECS_SERVICE }} Name=ClusterName,Value=${{ env.ECS_CLUSTER }} \
+            --start-time "$START_TIME" \
+            --end-time "$END_TIME" \
+            --period 300 \
+            --statistics Average,Maximum \
+            --region ${{ env.AWS_REGION }} \
+            --output table || echo "⚠️ CPU metrics not available"
+            
+          # Memory utilization  
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/ECS \
+            --metric-name MemoryUtilization \
+            --dimensions Name=ServiceName,Value=${{ env.ECS_SERVICE }} Name=ClusterName,Value=${{ env.ECS_CLUSTER }} \
+            --start-time "$START_TIME" \
+            --end-time "$END_TIME" \
+            --period 300 \
+            --statistics Average,Maximum \
+            --region ${{ env.AWS_REGION }} \
+            --output table || echo "⚠️ Memory metrics not available"
+            
+      - name: Generate monitoring report
+        if: always()
+        run: |
+          echo "=== GENERATING MONITORING REPORT ==="
+          
+          REPORT_FILE="monitoring-report-${{ env.ENVIRONMENT }}-$(date +%Y%m%d-%H%M%S).json"
+          
+          # Calculate monitoring duration
+          START_TIME=$(cat /tmp/monitoring_start)
+          END_TIME=$(date +%s)
+          ACTUAL_DURATION=$(( (END_TIME - START_TIME) / 60 ))
+          
+          # Get final service state
+          FINAL_STATE=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0]' --output json)
+          
+          # Create comprehensive report
+          cat > "$REPORT_FILE" << EOF
+          {
+            "monitoring_session": {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "environment": "${{ env.ENVIRONMENT }}",
+              "cluster": "${{ env.ECS_CLUSTER }}",
+              "service": "${{ env.ECS_SERVICE }}",
+              "duration_planned_minutes": ${{ env.MONITORING_DURATION }},
+              "duration_actual_minutes": $ACTUAL_DURATION,
+              "trigger_type": "${{ github.event_name }}",
+              "workflow_run_id": "${{ github.run_id }}"
+            },
+            "initial_state": {
+              "running_count": ${{ steps.init-monitoring.outputs.initial_running }},
+              "desired_count": ${{ steps.init-monitoring.outputs.initial_desired }},
+              "task_definition": "${{ steps.init-monitoring.outputs.initial_task_def }}"
+            },
+            "monitoring_results": {
+              "result": "${{ steps.monitoring.outputs.monitoring_result }}",
+              "total_alerts": ${{ steps.monitoring.outputs.total_alerts }},
+              "final_health": "${{ steps.monitoring.outputs.final_health }}"
+            },
+            "final_state": $FINAL_STATE,
+            "recommendations": []
+          }
+          EOF
+          
+          # Add recommendations based on results
+          if [ "${{ steps.monitoring.outputs.total_alerts }}" -gt 0 ]; then
+            echo '            "recommendations": ["Review service events for error details", "Check resource utilization", "Consider scaling up if resources are constrained"]' >> "$REPORT_FILE.tmp"
+          elif [ "${{ steps.monitoring.outputs.final_health }}" = "HEALTHY" ]; then
+            echo '            "recommendations": ["Deployment appears successful", "Continue monitoring for any delayed issues", "Review performance metrics if available"]' >> "$REPORT_FILE.tmp"
+          else
+            echo '            "recommendations": ["Service may need attention", "Check recent deployment events", "Consider manual intervention"]' >> "$REPORT_FILE.tmp"
+          fi
+          
+          echo "📄 Monitoring report generated: $REPORT_FILE"
+          cat "$REPORT_FILE" | jq .
+          
+      - name: Upload monitoring data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-data-${{ env.ENVIRONMENT }}-${{ github.run_id }}
+          path: |
+            /tmp/monitoring_log.csv
+            monitoring-report-*.json
+          retention-days: 14
+          
+      - name: Alert on issues
+        if: steps.monitoring.outputs.total_alerts > 0 || steps.monitoring.outputs.final_health == 'FAILED'
+        continue-on-error: true
+        run: |
+          echo "🚨 ALERTING ON DEPLOYMENT ISSUES"
+          
+          # Determine alert severity
+          if [ "${{ steps.monitoring.outputs.final_health }}" = "FAILED" ]; then
+            SEVERITY="CRITICAL"
+            COLOR="15158332"
+          elif [ "${{ steps.monitoring.outputs.total_alerts }}" -gt 5 ]; then
+            SEVERITY="HIGH"
+            COLOR="16776960"
+          else
+            SEVERITY="MEDIUM"  
+            COLOR="16751928"
+          fi
+          
+          # Send alert notification
+          if [ ! -z "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+            curl -H "Content-Type: application/json" \
+              -X POST \
+              -d "{
+                \"embeds\": [{
+                  \"title\": \"🚨 Deployment Monitoring Alert - $SEVERITY\",
+                  \"description\": \"Deployment monitoring detected issues in ${{ env.ENVIRONMENT }} environment\",
+                  \"color\": $COLOR,
+                  \"fields\": [
+                    {\"name\": \"Environment\", \"value\": \"${{ env.ENVIRONMENT }}\", \"inline\": true},
+                    {\"name\": \"Total Alerts\", \"value\": \"${{ steps.monitoring.outputs.total_alerts }}\", \"inline\": true},
+                    {\"name\": \"Final Health\", \"value\": \"${{ steps.monitoring.outputs.final_health }}\", \"inline\": true},
+                    {\"name\": \"Monitoring Duration\", \"value\": \"${{ env.MONITORING_DURATION }} minutes\", \"inline\": true},
+                    {\"name\": \"Action Required\", \"value\": \"Review deployment status and service health\", \"inline\": false}
+                  ],
+                  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+                }]
+              }" \
+              "${{ secrets.DISCORD_WEBHOOK }}"
+          fi
+          
+      - name: Success notification
+        if: steps.monitoring.outputs.total_alerts == 0 && steps.monitoring.outputs.final_health == 'HEALTHY'
+        continue-on-error: true
+        run: |
+          echo "✅ DEPLOYMENT MONITORING SUCCESSFUL"
+          
+          if [ ! -z "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+            curl -H "Content-Type: application/json" \
+              -X POST \
+              -d "{
+                \"embeds\": [{
+                  \"title\": \"✅ Deployment Monitoring Complete\",
+                  \"description\": \"Deployment monitoring completed successfully for ${{ env.ENVIRONMENT }} environment\",
+                  \"color\": 3066993,
+                  \"fields\": [
+                    {\"name\": \"Environment\", \"value\": \"${{ env.ENVIRONMENT }}\", \"inline\": true},
+                    {\"name\": \"Duration\", \"value\": \"${{ env.MONITORING_DURATION }} minutes\", \"inline\": true},
+                    {\"name\": \"Status\", \"value\": \"${{ steps.monitoring.outputs.final_health }}\", \"inline\": true}
+                  ],
+                  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+                }]
+              }" \
+              "${{ secrets.DISCORD_WEBHOOK }}"
+          fi

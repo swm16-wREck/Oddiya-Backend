@@ -4,9 +4,11 @@ import com.oddiya.exception.UnauthorizedException;
 import com.oddiya.service.JwtService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -83,6 +85,24 @@ public class JwtServiceImpl implements JwtService {
         return extractAllClaims(token).getSubject();
     }
     
+    @Override
+    public String extractUserIdFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            String token = bearerToken.substring(7);
+            return validateAccessToken(token);
+        }
+        
+        throw new UnauthorizedException("No valid JWT token found in request");
+    }
+    
+    @Override
+    public String extractEmail(String token) {
+        Claims claims = extractAllClaims(token);
+        return claims.get("email", String.class);
+    }
+    
     private String createToken(Map<String, Object> claims, String subject, long expiration) {
         return Jwts.builder()
                 .claims(claims)
@@ -93,11 +113,43 @@ public class JwtServiceImpl implements JwtService {
                 .compact();
     }
     
-    private Claims extractAllClaims(String token) {
+    public Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+    
+    // Additional methods for testing
+    public String generateToken(String username) {
+        Map<String, Object> claims = new HashMap<>();
+        return createToken(claims, username, accessTokenExpiration);
+    }
+    
+    public boolean validateToken(String token) {
+        try {
+            extractAllClaims(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    public String getUsernameFromToken(String token) {
+        try {
+            return extractAllClaims(token).getSubject();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    public boolean isTokenExpired(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            return claims.getExpiration().before(new Date());
+        } catch (Exception e) {
+            return true;
+        }
     }
 }

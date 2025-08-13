@@ -1,0 +1,351 @@
+name: 🧬 Mutation Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/main/java/**'
+      - 'src/test/java/**'
+      - 'build.gradle'
+      - '.github/workflows/mutation-testing.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/main/java/**'
+      - 'src/test/java/**'
+      - 'build.gradle'
+  schedule:
+    # Run mutation tests nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Mutation testing profile'
+        required: true
+        default: 'fast'
+        type: choice
+        options:
+          - fast
+          - critical
+          - service
+          - controller
+          - repository
+          - all
+      threshold:
+        description: 'Mutation score threshold (0-100)'
+        required: false
+        default: '75'
+        type: string
+
+env:
+  JAVA_VERSION: '21'
+  GRADLE_OPTS: -Xmx4g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m
+
+jobs:
+  mutation-testing:
+    name: 🧬 Mutation Testing (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: 
+          - ${{ github.event.inputs.profile || (github.event_name == 'schedule' && 'all') || 'fast' }}
+        include:
+          - profile: fast
+            timeout: 20
+            cache-key: fast
+          - profile: critical
+            timeout: 40
+            cache-key: critical
+          - profile: service
+            timeout: 35
+            cache-key: service
+          - profile: controller
+            timeout: 25
+            cache-key: controller
+          - profile: repository
+            timeout: 30
+            cache-key: repository
+          - profile: all
+            timeout: 60
+            cache-key: all
+
+    steps:
+      - name: 🛒 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: 🗂️ Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            build/pitest-history
+          key: ${{ runner.os }}-gradle-mutation-${{ matrix.cache-key }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-mutation-${{ matrix.cache-key }}-
+            ${{ runner.os }}-gradle-mutation-
+            ${{ runner.os }}-gradle-
+
+      - name: 🔧 Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: 🧪 Run Unit Tests
+        run: |
+          ./gradlew test --continue
+        timeout-minutes: 15
+
+      - name: 📊 Generate JaCoCo Coverage Report
+        run: |
+          ./gradlew jacocoTestReport
+        timeout-minutes: 5
+
+      - name: 🧬 Run Mutation Tests - ${{ matrix.profile }}
+        run: |
+          case "${{ matrix.profile }}" in
+            "fast")
+              ./gradlew pitestFast
+              ;;
+            "critical")
+              ./gradlew pitestCritical
+              ;;
+            "service")
+              ./gradlew pitestService
+              ;;
+            "controller")
+              ./gradlew pitestController
+              ;;
+            "repository")
+              ./gradlew pitestRepository
+              ;;
+            "all")
+              ./gradlew pitest
+              ;;
+            *)
+              echo "Unknown profile: ${{ matrix.profile }}"
+              exit 1
+              ;;
+          esac
+        timeout-minutes: ${{ matrix.timeout }}
+        env:
+          GRADLE_OPTS: ${{ env.GRADLE_OPTS }}
+
+      - name: 📈 Parse Mutation Test Results
+        if: always()
+        run: |
+          # Create results summary
+          echo "## 🧬 Mutation Testing Results - ${{ matrix.profile }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Find PITest XML report
+          PITEST_REPORT=$(find build/reports/pitest -name "mutations.xml" | head -1)
+          
+          if [ -f "$PITEST_REPORT" ]; then
+            # Extract key metrics using xmllint if available, otherwise use grep
+            if command -v xmllint >/dev/null 2>&1; then
+              MUTATION_SCORE=$(xmllint --xpath "string(//mutation_stats/@mutation_score)" "$PITEST_REPORT" 2>/dev/null || echo "N/A")
+              TEST_STRENGTH=$(xmllint --xpath "string(//mutation_stats/@test_strength)" "$PITEST_REPORT" 2>/dev/null || echo "N/A")
+              TOTAL_MUTATIONS=$(xmllint --xpath "string(//mutation_stats/@total_mutations)" "$PITEST_REPORT" 2>/dev/null || echo "N/A")
+              KILLED_MUTATIONS=$(xmllint --xpath "string(//mutation_stats/@mutations_killed)" "$PITEST_REPORT" 2>/dev/null || echo "N/A")
+            else
+              MUTATION_SCORE=$(grep -o 'mutation_score="[^"]*"' "$PITEST_REPORT" | cut -d'"' -f2 | head -1 || echo "N/A")
+              TEST_STRENGTH=$(grep -o 'test_strength="[^"]*"' "$PITEST_REPORT" | cut -d'"' -f2 | head -1 || echo "N/A")
+              TOTAL_MUTATIONS=$(grep -o 'total_mutations="[^"]*"' "$PITEST_REPORT" | cut -d'"' -f2 | head -1 || echo "N/A")
+              KILLED_MUTATIONS=$(grep -o 'mutations_killed="[^"]*"' "$PITEST_REPORT" | cut -d'"' -f2 | head -1 || echo "N/A")
+            fi
+            
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🎯 Mutation Score | ${MUTATION_SCORE}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| 💪 Test Strength | ${TEST_STRENGTH}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔢 Total Mutations | ${TOTAL_MUTATIONS} |" >> $GITHUB_STEP_SUMMARY
+            echo "| ☠️ Killed Mutations | ${KILLED_MUTATIONS} |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Set threshold from input or default based on profile
+            THRESHOLD="${{ github.event.inputs.threshold }}"
+            if [ -z "$THRESHOLD" ]; then
+              case "${{ matrix.profile }}" in
+                "critical") THRESHOLD="90" ;;
+                "service") THRESHOLD="85" ;;
+                "controller") THRESHOLD="75" ;;
+                "repository") THRESHOLD="70" ;;
+                "fast") THRESHOLD="60" ;;
+                "all") THRESHOLD="80" ;;
+                *) THRESHOLD="75" ;;
+              esac
+            fi
+            
+            # Check if threshold is met
+            if [ "$MUTATION_SCORE" != "N/A" ] && [ "${MUTATION_SCORE%.*}" -ge "$THRESHOLD" ]; then
+              echo "✅ **Mutation score threshold met!** (${MUTATION_SCORE}% >= ${THRESHOLD}%)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **Mutation score below threshold** (${MUTATION_SCORE}% < ${THRESHOLD}%)" >> $GITHUB_STEP_SUMMARY
+              if [ "${{ matrix.profile }}" = "critical" ]; then
+                echo "::warning::Critical mutation testing failed. Mutation score: ${MUTATION_SCORE}%, required: ${THRESHOLD}%"
+              fi
+            fi
+          else
+            echo "⚠️ No mutation test results found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📤 Upload Mutation Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-test-reports-${{ matrix.profile }}-${{ github.run_number }}
+          path: |
+            build/reports/pitest/
+            build/reports/jacoco/
+          retention-days: 30
+
+      - name: 📝 Comment PR with Results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Try to find and read mutation results
+            let comment = `## 🧬 Mutation Testing Results - ${{ matrix.profile }}\n\n`;
+            
+            try {
+              const reportPaths = [
+                'build/reports/pitest/mutations.xml',
+                'build/reports/pitest/${{ matrix.profile }}/mutations.xml'
+              ];
+              
+              let reportFound = false;
+              for (const reportPath of reportPaths) {
+                if (fs.existsSync(reportPath)) {
+                  const reportContent = fs.readFileSync(reportPath, 'utf8');
+                  
+                  // Extract metrics (simplified parsing)
+                  const mutationScoreMatch = reportContent.match(/mutation_score="([^"]+)"/);
+                  const testStrengthMatch = reportContent.match(/test_strength="([^"]+)"/);
+                  
+                  if (mutationScoreMatch && testStrengthMatch) {
+                    const mutationScore = mutationScoreMatch[1];
+                    const testStrength = testStrengthMatch[1];
+                    
+                    comment += `| Metric | Value |\n`;
+                    comment += `|--------|-------|\n`;
+                    comment += `| 🎯 Mutation Score | ${mutationScore}% |\n`;
+                    comment += `| 💪 Test Strength | ${testStrength}% |\n`;
+                    comment += `\n`;
+                    
+                    const threshold = ${{ github.event.inputs.threshold || 75 }};
+                    if (parseFloat(mutationScore) >= threshold) {
+                      comment += `✅ **Threshold met!** (${mutationScore}% >= ${threshold}%)\n`;
+                    } else {
+                      comment += `❌ **Below threshold** (${mutationScore}% < ${threshold}%)\n`;
+                    }
+                    
+                    reportFound = true;
+                    break;
+                  }
+                }
+              }
+              
+              if (!reportFound) {
+                comment += '⚠️ Could not parse mutation test results\n';
+              }
+              
+            } catch (error) {
+              comment += `⚠️ Error reading results: ${error.message}\n`;
+            }
+            
+            comment += `\n📊 [View detailed reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+            
+            // Post comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  mutation-quality-gate:
+    name: 🚦 Mutation Quality Gate
+    runs-on: ubuntu-latest
+    needs: mutation-testing
+    if: always() && (github.event_name == 'pull_request' || contains(github.event.inputs.profile, 'critical'))
+    
+    steps:
+      - name: 📥 Download Reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mutation-test-reports-*
+          merge-multiple: true
+
+      - name: 🚦 Evaluate Quality Gate
+        run: |
+          echo "## 🚦 Mutation Testing Quality Gate" >> $GITHUB_STEP_SUMMARY
+          
+          # Find all mutation reports
+          REPORTS=$(find . -name "mutations.xml" 2>/dev/null || true)
+          
+          OVERALL_PASS=true
+          CRITICAL_THRESHOLD=90
+          GENERAL_THRESHOLD=75
+          
+          if [ -z "$REPORTS" ]; then
+            echo "❌ **FAILED**: No mutation test reports found" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          echo "| Profile | Mutation Score | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|----------------|---------|" >> $GITHUB_STEP_SUMMARY
+          
+          for REPORT in $REPORTS; do
+            if [ -f "$REPORT" ]; then
+              PROFILE_PATH=$(dirname "$REPORT")
+              PROFILE=$(basename "$PROFILE_PATH")
+              
+              # Extract mutation score
+              SCORE=$(grep -o 'mutation_score="[^"]*"' "$REPORT" | cut -d'"' -f2 | head -1 || echo "0")
+              
+              # Determine threshold based on profile
+              if [[ "$PROFILE" == *"critical"* ]]; then
+                THRESHOLD=$CRITICAL_THRESHOLD
+              else
+                THRESHOLD=$GENERAL_THRESHOLD
+              fi
+              
+              # Check if score meets threshold
+              if (( $(echo "$SCORE >= $THRESHOLD" | bc -l) )); then
+                STATUS="✅ PASS"
+              else
+                STATUS="❌ FAIL"
+                OVERALL_PASS=false
+              fi
+              
+              echo "| $PROFILE | ${SCORE}% | $STATUS |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$OVERALL_PASS" = true ]; then
+            echo "🎉 **OVERALL STATUS: PASSED**" >> $GITHUB_STEP_SUMMARY
+            echo "All mutation testing thresholds have been met!"
+          else
+            echo "💥 **OVERALL STATUS: FAILED**" >> $GITHUB_STEP_SUMMARY
+            echo "One or more mutation testing thresholds were not met."
+            echo "Please review the failing tests and improve test coverage."
+            
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "::error::Mutation testing quality gate failed. Please improve test coverage for failing classes."
+              exit 1
+            fi
+          fi

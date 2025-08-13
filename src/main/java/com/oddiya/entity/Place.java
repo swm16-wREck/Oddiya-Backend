@@ -2,6 +2,7 @@ package com.oddiya.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,7 +18,7 @@ import java.util.Map;
 })
 @Getter
 @Setter
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class Place extends BaseEntity {
@@ -111,9 +112,11 @@ public class Place extends BaseEntity {
     
     // ===== 기존 연관관계 유지 =====
     @OneToMany(mappedBy = "place", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<Review> reviews = new ArrayList<>();  // 사용자 리뷰 (기존)
     
     @OneToMany(mappedBy = "place")
+    @Builder.Default
     private List<ItineraryItem> itineraryItems = new ArrayList<>();
     
     // ===== 기존 필드 유지 =====
@@ -121,14 +124,22 @@ public class Place extends BaseEntity {
     private Double rating;
     
     @Column(name = "review_count")
+    @Builder.Default
     private Integer reviewCount = 0;
     
     @Column(name = "bookmark_count")
+    @Builder.Default
     private Integer bookmarkCount = 0;
     
+    @Column(name = "view_count")
+    @Builder.Default
+    private Long viewCount = 0L;
+    
     @Column(name = "is_verified")
+    @Builder.Default
     private boolean isVerified = false;
     
     @Column(name = "popularity_score")
+    @Builder.Default
     private Double popularityScore = 0.0;
 }

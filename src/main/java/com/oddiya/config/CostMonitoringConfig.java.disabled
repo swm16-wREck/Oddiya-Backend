@@ -1,0 +1,834 @@
+package com.oddiya.config;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import software.amazon.awssdk.services.costexplorer.CostExplorerClient;
+import software.amazon.awssdk.services.costexplorer.model.*;
+import software.amazon.awssdk.services.budgets.BudgetsClient;
+import software.amazon.awssdk.services.budgets.model.*;
+
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import com.oddiya.config.AlertingConfig.AlertManager;
+import com.oddiya.config.AlertingConfig.Alert;
+import com.oddiya.config.AlertingConfig.AlertLevel;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * AWS cost monitoring and optimization alerts
+ * Provides comprehensive cost tracking, budget alerts, and optimization recommendations
+ */
+@Configuration
+@ConditionalOnProperty(name = "app.cost-monitoring.enabled", havingValue = "true", matchIfMissing = false)
+@EnableScheduling
+@Slf4j
+public class CostMonitoringConfig {
+
+    @Bean
+    @ConfigurationProperties(prefix = "app.cost-monitoring")
+    public CostMonitoringProperties costMonitoringProperties() {
+        return new CostMonitoringProperties();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.cost-monitoring.aws.enabled", havingValue = "true")
+    @Profile({"aws", "production"})
+    public CostMonitoringService costMonitoringService(
+            CostExplorerClient costExplorerClient,
+            BudgetsClient budgetsClient,
+            CostMonitoringProperties properties,
+            AlertManager alertManager) {
+        return new AWSCostMonitoringService(costExplorerClient, budgetsClient, properties, alertManager);
+    }
+
+    @Bean
+    @Profile({"local", "test", "h2"})
+    public CostMonitoringService mockCostMonitoringService(
+            CostMonitoringProperties properties,
+            AlertManager alertManager) {
+        return new MockCostMonitoringService(properties, alertManager);
+    }
+
+    @Bean
+    public CostOptimizer costOptimizer(CostMonitoringService costMonitoringService, CostMonitoringProperties properties) {
+        return new CostOptimizer(costMonitoringService, properties);
+    }
+
+    /**
+     * Cost monitoring configuration properties
+     */
+    @Data
+    public static class CostMonitoringProperties {
+        private boolean enabled = true;
+        private AWSConfig aws = new AWSConfig();
+        private Map<String, BudgetConfig> budgets = new HashMap<>();
+        private AlertConfig alerts = new AlertConfig();
+        private OptimizationConfig optimization = new OptimizationConfig();
+
+        @Data
+        public static class AWSConfig {
+            private boolean enabled = false;
+            private String region = "us-east-1"; // Cost Explorer is only in us-east-1
+            private String accountId;
+            private List<String> linkedAccounts = new ArrayList<>();
+        }
+
+        @Data
+        public static class BudgetConfig {
+            private String name;
+            private double monthlyLimit;
+            private String currency = "USD";
+            private List<Double> alertThresholds = Arrays.asList(80.0, 90.0, 100.0);
+            private List<String> services = new ArrayList<>();
+            private boolean enabled = true;
+        }
+
+        @Data
+        public static class AlertConfig {
+            private boolean enabled = true;
+            private String snsTopicArn;
+            private double dailyThresholdIncrease = 20.0; // 20% daily increase triggers alert
+            private double weeklyBudgetThreshold = 75.0; // 75% of weekly budget
+            private double monthlyBudgetThreshold = 90.0; // 90% of monthly budget
+        }
+
+        @Data
+        public static class OptimizationConfig {
+            private boolean enabled = true;
+            private boolean autoRecommendations = true;
+            private double wasteThreshold = 50.0; // $50/month waste threshold for alerts
+            private List<String> optimizationChecks = Arrays.asList(
+                "unused-resources", "right-sizing", "reserved-instances", "savings-plans"
+            );
+        }
+
+        public void setDefaults() {
+            // Default budgets
+            budgets.putIfAbsent("overall", new BudgetConfig() {{
+                setName("Oddiya-Overall-Budget");
+                setMonthlyLimit(500.0);
+                setAlertThresholds(Arrays.asList(70.0, 85.0, 95.0));
+            }});
+
+            budgets.putIfAbsent("compute", new BudgetConfig() {{
+                setName("Oddiya-Compute-Budget");
+                setMonthlyLimit(200.0);
+                setServices(Arrays.asList("Amazon Elastic Compute Cloud - Compute", "Amazon ECS"));
+            }});
+
+            budgets.putIfAbsent("ai-services", new BudgetConfig() {{
+                setName("Oddiya-AI-Services-Budget");
+                setMonthlyLimit(150.0);
+                setServices(Arrays.asList("Amazon Bedrock"));
+            }});
+
+            budgets.putIfAbsent("storage", new BudgetConfig() {{
+                setName("Oddiya-Storage-Budget");
+                setMonthlyLimit(100.0);
+                setServices(Arrays.asList("Amazon Simple Storage Service"));
+            }});
+        }
+    }
+
+    /**
+     * Cost data structures
+     */
+    @Data
+    public static class CostData {
+        private String service;
+        private double amount;
+        private String currency;
+        private LocalDate date;
+        private String period; // daily, weekly, monthly
+        private Map<String, Object> metadata = new HashMap<>();
+
+        public CostData(String service, double amount, String currency, LocalDate date, String period) {
+            this.service = service;
+            this.amount = amount;
+            this.currency = currency;
+            this.date = date;
+            this.period = period;
+        }
+    }
+
+    @Data
+    public static class BudgetStatus {
+        private String budgetName;
+        private double limit;
+        private double actualSpend;
+        private double forecastedSpend;
+        private double percentageUsed;
+        private List<String> triggeredThresholds = new ArrayList<>();
+        private LocalDate period;
+
+        public boolean isOverBudget() {
+            return actualSpend > limit;
+        }
+
+        public boolean isForecastOverBudget() {
+            return forecastedSpend > limit;
+        }
+    }
+
+    @Data
+    public static class OptimizationRecommendation {
+        private String type;
+        private String service;
+        private String description;
+        private double estimatedMonthlySavings;
+        private String priority; // HIGH, MEDIUM, LOW
+        private Map<String, Object> details = new HashMap<>();
+        private LocalDate generatedDate;
+
+        public OptimizationRecommendation(String type, String service, String description, 
+                                        double savings, String priority) {
+            this.type = type;
+            this.service = service;
+            this.description = description;
+            this.estimatedMonthlySavings = savings;
+            this.priority = priority;
+            this.generatedDate = LocalDate.now();
+        }
+    }
+
+    /**
+     * Cost monitoring service interface
+     */
+    public interface CostMonitoringService {
+        List<CostData> getDailyCosts(int days);
+        List<CostData> getMonthlyCosts(int months);
+        List<CostData> getCostsByService(String service, int days);
+        List<BudgetStatus> getBudgetStatus();
+        Map<String, Object> getCostSummary();
+        boolean isHealthy();
+    }
+
+    /**
+     * AWS Cost Explorer implementation
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class AWSCostMonitoringService implements CostMonitoringService {
+
+        private final CostExplorerClient costExplorerClient;
+        private final BudgetsClient budgetsClient;
+        private final CostMonitoringProperties properties;
+        private final AlertManager alertManager;
+
+        // Cache for cost data
+        private final AtomicReference<List<CostData>> cachedDailyCosts = new AtomicReference<>();
+        private final AtomicReference<List<BudgetStatus>> cachedBudgetStatus = new AtomicReference<>();
+
+        @Override
+        public List<CostData> getDailyCosts(int days) {
+            try {
+                LocalDate endDate = LocalDate.now();
+                LocalDate startDate = endDate.minusDays(days);
+
+                GetCostAndUsageRequest request = GetCostAndUsageRequest.builder()
+                        .timePeriod(DateInterval.builder()
+                                .start(startDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
+                                .end(endDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
+                                .build())
+                        .granularity(Granularity.DAILY)
+                        .metrics("BlendedCost")
+                        .groupBy(GroupDefinition.builder()
+                                .type(GroupDefinitionType.DIMENSION)
+                                .key("SERVICE")
+                                .build())
+                        .build();
+
+                GetCostAndUsageResponse response = costExplorerClient.getCostAndUsage(request);
+                
+                List<CostData> costs = new ArrayList<>();
+                for (ResultByTime result : response.resultsByTime()) {
+                    LocalDate date = LocalDate.parse(result.timePeriod().start());
+                    
+                    for (Group group : result.groups()) {
+                        String service = group.keys().get(0);
+                        double amount = Double.parseDouble(
+                            group.metrics().get("BlendedCost").amount()
+                        );
+                        String currency = group.metrics().get("BlendedCost").unit();
+                        
+                        costs.add(new CostData(service, amount, currency, date, "daily"));
+                    }
+                }
+
+                cachedDailyCosts.set(costs);
+                log.debug("Retrieved {} daily cost entries", costs.size());
+                
+                return costs;
+
+            } catch (Exception e) {
+                log.error("Error retrieving daily costs: {}", e.getMessage(), e);
+                return cachedDailyCosts.get() != null ? cachedDailyCosts.get() : new ArrayList<>();
+            }
+        }
+
+        @Override
+        public List<CostData> getMonthlyCosts(int months) {
+            try {
+                LocalDate endDate = LocalDate.now().withDayOfMonth(1).plusMonths(1); // First day of next month
+                LocalDate startDate = endDate.minusMonths(months + 1);
+
+                GetCostAndUsageRequest request = GetCostAndUsageRequest.builder()
+                        .timePeriod(DateInterval.builder()
+                                .start(startDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
+                                .end(endDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
+                                .build())
+                        .granularity(Granularity.MONTHLY)
+                        .metrics("BlendedCost")
+                        .groupBy(GroupDefinition.builder()
+                                .type(GroupDefinitionType.DIMENSION)
+                                .key("SERVICE")
+                                .build())
+                        .build();
+
+                GetCostAndUsageResponse response = costExplorerClient.getCostAndUsage(request);
+                
+                List<CostData> costs = new ArrayList<>();
+                for (ResultByTime result : response.resultsByTime()) {
+                    LocalDate date = LocalDate.parse(result.timePeriod().start());
+                    
+                    for (Group group : result.groups()) {
+                        String service = group.keys().get(0);
+                        double amount = Double.parseDouble(
+                            group.metrics().get("BlendedCost").amount()
+                        );
+                        String currency = group.metrics().get("BlendedCost").unit();
+                        
+                        costs.add(new CostData(service, amount, currency, date, "monthly"));
+                    }
+                }
+
+                log.debug("Retrieved {} monthly cost entries", costs.size());
+                return costs;
+
+            } catch (Exception e) {
+                log.error("Error retrieving monthly costs: {}", e.getMessage(), e);
+                return new ArrayList<>();
+            }
+        }
+
+        @Override
+        public List<CostData> getCostsByService(String service, int days) {
+            return getDailyCosts(days).stream()
+                    .filter(cost -> cost.getService().toLowerCase().contains(service.toLowerCase()))
+                    .toList();
+        }
+
+        @Override
+        public List<BudgetStatus> getBudgetStatus() {
+            try {
+                List<BudgetStatus> statuses = new ArrayList<>();
+                
+                for (Map.Entry<String, CostMonitoringProperties.BudgetConfig> entry : 
+                     properties.getBudgets().entrySet()) {
+                    
+                    CostMonitoringProperties.BudgetConfig budget = entry.getValue();
+                    if (!budget.isEnabled()) continue;
+                    
+                    try {
+                        DescriveBudgetRequest request = DescribeBudgetRequest.builder()
+                                .accountId(properties.getAws().getAccountId())
+                                .budgetName(budget.getName())
+                                .build();
+
+                        DescribeBudgetResponse response = budgetsClient.describeBudget(request);
+                        Budget awsBudget = response.budget();
+                        
+                        BudgetStatus status = new BudgetStatus();
+                        status.setBudgetName(budget.getName());
+                        status.setLimit(budget.getMonthlyLimit());
+                        status.setPeriod(LocalDate.now());
+                        
+                        // Calculate actual and forecasted spend (simplified)
+                        double actualSpend = awsBudget.calculatedSpend().actualSpend().amount() != null ?
+                            Double.parseDouble(awsBudget.calculatedSpend().actualSpend().amount()) : 0.0;
+                        double forecastedSpend = awsBudget.calculatedSpend().forecastedSpend().amount() != null ?
+                            Double.parseDouble(awsBudget.calculatedSpend().forecastedSpend().amount()) : 0.0;
+                        
+                        status.setActualSpend(actualSpend);
+                        status.setForecastedSpend(forecastedSpend);
+                        status.setPercentageUsed(actualSpend / budget.getMonthlyLimit() * 100);
+                        
+                        // Check triggered thresholds
+                        for (Double threshold : budget.getAlertThresholds()) {
+                            if (status.getPercentageUsed() >= threshold) {
+                                status.getTriggeredThresholds().add(threshold.toString() + "%");
+                            }
+                        }
+                        
+                        statuses.add(status);
+                        
+                    } catch (Exception e) {
+                        log.warn("Error getting budget status for {}: {}", budget.getName(), e.getMessage());
+                    }
+                }
+
+                cachedBudgetStatus.set(statuses);
+                return statuses;
+
+            } catch (Exception e) {
+                log.error("Error retrieving budget status: {}", e.getMessage(), e);
+                return cachedBudgetStatus.get() != null ? cachedBudgetStatus.get() : new ArrayList<>();
+            }
+        }
+
+        @Override
+        public Map<String, Object> getCostSummary() {
+            try {
+                List<CostData> dailyCosts = getDailyCosts(30);
+                List<CostData> monthlyCosts = getMonthlyCosts(3);
+                List<BudgetStatus> budgets = getBudgetStatus();
+
+                double totalDaily = dailyCosts.stream()
+                        .filter(cost -> cost.getDate().equals(LocalDate.now().minusDays(1)))
+                        .mapToDouble(CostData::getAmount)
+                        .sum();
+
+                double totalMonthly = monthlyCosts.stream()
+                        .filter(cost -> cost.getDate().getMonth().equals(LocalDate.now().getMonth()))
+                        .mapToDouble(CostData::getAmount)
+                        .sum();
+
+                Map<String, Double> costsByService = dailyCosts.stream()
+                        .collect(HashMap::new,
+                                (map, cost) -> map.merge(cost.getService(), cost.getAmount(), Double::sum),
+                                (map1, map2) -> {
+                                    map2.forEach((key, value) -> map1.merge(key, value, Double::sum));
+                                    return map1;
+                                });
+
+                return Map.of(
+                        "dailyTotal", totalDaily,
+                        "monthlyTotal", totalMonthly,
+                        "costsByService", costsByService,
+                        "budgetStatus", budgets.stream()
+                                .collect(HashMap::new,
+                                        (map, budget) -> map.put(budget.getBudgetName(), 
+                                            Map.of("used", budget.getPercentageUsed(), 
+                                                  "overBudget", budget.isOverBudget())),
+                                        HashMap::putAll),
+                        "lastUpdated", LocalDate.now().toString()
+                );
+
+            } catch (Exception e) {
+                log.error("Error generating cost summary: {}", e.getMessage(), e);
+                return Map.of("error", "Failed to generate cost summary");
+            }
+        }
+
+        @Override
+        public boolean isHealthy() {
+            try {
+                costExplorerClient.getDimensionValues(GetDimensionValuesRequest.builder()
+                        .dimension(Dimension.SERVICE)
+                        .timePeriod(DateInterval.builder()
+                                .start(LocalDate.now().minusDays(7).format(DateTimeFormatter.ISO_LOCAL_DATE))
+                                .end(LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE))
+                                .build())
+                        .maxResults(1)
+                        .build());
+                return true;
+            } catch (Exception e) {
+                log.warn("Cost monitoring health check failed: {}", e.getMessage());
+                return false;
+            }
+        }
+
+        @Scheduled(fixedRate = 3600000) // Check every hour
+        public void monitorCosts() {
+            try {
+                // Check budget thresholds
+                checkBudgetThresholds();
+                
+                // Check for cost anomalies
+                checkCostAnomalies();
+                
+                log.debug("Cost monitoring check completed");
+
+            } catch (Exception e) {
+                log.error("Error during cost monitoring: {}", e.getMessage(), e);
+            }
+        }
+
+        private void checkBudgetThresholds() {
+            List<BudgetStatus> budgets = getBudgetStatus();
+            
+            for (BudgetStatus budget : budgets) {
+                if (!budget.getTriggeredThresholds().isEmpty()) {
+                    Alert alert = new Alert(
+                            AlertLevel.WARNING,
+                            "Budget Threshold Exceeded",
+                            String.format("Budget %s has exceeded thresholds: %s (%.1f%% used)",
+                                    budget.getBudgetName(),
+                                    String.join(", ", budget.getTriggeredThresholds()),
+                                    budget.getPercentageUsed()),
+                            "COST_MONITOR"
+                    );
+                    
+                    alert.addMetadata("budgetName", budget.getBudgetName());
+                    alert.addMetadata("percentageUsed", budget.getPercentageUsed());
+                    alert.addMetadata("actualSpend", budget.getActualSpend());
+                    alert.addMetadata("limit", budget.getLimit());
+                    
+                    alertManager.sendAlert(alert);
+                }
+                
+                if (budget.isForecastOverBudget()) {
+                    Alert alert = new Alert(
+                            AlertLevel.CRITICAL,
+                            "Budget Forecast Exceeded",
+                            String.format("Budget %s is forecasted to exceed limit: $%.2f forecasted vs $%.2f limit",
+                                    budget.getBudgetName(),
+                                    budget.getForecastedSpend(),
+                                    budget.getLimit()),
+                            "COST_MONITOR"
+                    );
+                    
+                    alert.addMetadata("budgetName", budget.getBudgetName());
+                    alert.addMetadata("forecastedSpend", budget.getForecastedSpend());
+                    alert.addMetadata("limit", budget.getLimit());
+                    
+                    alertManager.sendAlert(alert);
+                }
+            }
+        }
+
+        private void checkCostAnomalies() {
+            // Get recent costs and check for significant increases
+            List<CostData> recentCosts = getDailyCosts(7);
+            
+            Map<String, List<CostData>> costsByService = recentCosts.stream()
+                    .collect(HashMap::new,
+                            (map, cost) -> map.computeIfAbsent(cost.getService(), k -> new ArrayList<>()).add(cost),
+                            (map1, map2) -> {
+                                map2.forEach((service, costs) -> 
+                                    map1.computeIfAbsent(service, k -> new ArrayList<>()).addAll(costs));
+                                return map1;
+                            });
+
+            for (Map.Entry<String, List<CostData>> entry : costsByService.entrySet()) {
+                List<CostData> serviceCosts = entry.getValue();
+                if (serviceCosts.size() >= 2) {
+                    serviceCosts.sort(Comparator.comparing(CostData::getDate));
+                    
+                    double yesterday = serviceCosts.get(serviceCosts.size() - 1).getAmount();
+                    double dayBefore = serviceCosts.get(serviceCosts.size() - 2).getAmount();
+                    
+                    if (dayBefore > 0) {
+                        double increasePercent = ((yesterday - dayBefore) / dayBefore) * 100;
+                        
+                        if (increasePercent > properties.getAlerts().getDailyThresholdIncrease()) {
+                            Alert alert = new Alert(
+                                    AlertLevel.WARNING,
+                                    "Cost Anomaly Detected",
+                                    String.format("Service %s costs increased by %.1f%% from $%.2f to $%.2f",
+                                            entry.getKey(),
+                                            increasePercent,
+                                            dayBefore,
+                                            yesterday),
+                                    "COST_ANOMALY"
+                            );
+                            
+                            alert.addMetadata("service", entry.getKey());
+                            alert.addMetadata("increasePercent", increasePercent);
+                            alert.addMetadata("previousCost", dayBefore);
+                            alert.addMetadata("currentCost", yesterday);
+                            
+                            alertManager.sendAlert(alert);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Mock cost monitoring service for local development
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class MockCostMonitoringService implements CostMonitoringService {
+
+        private final CostMonitoringProperties properties;
+        private final AlertManager alertManager;
+
+        @Override
+        public List<CostData> getDailyCosts(int days) {
+            List<CostData> costs = new ArrayList<>();
+            Random random = new Random();
+            
+            for (int i = 0; i < days; i++) {
+                LocalDate date = LocalDate.now().minusDays(i);
+                
+                // Mock costs for different services
+                costs.add(new CostData("Amazon ECS", 5.0 + random.nextDouble() * 10, "USD", date, "daily"));
+                costs.add(new CostData("Amazon RDS", 8.0 + random.nextDouble() * 12, "USD", date, "daily"));
+                costs.add(new CostData("Amazon S3", 2.0 + random.nextDouble() * 5, "USD", date, "daily"));
+                costs.add(new CostData("Amazon Bedrock", 10.0 + random.nextDouble() * 20, "USD", date, "daily"));
+                costs.add(new CostData("Amazon CloudWatch", 1.0 + random.nextDouble() * 3, "USD", date, "daily"));
+            }
+            
+            log.debug("Mock: Generated {} daily cost entries", costs.size());
+            return costs;
+        }
+
+        @Override
+        public List<CostData> getMonthlyCosts(int months) {
+            List<CostData> costs = new ArrayList<>();
+            Random random = new Random();
+            
+            for (int i = 0; i < months; i++) {
+                LocalDate date = LocalDate.now().minusMonths(i).withDayOfMonth(1);
+                
+                // Mock monthly costs
+                costs.add(new CostData("Amazon ECS", 150.0 + random.nextDouble() * 100, "USD", date, "monthly"));
+                costs.add(new CostData("Amazon RDS", 240.0 + random.nextDouble() * 160, "USD", date, "monthly"));
+                costs.add(new CostData("Amazon S3", 60.0 + random.nextDouble() * 40, "USD", date, "monthly"));
+                costs.add(new CostData("Amazon Bedrock", 300.0 + random.nextDouble() * 200, "USD", date, "monthly"));
+                costs.add(new CostData("Amazon CloudWatch", 30.0 + random.nextDouble() * 20, "USD", date, "monthly"));
+            }
+            
+            log.debug("Mock: Generated {} monthly cost entries", costs.size());
+            return costs;
+        }
+
+        @Override
+        public List<CostData> getCostsByService(String service, int days) {
+            return getDailyCosts(days).stream()
+                    .filter(cost -> cost.getService().toLowerCase().contains(service.toLowerCase()))
+                    .toList();
+        }
+
+        @Override
+        public List<BudgetStatus> getBudgetStatus() {
+            List<BudgetStatus> statuses = new ArrayList<>();
+            Random random = new Random();
+            
+            for (Map.Entry<String, CostMonitoringProperties.BudgetConfig> entry : 
+                 properties.getBudgets().entrySet()) {
+                
+                CostMonitoringProperties.BudgetConfig budget = entry.getValue();
+                if (!budget.isEnabled()) continue;
+                
+                BudgetStatus status = new BudgetStatus();
+                status.setBudgetName(budget.getName());
+                status.setLimit(budget.getMonthlyLimit());
+                status.setPeriod(LocalDate.now());
+                
+                // Mock actual and forecasted spend
+                double actualSpend = budget.getMonthlyLimit() * (0.5 + random.nextDouble() * 0.4); // 50-90%
+                double forecastedSpend = actualSpend * (1.1 + random.nextDouble() * 0.2); // 110-130% of actual
+                
+                status.setActualSpend(actualSpend);
+                status.setForecastedSpend(forecastedSpend);
+                status.setPercentageUsed(actualSpend / budget.getMonthlyLimit() * 100);
+                
+                // Check triggered thresholds
+                for (Double threshold : budget.getAlertThresholds()) {
+                    if (status.getPercentageUsed() >= threshold) {
+                        status.getTriggeredThresholds().add(threshold.toString() + "%");
+                    }
+                }
+                
+                statuses.add(status);
+            }
+            
+            log.debug("Mock: Generated {} budget status entries", statuses.size());
+            return statuses;
+        }
+
+        @Override
+        public Map<String, Object> getCostSummary() {
+            return Map.of(
+                    "dailyTotal", 26.50,
+                    "monthlyTotal", 795.00,
+                    "costsByService", Map.of(
+                            "Amazon ECS", 150.0,
+                            "Amazon RDS", 240.0,
+                            "Amazon S3", 60.0,
+                            "Amazon Bedrock", 300.0,
+                            "Amazon CloudWatch", 45.0
+                    ),
+                    "budgetStatus", Map.of(
+                            "overall", Map.of("used", 75.2, "overBudget", false),
+                            "compute", Map.of("used", 85.5, "overBudget", false),
+                            "ai-services", Map.of("used", 92.1, "overBudget", false)
+                    ),
+                    "lastUpdated", LocalDate.now().toString(),
+                    "type", "mock"
+            );
+        }
+
+        @Override
+        public boolean isHealthy() {
+            return true; // Mock is always healthy
+        }
+
+        @Scheduled(fixedRate = 3600000) // Check every hour
+        public void mockCostMonitoring() {
+            log.debug("Mock: Performing cost monitoring check");
+            
+            // Occasionally trigger mock alerts for testing
+            if (Math.random() > 0.9) { // 10% chance
+                Alert alert = new Alert(
+                        AlertLevel.INFO,
+                        "Mock Cost Alert",
+                        "This is a mock cost monitoring alert for testing purposes",
+                        "MOCK_COST_MONITOR"
+                );
+                
+                alertManager.sendAlert(alert);
+            }
+        }
+    }
+
+    /**
+     * Cost optimizer for generating recommendations
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class CostOptimizer {
+
+        private final CostMonitoringService costMonitoringService;
+        private final CostMonitoringProperties properties;
+
+        @Scheduled(fixedRate = 86400000) // Check daily
+        public void generateOptimizationRecommendations() {
+            if (!properties.getOptimization().isEnabled()) {
+                return;
+            }
+
+            try {
+                List<OptimizationRecommendation> recommendations = new ArrayList<>();
+                
+                // Get cost data for analysis
+                List<CostData> monthlyCosts = costMonitoringService.getMonthlyCosts(3);
+                Map<String, Object> costSummary = costMonitoringService.getCostSummary();
+                
+                // Analyze costs and generate recommendations
+                recommendations.addAll(analyzeUnusedResources(monthlyCosts));
+                recommendations.addAll(analyzeRightSizing(monthlyCosts));
+                recommendations.addAll(analyzeReservedInstances(monthlyCosts));
+                
+                // Report significant savings opportunities
+                double totalSavings = recommendations.stream()
+                        .mapToDouble(OptimizationRecommendation::getEstimatedMonthlySavings)
+                        .sum();
+                
+                if (totalSavings > properties.getOptimization().getWasteThreshold()) {
+                    log.info("Cost optimization opportunities identified: ${:.2f}/month potential savings", totalSavings);
+                    
+                    // Would send optimization report in production
+                    logOptimizationRecommendations(recommendations);
+                }
+
+            } catch (Exception e) {
+                log.error("Error generating optimization recommendations: {}", e.getMessage(), e);
+            }
+        }
+
+        private List<OptimizationRecommendation> analyzeUnusedResources(List<CostData> costs) {
+            List<OptimizationRecommendation> recommendations = new ArrayList<>();
+            
+            // Mock implementation - in production would analyze actual resource utilization
+            if (Math.random() > 0.7) { // 30% chance of finding unused resources
+                recommendations.add(new OptimizationRecommendation(
+                        "unused-resources",
+                        "Amazon ECS",
+                        "Unused ECS tasks detected running with no traffic",
+                        25.0,
+                        "HIGH"
+                ));
+            }
+            
+            return recommendations;
+        }
+
+        private List<OptimizationRecommendation> analyzeRightSizing(List<CostData> costs) {
+            List<OptimizationRecommendation> recommendations = new ArrayList<>();
+            
+            // Mock implementation
+            if (Math.random() > 0.6) { // 40% chance of right-sizing opportunity
+                recommendations.add(new OptimizationRecommendation(
+                        "right-sizing",
+                        "Amazon RDS",
+                        "RDS instance appears over-provisioned based on CPU utilization",
+                        40.0,
+                        "MEDIUM"
+                ));
+            }
+            
+            return recommendations;
+        }
+
+        private List<OptimizationRecommendation> analyzeReservedInstances(List<CostData> costs) {
+            List<OptimizationRecommendation> recommendations = new ArrayList<>();
+            
+            // Mock implementation
+            if (Math.random() > 0.8) { // 20% chance of RI opportunity
+                recommendations.add(new OptimizationRecommendation(
+                        "reserved-instances",
+                        "Amazon ECS",
+                        "Consider reserved capacity for consistent ECS usage patterns",
+                        60.0,
+                        "LOW"
+                ));
+            }
+            
+            return recommendations;
+        }
+
+        private void logOptimizationRecommendations(List<OptimizationRecommendation> recommendations) {
+            log.info("=== COST OPTIMIZATION RECOMMENDATIONS ===");
+            
+            for (OptimizationRecommendation rec : recommendations) {
+                log.info("[{}] {}: {} - Potential savings: ${:.2f}/month",
+                        rec.getPriority(),
+                        rec.getService(),
+                        rec.getDescription(),
+                        rec.getEstimatedMonthlySavings());
+            }
+            
+            double totalSavings = recommendations.stream()
+                    .mapToDouble(OptimizationRecommendation::getEstimatedMonthlySavings)
+                    .sum();
+            
+            log.info("TOTAL POTENTIAL MONTHLY SAVINGS: ${:.2f}", totalSavings);
+        }
+
+        public List<OptimizationRecommendation> getCurrentRecommendations() {
+            // Return cached recommendations - in production would store in database
+            return List.of();
+        }
+
+        public Map<String, Object> getOptimizationMetrics() {
+            return Map.of(
+                    "enabled", properties.getOptimization().isEnabled(),
+                    "wasteThreshold", properties.getOptimization().getWasteThreshold(),
+                    "checksEnabled", properties.getOptimization().getOptimizationChecks(),
+                    "lastCheck", LocalDate.now().toString()
+            );
+        }
+    }
+}

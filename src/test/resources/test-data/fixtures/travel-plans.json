@@ -1,0 +1,256 @@
+{
+  "seoul_travel_scenarios": [
+    {
+      "id": 3001,
+      "userId": 1001,
+      "title": "서울 주말 힐링 여행",
+      "description": "혼자만의 시간을 즐기는 서울 시내 힐링 여행 코스입니다.",
+      "destination": "서울",
+      "startDate": "2024-09-14",
+      "endDate": "2024-09-16",
+      "numberOfPeople": 1,
+      "budget": 300000,
+      "status": "PUBLISHED",
+      "isPublic": true,
+      "isAiGenerated": false,
+      "viewCount": 245,
+      "likeCount": 18,
+      "shareCount": 5,
+      "saveCount": 42,
+      "coverImageUrl": "https://example.com/covers/seoul_healing.jpg",
+      "preferences": {
+        "여행스타일": "여유로운",
+        "교통수단": "대중교통",
+        "관심분야": "문화"
+      },
+      "tags": ["솔로여행", "힐링", "서울", "주말"],
+      "itinerary": [
+        {
+          "dayNumber": 1,
+          "sequence": 1,
+          "placeId": 2001,
+          "placeName": "경복궁",
+          "startTime": "09:00",
+          "endTime": "11:30",
+          "notes": "조선왕조의 대표 궁궐. 수문장 교대식 관람 (10:00, 11:00)"
+        },
+        {
+          "dayNumber": 1,
+          "sequence": 2,
+          "placeId": 2007,
+          "placeName": "명동교자",
+          "startTime": "12:00",
+          "endTime": "13:30",
+          "notes": "전통 한식으로 점심. 칼국수와 만두 추천"
+        },
+        {
+          "dayNumber": 1,
+          "sequence": 3,
+          "placeId": 2005,
+          "placeName": "북촌한옥마을",
+          "startTime": "14:00",
+          "endTime": "16:00",
+          "notes": "전통 한옥마을 투어. 사진 촬영 명소"
+        },
+        {
+          "dayNumber": 1,
+          "sequence": 4,
+          "placeId": 2002,
+          "placeName": "남산타워",
+          "startTime": "17:00",
+          "endTime": "19:00",
+          "notes": "서울 전망 감상. 석양이 아름다운 시간"
+        }
+      ]
+    },
+    {
+      "id": 3002,
+      "userId": 1002,
+      "title": "서울 가족여행 3박 4일",
+      "description": "아이들과 함께하는 서울의 주요 관광지 탐방과 체험 활동",
+      "destination": "서울",
+      "startDate": "2024-09-30",
+      "endDate": "2024-10-03",
+      "numberOfPeople": 4,
+      "budget": 800000,
+      "status": "DRAFT",
+      "isPublic": false,
+      "isAiGenerated": false,
+      "viewCount": 12,
+      "likeCount": 3,
+      "shareCount": 1,
+      "saveCount": 8,
+      "coverImageUrl": "https://example.com/covers/family_seoul.jpg",
+      "preferences": {
+        "여행스타일": "가족친화",
+        "교통수단": "택시",
+        "관심분야": "체험"
+      },
+      "tags": ["가족여행", "아이들", "체험", "관광"],
+      "itinerary": [
+        {
+          "dayNumber": 1,
+          "sequence": 1,
+          "placeId": 2001,
+          "placeName": "경복궁",
+          "startTime": "10:00",
+          "endTime": "12:00",
+          "notes": "아이들과 함께하는 궁궐 투어"
+        },
+        {
+          "dayNumber": 1,
+          "sequence": 2,
+          "placeId": 2006,
+          "placeName": "미슐랭 한식당",
+          "startTime": "12:30",
+          "endTime": "14:00",
+          "notes": "가족 친화적인 한식당에서 점심"
+        },
+        {
+          "dayNumber": 1,
+          "sequence": 3,
+          "placeId": 2003,
+          "placeName": "명동",
+          "startTime": "15:00",
+          "endTime": "17:00",
+          "notes": "명동에서 쇼핑과 간식"
+        }
+      ]
+    },
+    {
+      "id": 3003,
+      "userId": 1003,
+      "title": "서울 출장 + 개인여행",
+      "description": "출장 일정을 마친 후 서울의 문화와 맛집을 탐방하는 여행",
+      "destination": "서울",
+      "startDate": "2024-09-21",
+      "endDate": "2024-09-25",
+      "numberOfPeople": 1,
+      "budget": 500000,
+      "status": "PUBLISHED",
+      "isPublic": true,
+      "isAiGenerated": false,
+      "viewCount": 156,
+      "likeCount": 12,
+      "shareCount": 8,
+      "saveCount": 29,
+      "coverImageUrl": "https://example.com/covers/business_seoul.jpg",
+      "preferences": {
+        "여행스타일": "비즈니스",
+        "교통수단": "대중교통",
+        "관심분야": "음식"
+      },
+      "tags": ["출장", "비즈니스", "맛집", "문화"]
+    },
+    {
+      "id": 3004,
+      "userId": 1005,
+      "title": "서울 K-pop 성지순례",
+      "description": "K-pop 팬들을 위한 서울의 K-pop 관련 명소와 카페 투어",
+      "destination": "서울",
+      "startDate": "2024-10-15",
+      "endDate": "2024-10-17",
+      "numberOfPeople": 3,
+      "budget": 450000,
+      "status": "PLANNING",
+      "isPublic": true,
+      "isAiGenerated": false,
+      "viewCount": 89,
+      "likeCount": 7,
+      "shareCount": 3,
+      "saveCount": 15,
+      "coverImageUrl": "https://example.com/covers/kpop_seoul.jpg",
+      "preferences": {
+        "여행스타일": "문화탐방",
+        "교통수단": "대중교통",
+        "관심분야": "K-pop"
+      },
+      "tags": ["K-pop", "한류", "성지순례", "친구"]
+    }
+  ],
+  "travel_plan_templates": {
+    "solo_weekend": {
+      "title": "{{destination}} 주말 힐링 여행",
+      "description": "혼자만의 시간을 즐기는 {{destination}} 힐링 여행 코스입니다.",
+      "numberOfPeople": 1,
+      "duration": 2,
+      "budgetRange": "200000-400000",
+      "preferences": {
+        "여행스타일": "여유로운",
+        "동행타입": "솔로",
+        "교통수단": "대중교통"
+      },
+      "tags": ["솔로여행", "힐링", "주말"]
+    },
+    "family_vacation": {
+      "title": "{{destination}} 가족여행 {{duration}}박 {{duration+1}}일",
+      "description": "아이들과 함께하는 {{destination}}의 주요 관광지 탐방과 체험 활동",
+      "numberOfPeople": "3-5",
+      "duration": "3-7",
+      "budgetRange": "600000-1500000",
+      "preferences": {
+        "여행스타일": "가족친화",
+        "동행타입": "가족",
+        "관심분야": "체험"
+      },
+      "tags": ["가족여행", "아이들", "체험", "관광"]
+    },
+    "business_extended": {
+      "title": "{{destination}} 출장 + 개인여행",
+      "description": "출장 일정을 마친 후 {{destination}}의 문화와 맛집을 탐방하는 여행",
+      "numberOfPeople": 1,
+      "duration": "3-5",
+      "budgetRange": "400000-800000",
+      "preferences": {
+        "여행스타일": "비즈니스",
+        "동행타입": "솔로",
+        "관심분야": "음식"
+      },
+      "tags": ["출장", "비즈니스", "맛집", "문화"]
+    },
+    "cultural_tour": {
+      "title": "{{destination}} {{theme}} 투어",
+      "description": "{{theme}} 팬들을 위한 {{destination}}의 관련 명소와 카페 투어",
+      "numberOfPeople": "2-4",
+      "duration": "2-3",
+      "budgetRange": "300000-600000",
+      "preferences": {
+        "여행스타일": "문화탐방",
+        "동행타입": "친구",
+        "교통수단": "대중교통"
+      },
+      "tags": ["문화", "투어", "친구"]
+    }
+  },
+  "travel_plan_statuses": [
+    "DRAFT",
+    "PLANNING", 
+    "PUBLISHED",
+    "COMPLETED",
+    "CANCELLED"
+  ],
+  "korean_destinations": [
+    "서울",
+    "부산", 
+    "제주도",
+    "인천",
+    "대전",
+    "대구",
+    "울산",
+    "세종",
+    "경기도",
+    "강원도",
+    "충청북도",
+    "충청남도",
+    "전라북도", 
+    "전라남도",
+    "경상북도",
+    "경상남도",
+    "경주",
+    "전주",
+    "강릉",
+    "속초",
+    "여수",
+    "통영"
+  ]
+}

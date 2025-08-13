@@ -1,0 +1,475 @@
+package com.oddiya.config;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import lombok.extern.slf4j.Slf4j;
+
+import com.amazonaws.xray.AWSXRay;
+import com.amazonaws.xray.AWSXRayRecorder;
+import com.amazonaws.xray.AWSXRayRecorderBuilder;
+import com.amazonaws.xray.entities.Subsegment;
+import com.amazonaws.xray.plugins.ECSPlugin;
+import com.amazonaws.xray.plugins.EC2Plugin;
+import com.amazonaws.xray.strategy.sampling.LocalizedSamplingStrategy;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+
+/**
+ * AWS X-Ray distributed tracing configuration
+ * Provides comprehensive request tracing across all service boundaries
+ */
+@Configuration
+@ConditionalOnProperty(name = "app.tracing.xray.enabled", havingValue = "true", matchIfMissing = false)
+@Profile({"aws", "production"})
+@Slf4j
+public class DistributedTracingConfig implements WebMvcConfigurer {
+
+    @Bean
+    public AWSXRayRecorder xRayRecorder() {
+        log.info("Configuring AWS X-Ray distributed tracing");
+        
+        return AWSXRayRecorderBuilder
+            .standard()
+            .withPlugin(new ECSPlugin())
+            .withPlugin(new EC2Plugin())
+            .withSamplingStrategy(new LocalizedSamplingStrategy())
+            .build();
+    }
+
+    @Bean
+    public XRayTracingInterceptor xRayTracingInterceptor() {
+        return new XRayTracingInterceptor();
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(xRayTracingInterceptor())
+                .addPathPatterns("/api/**");
+    }
+
+    @Bean
+    public DistributedTracingService distributedTracingService() {
+        return new DistributedTracingService();
+    }
+
+    /**
+     * X-Ray tracing interceptor for HTTP requests
+     */
+    @Component
+    @Slf4j
+    public static class XRayTracingInterceptor implements HandlerInterceptor {
+
+        private static final String TRACE_ID_HEADER = "X-Trace-Id";
+        private static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
+        
+        @Override
+        public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+            try {
+                // Generate or extract correlation ID
+                String correlationId = extractOrGenerateCorrelationId(request);
+                
+                // Start X-Ray segment
+                String segmentName = String.format("%s %s", request.getMethod(), request.getRequestURI());
+                AWSXRay.beginSegment(segmentName);
+                
+                // Add request metadata
+                AWSXRay.getCurrentSegment().putMetadata("http", Map.of(
+                    "method", request.getMethod(),
+                    "url", request.getRequestURL().toString(),
+                    "user_agent", request.getHeader("User-Agent"),
+                    "correlation_id", correlationId,
+                    "remote_addr", getClientIpAddress(request)
+                ));
+                
+                // Add correlation ID to response headers
+                response.setHeader(CORRELATION_ID_HEADER, correlationId);
+                response.setHeader(TRACE_ID_HEADER, AWSXRay.getCurrentSegment().getTraceId().toString());
+                
+                // Store correlation ID in thread local for logging
+                TracingContext.setCorrelationId(correlationId);
+                
+                log.debug("Started X-Ray segment: {} with correlation ID: {}", segmentName, correlationId);
+                
+            } catch (Exception e) {
+                log.error("Error starting X-Ray tracing: {}", e.getMessage(), e);
+            }
+            
+            return true;
+        }
+
+        @Override
+        public void afterCompletion(HttpServletRequest request, HttpServletResponse response, 
+                                   Object handler, Exception ex) {
+            try {
+                // Add response metadata
+                if (AWSXRay.getCurrentSegment() != null) {
+                    AWSXRay.getCurrentSegment().putMetadata("response", Map.of(
+                        "status", response.getStatus(),
+                        "content_type", response.getContentType() != null ? response.getContentType() : "unknown"
+                    ));
+                    
+                    // Mark as error if exception occurred or status >= 400
+                    if (ex != null || response.getStatus() >= 400) {
+                        AWSXRay.getCurrentSegment().setError(true);
+                        if (ex != null) {
+                            AWSXRay.getCurrentSegment().addException(ex);
+                        }
+                    }
+                    
+                    // End X-Ray segment
+                    AWSXRay.endSegment();
+                    log.debug("Ended X-Ray segment for: {} {} - Status: {}", 
+                        request.getMethod(), request.getRequestURI(), response.getStatus());
+                }
+                
+            } catch (Exception e) {
+                log.error("Error ending X-Ray tracing: {}", e.getMessage(), e);
+            } finally {
+                // Clean up thread local
+                TracingContext.clear();
+            }
+        }
+
+        private String extractOrGenerateCorrelationId(HttpServletRequest request) {
+            String correlationId = request.getHeader(CORRELATION_ID_HEADER);
+            if (correlationId == null || correlationId.trim().isEmpty()) {
+                correlationId = generateCorrelationId();
+            }
+            return correlationId;
+        }
+
+        private String generateCorrelationId() {
+            return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        }
+
+        private String getClientIpAddress(HttpServletRequest request) {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                return xForwardedFor.split(",")[0].trim();
+            }
+            
+            String xRealIp = request.getHeader("X-Real-IP");
+            if (xRealIp != null && !xRealIp.isEmpty()) {
+                return xRealIp;
+            }
+            
+            return request.getRemoteAddr();
+        }
+    }
+
+    /**
+     * Service for distributed tracing operations
+     */
+    @Component
+    @Slf4j
+    public static class DistributedTracingService {
+
+        /**
+         * Trace an external service call
+         */
+        public <T> T traceExternalCall(String serviceName, String operation, ExternalCallSupplier<T> supplier) {
+            String subsegmentName = String.format("%s::%s", serviceName, operation);
+            
+            Subsegment subsegment = AWSXRay.beginSubsegment(subsegmentName);
+            
+            try {
+                // Add service metadata
+                subsegment.putMetadata("service", Map.of(
+                    "name", serviceName,
+                    "operation", operation,
+                    "correlation_id", TracingContext.getCorrelationId()
+                ));
+                
+                long startTime = System.currentTimeMillis();
+                T result = supplier.call();
+                long duration = System.currentTimeMillis() - startTime;
+                
+                // Add performance metadata
+                subsegment.putMetadata("performance", Map.of(
+                    "duration_ms", duration,
+                    "success", true
+                ));
+                
+                log.debug("External call traced: {} completed in {}ms", subsegmentName, duration);
+                return result;
+                
+            } catch (Exception e) {
+                // Mark subsegment as error
+                subsegment.setError(true);
+                subsegment.addException(e);
+                
+                subsegment.putMetadata("error", Map.of(
+                    "message", e.getMessage(),
+                    "type", e.getClass().getSimpleName()
+                ));
+                
+                log.error("External call error traced: {} - {}", subsegmentName, e.getMessage());
+                throw e;
+                
+            } finally {
+                AWSXRay.endSubsegment();
+            }
+        }
+
+        /**
+         * Trace a database operation
+         */
+        public <T> T traceDatabaseCall(String operation, String query, DatabaseCallSupplier<T> supplier) {
+            String subsegmentName = String.format("Database::%s", operation);
+            
+            Subsegment subsegment = AWSXRay.beginSubsegment(subsegmentName);
+            
+            try {
+                // Add database metadata
+                subsegment.putMetadata("database", Map.of(
+                    "operation", operation,
+                    "query", maskSensitiveData(query),
+                    "correlation_id", TracingContext.getCorrelationId()
+                ));
+                
+                long startTime = System.currentTimeMillis();
+                T result = supplier.call();
+                long duration = System.currentTimeMillis() - startTime;
+                
+                // Add performance metadata
+                subsegment.putMetadata("performance", Map.of(
+                    "duration_ms", duration,
+                    "success", true
+                ));
+                
+                // Flag slow queries
+                if (duration > 1000) {
+                    subsegment.putAnnotation("slow_query", true);
+                    log.warn("Slow database query detected: {} took {}ms", operation, duration);
+                }
+                
+                log.debug("Database call traced: {} completed in {}ms", operation, duration);
+                return result;
+                
+            } catch (Exception e) {
+                subsegment.setError(true);
+                subsegment.addException(e);
+                
+                subsegment.putMetadata("error", Map.of(
+                    "message", e.getMessage(),
+                    "type", e.getClass().getSimpleName()
+                ));
+                
+                log.error("Database call error traced: {} - {}", operation, e.getMessage());
+                throw e;
+                
+            } finally {
+                AWSXRay.endSubsegment();
+            }
+        }
+
+        /**
+         * Trace AI service calls
+         */
+        public <T> T traceAICall(String aiService, String model, String prompt, AICallSupplier<T> supplier) {
+            String subsegmentName = String.format("AI::%s", aiService);
+            
+            Subsegment subsegment = AWSXRay.beginSubsegment(subsegmentName);
+            
+            try {
+                // Add AI service metadata (without sensitive prompt data)
+                subsegment.putMetadata("ai", Map.of(
+                    "service", aiService,
+                    "model", model,
+                    "prompt_length", prompt != null ? prompt.length() : 0,
+                    "correlation_id", TracingContext.getCorrelationId()
+                ));
+                
+                long startTime = System.currentTimeMillis();
+                T result = supplier.call();
+                long duration = System.currentTimeMillis() - startTime;
+                
+                // Add performance metadata
+                subsegment.putMetadata("performance", Map.of(
+                    "duration_ms", duration,
+                    "success", true
+                ));
+                
+                // Add AI-specific annotations
+                subsegment.putAnnotation("ai_service", aiService);
+                subsegment.putAnnotation("ai_model", model);
+                
+                log.debug("AI call traced: {} with model {} completed in {}ms", 
+                    aiService, model, duration);
+                return result;
+                
+            } catch (Exception e) {
+                subsegment.setError(true);
+                subsegment.addException(e);
+                
+                subsegment.putMetadata("error", Map.of(
+                    "message", e.getMessage(),
+                    "type", e.getClass().getSimpleName()
+                ));
+                
+                log.error("AI call error traced: {} - {}", aiService, e.getMessage());
+                throw e;
+                
+            } finally {
+                AWSXRay.endSubsegment();
+            }
+        }
+
+        /**
+         * Add custom annotation for filtering traces
+         */
+        public void addAnnotation(String key, Object value) {
+            try {
+                if (AWSXRay.getCurrentSegment() != null) {
+                    AWSXRay.getCurrentSegment().putAnnotation(key, value);
+                }
+            } catch (Exception e) {
+                log.debug("Failed to add X-Ray annotation: {}", e.getMessage());
+            }
+        }
+
+        /**
+         * Add custom metadata for detailed trace information
+         */
+        public void addMetadata(String namespace, Map<String, Object> metadata) {
+            try {
+                if (AWSXRay.getCurrentSegment() != null) {
+                    AWSXRay.getCurrentSegment().putMetadata(namespace, metadata);
+                }
+            } catch (Exception e) {
+                log.debug("Failed to add X-Ray metadata: {}", e.getMessage());
+            }
+        }
+
+        private String maskSensitiveData(String query) {
+            if (query == null) return null;
+            
+            // Simple masking - replace potential sensitive values
+            return query
+                .replaceAll("(?i)(password|token|secret)\\s*[=:]\\s*['\"]?[^'\"\\s,)]+", "$1=***")
+                .replaceAll("(?i)'[^']*(?:password|token|secret)[^']*'", "'***'");
+        }
+
+        @FunctionalInterface
+        public interface ExternalCallSupplier<T> {
+            T call() throws Exception;
+        }
+
+        @FunctionalInterface
+        public interface DatabaseCallSupplier<T> {
+            T call() throws Exception;
+        }
+
+        @FunctionalInterface
+        public interface AICallSupplier<T> {
+            T call() throws Exception;
+        }
+    }
+
+    /**
+     * Thread-local context for tracing information
+     */
+    public static class TracingContext {
+        private static final ThreadLocal<String> CORRELATION_ID = new ThreadLocal<>();
+        
+        public static void setCorrelationId(String correlationId) {
+            CORRELATION_ID.set(correlationId);
+        }
+        
+        public static String getCorrelationId() {
+            String correlationId = CORRELATION_ID.get();
+            return correlationId != null ? correlationId : "unknown";
+        }
+        
+        public static void clear() {
+            CORRELATION_ID.remove();
+        }
+    }
+}
+
+/**
+ * Mock distributed tracing configuration for local development
+ */
+@Configuration
+@Profile({"local", "test", "h2"})
+@Slf4j
+class MockDistributedTracingConfig {
+
+    @Bean
+    public MockDistributedTracingService mockDistributedTracingService() {
+        log.info("Using mock distributed tracing for local development");
+        return new MockDistributedTracingService();
+    }
+
+    @Component
+    @Slf4j
+    public static class MockDistributedTracingService {
+
+        public <T> T traceExternalCall(String serviceName, String operation, 
+                DistributedTracingConfig.DistributedTracingService.ExternalCallSupplier<T> supplier) {
+            try {
+                long startTime = System.currentTimeMillis();
+                T result = supplier.call();
+                long duration = System.currentTimeMillis() - startTime;
+                
+                log.debug("Mock traced external call: {}::{} completed in {}ms", 
+                    serviceName, operation, duration);
+                return result;
+            } catch (Exception e) {
+                log.debug("Mock traced external call error: {}::{} - {}", 
+                    serviceName, operation, e.getMessage());
+                throw e;
+            }
+        }
+
+        public <T> T traceDatabaseCall(String operation, String query, 
+                DistributedTracingConfig.DistributedTracingService.DatabaseCallSupplier<T> supplier) {
+            try {
+                long startTime = System.currentTimeMillis();
+                T result = supplier.call();
+                long duration = System.currentTimeMillis() - startTime;
+                
+                log.debug("Mock traced database call: {} completed in {}ms", operation, duration);
+                return result;
+            } catch (Exception e) {
+                log.debug("Mock traced database call error: {} - {}", operation, e.getMessage());
+                throw e;
+            }
+        }
+
+        public <T> T traceAICall(String aiService, String model, String prompt, 
+                DistributedTracingConfig.DistributedTracingService.AICallSupplier<T> supplier) {
+            try {
+                long startTime = System.currentTimeMillis();
+                T result = supplier.call();
+                long duration = System.currentTimeMillis() - startTime;
+                
+                log.debug("Mock traced AI call: {} with model {} completed in {}ms", 
+                    aiService, model, duration);
+                return result;
+            } catch (Exception e) {
+                log.debug("Mock traced AI call error: {} - {}", aiService, e.getMessage());
+                throw e;
+            }
+        }
+
+        public void addAnnotation(String key, Object value) {
+            log.debug("Mock annotation: {} = {}", key, value);
+        }
+
+        public void addMetadata(String namespace, Map<String, Object> metadata) {
+            log.debug("Mock metadata: {} = {}", namespace, metadata);
+        }
+    }
+}

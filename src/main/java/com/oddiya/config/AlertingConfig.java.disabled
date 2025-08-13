@@ -1,0 +1,613 @@
+package com.oddiya.config;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sns.model.*;
+
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * Multi-level alerting system with SNS notifications
+ * Provides critical, warning, and info level alerts with rate limiting and escalation
+ */
+@Configuration
+@ConditionalOnProperty(name = "app.alerting.enabled", havingValue = "true", matchIfMissing = false)
+@EnableAsync
+@EnableScheduling
+@Slf4j
+public class AlertingConfig {
+
+    @Bean
+    @ConfigurationProperties(prefix = "app.alerting")
+    public AlertingProperties alertingProperties() {
+        return new AlertingProperties();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.alerting.sns.enabled", havingValue = "true")
+    public AlertingService alertingService(SnsClient snsClient, AlertingProperties properties) {
+        return new SNSAlertingService(snsClient, properties);
+    }
+
+    @Bean
+    @Profile({"local", "test", "h2"})
+    public AlertingService mockAlertingService(AlertingProperties properties) {
+        return new MockAlertingService(properties);
+    }
+
+    @Bean
+    public AlertManager alertManager(AlertingService alertingService, AlertingProperties properties) {
+        return new AlertManager(alertingService, properties);
+    }
+
+    @Bean
+    public SystemMonitor systemMonitor(AlertManager alertManager) {
+        return new SystemMonitor(alertManager);
+    }
+
+    /**
+     * Alerting configuration properties
+     */
+    @Data
+    public static class AlertingProperties {
+        private boolean enabled = true;
+        private SNSConfig sns = new SNSConfig();
+        private Map<String, TopicConfig> topics = new HashMap<>();
+        private RateLimitConfig rateLimit = new RateLimitConfig();
+        private Map<AlertLevel, AlertConfig> levels = new HashMap<>();
+
+        @Data
+        public static class SNSConfig {
+            private boolean enabled = false;
+            private String region = "ap-northeast-2";
+        }
+
+        @Data
+        public static class TopicConfig {
+            private String arn;
+            private List<AlertLevel> levels = Arrays.asList(AlertLevel.values());
+            private String description;
+        }
+
+        @Data
+        public static class RateLimitConfig {
+            private int maxAlertsPerMinute = 10;
+            private int maxAlertsPerHour = 100;
+            private long cooldownMinutes = 5;
+        }
+
+        @Data
+        public static class AlertConfig {
+            private boolean enabled = true;
+            private int retryAttempts = 3;
+            private long retryDelaySeconds = 30;
+            private boolean requiresAcknowledgment = false;
+        }
+
+        public void setDefaults() {
+            // Set default topic configurations
+            topics.putIfAbsent("critical", new TopicConfig() {{
+                setLevels(Arrays.asList(AlertLevel.CRITICAL));
+                setDescription("Critical system alerts requiring immediate attention");
+            }});
+            
+            topics.putIfAbsent("operations", new TopicConfig() {{
+                setLevels(Arrays.asList(AlertLevel.WARNING, AlertLevel.INFO));
+                setDescription("Operational alerts and notifications");
+            }});
+
+            // Set default alert level configurations
+            levels.putIfAbsent(AlertLevel.CRITICAL, new AlertConfig() {{
+                setRetryAttempts(5);
+                setRetryDelaySeconds(10);
+                setRequiresAcknowledgment(true);
+            }});
+            
+            levels.putIfAbsent(AlertLevel.WARNING, new AlertConfig() {{
+                setRetryAttempts(3);
+                setRetryDelaySeconds(30);
+                setRequiresAcknowledgment(false);
+            }});
+            
+            levels.putIfAbsent(AlertLevel.INFO, new AlertConfig() {{
+                setRetryAttempts(1);
+                setRetryDelaySeconds(60);
+                setRequiresAcknowledgment(false);
+            }});
+        }
+    }
+
+    public enum AlertLevel {
+        CRITICAL, WARNING, INFO
+    }
+
+    /**
+     * Alert data structure
+     */
+    @Data
+    public static class Alert {
+        private String id;
+        private AlertLevel level;
+        private String title;
+        private String message;
+        private String source;
+        private Map<String, Object> metadata;
+        private Instant timestamp;
+        private boolean acknowledged;
+        private int attempts;
+
+        public Alert(AlertLevel level, String title, String message, String source) {
+            this.id = UUID.randomUUID().toString();
+            this.level = level;
+            this.title = title;
+            this.message = message;
+            this.source = source;
+            this.metadata = new HashMap<>();
+            this.timestamp = Instant.now();
+            this.acknowledged = false;
+            this.attempts = 0;
+        }
+
+        public Alert addMetadata(String key, Object value) {
+            this.metadata.put(key, value);
+            return this;
+        }
+    }
+
+    /**
+     * Alerting service interface
+     */
+    public interface AlertingService {
+        boolean sendAlert(Alert alert, String topicArn);
+        boolean isHealthy();
+        Map<String, Object> getMetrics();
+    }
+
+    /**
+     * SNS-based alerting service implementation
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class SNSAlertingService implements AlertingService {
+
+        private final SnsClient snsClient;
+        private final AlertingProperties properties;
+        private final ObjectMapper objectMapper = new ObjectMapper();
+
+        // Metrics
+        private final AtomicLong totalAlerts = new AtomicLong(0);
+        private final AtomicLong successfulAlerts = new AtomicLong(0);
+        private final AtomicLong failedAlerts = new AtomicLong(0);
+
+        @Override
+        @Async
+        public boolean sendAlert(Alert alert, String topicArn) {
+            try {
+                totalAlerts.incrementAndGet();
+                
+                // Create SNS message
+                Map<String, Object> messageData = createMessageData(alert);
+                String message = objectMapper.writeValueAsString(messageData);
+                
+                // Prepare message attributes
+                Map<String, MessageAttributeValue> attributes = new HashMap<>();
+                attributes.put("AlertLevel", MessageAttributeValue.builder()
+                    .dataType("String")
+                    .stringValue(alert.getLevel().toString())
+                    .build());
+                
+                attributes.put("Source", MessageAttributeValue.builder()
+                    .dataType("String")
+                    .stringValue(alert.getSource())
+                    .build());
+                
+                attributes.put("CorrelationId", MessageAttributeValue.builder()
+                    .dataType("String")
+                    .stringValue(alert.getId())
+                    .build());
+
+                // Send message
+                PublishRequest request = PublishRequest.builder()
+                    .topicArn(topicArn)
+                    .message(message)
+                    .subject(formatSubject(alert))
+                    .messageAttributes(attributes)
+                    .build();
+
+                PublishResponse response = snsClient.publish(request);
+                
+                if (response.sdkHttpResponse().isSuccessful()) {
+                    successfulAlerts.incrementAndGet();
+                    log.info("Alert sent successfully: {} - MessageId: {}", 
+                        alert.getId(), response.messageId());
+                    return true;
+                } else {
+                    failedAlerts.incrementAndGet();
+                    log.error("Failed to send alert: {} - Status: {}", 
+                        alert.getId(), response.sdkHttpResponse().statusCode());
+                    return false;
+                }
+
+            } catch (Exception e) {
+                failedAlerts.incrementAndGet();
+                log.error("Error sending alert {}: {}", alert.getId(), e.getMessage(), e);
+                return false;
+            }
+        }
+
+        @Override
+        public boolean isHealthy() {
+            try {
+                // Test SNS connectivity
+                snsClient.listTopics(ListTopicsRequest.builder().build());
+                return true;
+            } catch (Exception e) {
+                log.warn("SNS health check failed: {}", e.getMessage());
+                return false;
+            }
+        }
+
+        @Override
+        public Map<String, Object> getMetrics() {
+            return Map.of(
+                "totalAlerts", totalAlerts.get(),
+                "successfulAlerts", successfulAlerts.get(),
+                "failedAlerts", failedAlerts.get(),
+                "successRate", calculateSuccessRate(),
+                "healthy", isHealthy()
+            );
+        }
+
+        private Map<String, Object> createMessageData(Alert alert) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", alert.getId());
+            data.put("level", alert.getLevel().toString());
+            data.put("title", alert.getTitle());
+            data.put("message", alert.getMessage());
+            data.put("source", alert.getSource());
+            data.put("timestamp", alert.getTimestamp().toString());
+            data.put("metadata", alert.getMetadata());
+            
+            return data;
+        }
+
+        private String formatSubject(Alert alert) {
+            return String.format("[%s] %s - %s", 
+                alert.getLevel().toString(), 
+                alert.getSource(), 
+                alert.getTitle());
+        }
+
+        private double calculateSuccessRate() {
+            long total = totalAlerts.get();
+            long successful = successfulAlerts.get();
+            return total > 0 ? (double) successful / total * 100.0 : 100.0;
+        }
+    }
+
+    /**
+     * Mock alerting service for local development
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class MockAlertingService implements AlertingService {
+
+        private final AlertingProperties properties;
+        private final AtomicLong alertCount = new AtomicLong(0);
+
+        @Override
+        public boolean sendAlert(Alert alert, String topicArn) {
+            alertCount.incrementAndGet();
+            
+            log.info("MOCK ALERT [{}] from {}: {} - {}", 
+                alert.getLevel(), 
+                alert.getSource(), 
+                alert.getTitle(), 
+                alert.getMessage());
+            
+            if (!alert.getMetadata().isEmpty()) {
+                log.info("MOCK ALERT Metadata: {}", alert.getMetadata());
+            }
+            
+            // Simulate occasional failure
+            return Math.random() > 0.05; // 95% success rate
+        }
+
+        @Override
+        public boolean isHealthy() {
+            return true; // Mock service is always healthy
+        }
+
+        @Override
+        public Map<String, Object> getMetrics() {
+            return Map.of(
+                "totalAlerts", alertCount.get(),
+                "successRate", 95.0,
+                "healthy", true,
+                "type", "mock"
+            );
+        }
+    }
+
+    /**
+     * Alert manager with rate limiting and retry logic
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class AlertManager {
+
+        private final AlertingService alertingService;
+        private final AlertingProperties properties;
+
+        // Rate limiting
+        private final Map<String, AtomicInteger> minuteCounters = new ConcurrentHashMap<>();
+        private final Map<String, AtomicInteger> hourCounters = new ConcurrentHashMap<>();
+        private final Map<String, Instant> lastAlertTimes = new ConcurrentHashMap<>();
+
+        // Alert tracking
+        private final Map<String, Alert> pendingAlerts = new ConcurrentHashMap<>();
+
+        public void sendCriticalAlert(String title, String message, String source) {
+            sendAlert(new Alert(AlertLevel.CRITICAL, title, message, source));
+        }
+
+        public void sendWarningAlert(String title, String message, String source) {
+            sendAlert(new Alert(AlertLevel.WARNING, title, message, source));
+        }
+
+        public void sendInfoAlert(String title, String message, String source) {
+            sendAlert(new Alert(AlertLevel.INFO, title, message, source));
+        }
+
+        public void sendAlert(Alert alert) {
+            try {
+                // Check rate limits
+                if (!checkRateLimit(alert)) {
+                    log.warn("Alert rate limit exceeded, dropping alert: {}", alert.getId());
+                    return;
+                }
+
+                // Find appropriate topic
+                String topicArn = findTopicForAlert(alert);
+                if (topicArn == null) {
+                    log.warn("No topic found for alert level: {}", alert.getLevel());
+                    return;
+                }
+
+                // Send alert with retry logic
+                sendAlertWithRetry(alert, topicArn);
+
+            } catch (Exception e) {
+                log.error("Error processing alert {}: {}", alert.getId(), e.getMessage(), e);
+            }
+        }
+
+        @Async
+        public void sendAlertWithRetry(Alert alert, String topicArn) {
+            AlertingProperties.AlertConfig config = properties.getLevels().get(alert.getLevel());
+            if (config == null) {
+                config = new AlertingProperties.AlertConfig();
+            }
+
+            boolean sent = false;
+            int maxAttempts = config.getRetryAttempts();
+            
+            for (int attempt = 1; attempt <= maxAttempts && !sent; attempt++) {
+                alert.setAttempts(attempt);
+                
+                sent = alertingService.sendAlert(alert, topicArn);
+                
+                if (!sent && attempt < maxAttempts) {
+                    try {
+                        Thread.sleep(config.getRetryDelaySeconds() * 1000L);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+
+            if (!sent) {
+                log.error("Failed to send alert after {} attempts: {}", maxAttempts, alert.getId());
+                // Store for manual retry or escalation
+                pendingAlerts.put(alert.getId(), alert);
+            } else {
+                pendingAlerts.remove(alert.getId());
+                updateLastAlertTime(alert.getSource());
+            }
+        }
+
+        private boolean checkRateLimit(Alert alert) {
+            String key = alert.getSource() + ":" + alert.getLevel();
+            
+            // Check cooldown period
+            Instant lastAlert = lastAlertTimes.get(alert.getSource());
+            if (lastAlert != null) {
+                long minutesSince = java.time.Duration.between(lastAlert, Instant.now()).toMinutes();
+                if (minutesSince < properties.getRateLimit().getCooldownMinutes()) {
+                    return false;
+                }
+            }
+
+            // Check minute rate limit
+            AtomicInteger minuteCount = minuteCounters.computeIfAbsent(key, k -> new AtomicInteger(0));
+            if (minuteCount.get() >= properties.getRateLimit().getMaxAlertsPerMinute()) {
+                return false;
+            }
+
+            // Check hour rate limit
+            AtomicInteger hourCount = hourCounters.computeIfAbsent(key, k -> new AtomicInteger(0));
+            if (hourCount.get() >= properties.getRateLimit().getMaxAlertsPerHour()) {
+                return false;
+            }
+
+            // Increment counters
+            minuteCount.incrementAndGet();
+            hourCount.incrementAndGet();
+            
+            return true;
+        }
+
+        private String findTopicForAlert(Alert alert) {
+            return properties.getTopics().entrySet().stream()
+                .filter(entry -> entry.getValue().getLevels().contains(alert.getLevel()))
+                .map(Map.Entry::getValue)
+                .map(AlertingProperties.TopicConfig::getArn)
+                .findFirst()
+                .orElse(null);
+        }
+
+        private void updateLastAlertTime(String source) {
+            lastAlertTimes.put(source, Instant.now());
+        }
+
+        @Scheduled(fixedRate = 60000) // Every minute
+        public void resetMinuteCounters() {
+            minuteCounters.clear();
+        }
+
+        @Scheduled(fixedRate = 3600000) // Every hour
+        public void resetHourCounters() {
+            hourCounters.clear();
+        }
+
+        public Map<String, Object> getMetrics() {
+            Map<String, Object> metrics = new HashMap<>(alertingService.getMetrics());
+            metrics.put("pendingAlerts", pendingAlerts.size());
+            metrics.put("rateLimits", Map.of(
+                "maxPerMinute", properties.getRateLimit().getMaxAlertsPerMinute(),
+                "maxPerHour", properties.getRateLimit().getMaxAlertsPerHour(),
+                "cooldownMinutes", properties.getRateLimit().getCooldownMinutes()
+            ));
+            
+            return metrics;
+        }
+    }
+
+    /**
+     * System monitor for automated alerting
+     */
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public static class SystemMonitor {
+
+        private final AlertManager alertManager;
+
+        private final AtomicLong lastErrorCount = new AtomicLong(0);
+        private final AtomicLong lastRequestCount = new AtomicLong(0);
+
+        @Scheduled(fixedRate = 300000) // Every 5 minutes
+        public void checkSystemHealth() {
+            try {
+                // Check JVM memory usage
+                checkMemoryUsage();
+                
+                // Check disk space (simplified)
+                checkDiskSpace();
+                
+                // Check database connectivity
+                checkDatabaseHealth();
+                
+                // Check external services
+                checkExternalServices();
+                
+            } catch (Exception e) {
+                log.error("Error during system health check: {}", e.getMessage(), e);
+            }
+        }
+
+        private void checkMemoryUsage() {
+            Runtime runtime = Runtime.getRuntime();
+            long totalMemory = runtime.totalMemory();
+            long freeMemory = runtime.freeMemory();
+            long usedMemory = totalMemory - freeMemory;
+            double usagePercent = (double) usedMemory / totalMemory * 100;
+
+            if (usagePercent > 90) {
+                alertManager.sendCriticalAlert(
+                    "High Memory Usage",
+                    String.format("Memory usage is %.1f%% (used: %d MB, total: %d MB)", 
+                        usagePercent, usedMemory / 1024 / 1024, totalMemory / 1024 / 1024),
+                    "JVM_MONITOR"
+                );
+            } else if (usagePercent > 80) {
+                alertManager.sendWarningAlert(
+                    "Elevated Memory Usage",
+                    String.format("Memory usage is %.1f%%", usagePercent),
+                    "JVM_MONITOR"
+                );
+            }
+        }
+
+        private void checkDiskSpace() {
+            // Simplified disk space check
+            java.io.File root = new java.io.File("/");
+            long freeSpace = root.getFreeSpace();
+            long totalSpace = root.getTotalSpace();
+            double usagePercent = (double) (totalSpace - freeSpace) / totalSpace * 100;
+
+            if (usagePercent > 95) {
+                alertManager.sendCriticalAlert(
+                    "Critical Disk Space",
+                    String.format("Disk usage is %.1f%% (free: %d GB)", 
+                        usagePercent, freeSpace / 1024 / 1024 / 1024),
+                    "DISK_MONITOR"
+                );
+            } else if (usagePercent > 85) {
+                alertManager.sendWarningAlert(
+                    "Low Disk Space",
+                    String.format("Disk usage is %.1f%%", usagePercent),
+                    "DISK_MONITOR"
+                );
+            }
+        }
+
+        private void checkDatabaseHealth() {
+            // This would integrate with actual database health check
+            // For now, this is a placeholder
+        }
+
+        private void checkExternalServices() {
+            // This would integrate with external service health indicators
+            // For now, this is a placeholder
+        }
+
+        public void reportError(String service, String error, Map<String, Object> details) {
+            Alert alert = new Alert(AlertLevel.WARNING, "Service Error", error, service);
+            details.forEach(alert::addMetadata);
+            alertManager.sendAlert(alert);
+        }
+
+        public void reportCriticalError(String service, String error, Map<String, Object> details) {
+            Alert alert = new Alert(AlertLevel.CRITICAL, "Critical Service Error", error, service);
+            details.forEach(alert::addMetadata);
+            alertManager.sendAlert(alert);
+        }
+    }
+}

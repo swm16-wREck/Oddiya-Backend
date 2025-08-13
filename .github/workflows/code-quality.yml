@@ -1,0 +1,450 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+  security-events: write
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+
+jobs:
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for better analysis
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            build/cache
+          key: ${{ runner.os }}-gradle-sonar-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-sonar-
+            ${{ runner.os }}-gradle-
+      
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Run tests and generate coverage for SonarQube
+        run: ./gradlew clean test jacocoTestReport --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          TESTCONTAINERS_RYUK_DISABLED: true
+      
+      - name: Run SonarQube analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "⚠️ SONAR_TOKEN not set. Skipping SonarQube analysis."
+            echo "To enable SonarQube analysis, please set SONAR_TOKEN secret."
+          else
+            ./gradlew sonarqube --no-daemon \
+              -Dsonar.projectKey=oddiya-backend \
+              -Dsonar.organization=oddiya \
+              -Dsonar.host.url=${SONAR_HOST_URL:-https://sonarcloud.io} \
+              -Dsonar.login=$SONAR_TOKEN \
+              -Dsonar.coverage.jacoco.xmlReportPaths=build/reports/jacoco/test/jacocoTestReport.xml \
+              -Dsonar.java.coveragePlugin=jacoco \
+              -Dsonar.coverage.exclusions="**/test/**,**/config/**,**/dto/**,**/entity/**,**/exception/**" \
+              -Dsonar.exclusions="**/test/**,build/**,gradle/**" \
+              -Dsonar.sources=src/main/java \
+              -Dsonar.tests=src/test/java \
+              -Dsonar.java.binaries=build/classes \
+              -Dsonar.java.test.binaries=build/classes \
+              -Dsonar.java.libraries=/home/runner/.gradle/caches/modules-2/**/*.jar \
+              -Dsonar.java.test.libraries=/home/runner/.gradle/caches/modules-2/**/*.jar \
+              -Dsonar.pullrequest.key=${{ github.event.number }} \
+              -Dsonar.pullrequest.branch=${{ github.head_ref }} \
+              -Dsonar.pullrequest.base=${{ github.base_ref }}
+          fi
+      
+      - name: Upload SonarQube results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonarqube-results
+          path: |
+            build/sonar/
+            .scannerwork/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  checkstyle:
+    name: Checkstyle Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Run Checkstyle
+        run: |
+          # Run Checkstyle if configured, otherwise skip
+          if ./gradlew tasks | grep -q checkstyleMain; then
+            ./gradlew checkstyleMain checkstyleTest --no-daemon
+          else
+            echo "⚠️ Checkstyle not configured. Skipping..."
+            echo "To enable Checkstyle, add the checkstyle plugin to build.gradle"
+          fi
+        continue-on-error: true
+      
+      - name: Upload Checkstyle results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkstyle-results
+          path: build/reports/checkstyle/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  pmd:
+    name: PMD Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Run PMD
+        run: |
+          # Run PMD if configured, otherwise skip
+          if ./gradlew tasks | grep -q pmdMain; then
+            ./gradlew pmdMain pmdTest --no-daemon
+          else
+            echo "⚠️ PMD not configured. Skipping..."
+            echo "To enable PMD, add the pmd plugin to build.gradle"
+          fi
+        continue-on-error: true
+      
+      - name: Upload PMD results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmd-results
+          path: build/reports/pmd/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  spotbugs:
+    name: SpotBugs Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Compile source code
+        run: ./gradlew compileJava --no-daemon
+      
+      - name: Run SpotBugs
+        run: |
+          # Run SpotBugs if configured, otherwise skip
+          if ./gradlew tasks | grep -q spotbugsMain; then
+            ./gradlew spotbugsMain --no-daemon
+          else
+            echo "⚠️ SpotBugs not configured. Skipping..."
+            echo "To enable SpotBugs, add the spotbugs plugin to build.gradle"
+          fi
+        continue-on-error: true
+      
+      - name: Upload SpotBugs results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotbugs-results
+          path: build/reports/spotbugs/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Cache OWASP Dependency Check data
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches/dependency-check-data
+          key: ${{ runner.os }}-dependency-check-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-dependency-check-
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Run OWASP Dependency Check
+        run: |
+          # Add dependency check plugin if not present
+          if ! grep -q "dependencyCheck" build.gradle; then
+            echo "Adding OWASP Dependency Check plugin..."
+            cat >> build.gradle << 'EOF'
+
+// OWASP Dependency Check Plugin
+plugins {
+    id 'org.owasp.dependencycheck' version '8.4.2'
+}
+
+dependencyCheck {
+    format = 'ALL'
+    suppressionFile = 'dependency-check-suppressions.xml'
+    failBuildOnCVSS = 7.0
+    analyzedTypes = ['jar']
+    analyzeConfiguration = true
+}
+EOF
+          fi
+          
+          # Create suppressions file if it doesn't exist
+          if [ ! -f dependency-check-suppressions.xml ]; then
+            cat > dependency-check-suppressions.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!-- Example suppression - remove or modify as needed -->
+    <!--
+    <suppress>
+        <notes><![CDATA[
+        Known false positive for spring boot
+        ]]></notes>
+        <cve>CVE-XXXX-XXXX</cve>
+    </suppress>
+    -->
+</suppressions>
+EOF
+          fi
+          
+          ./gradlew dependencyCheckAnalyze --no-daemon
+        continue-on-error: true
+      
+      - name: Parse dependency check results
+        if: always()
+        run: |
+          if [ -f build/reports/dependency-check-report.json ]; then
+            echo "## 🔍 OWASP Dependency Check Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Parse JSON report for summary
+            VULNERABILITIES=$(jq -r '.dependencies[].vulnerabilities[]? | .severity' build/reports/dependency-check-report.json 2>/dev/null | sort | uniq -c | sort -nr)
+            
+            if [ -n "$VULNERABILITIES" ]; then
+              echo "### Vulnerabilities Found:" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "$VULNERABILITIES" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ No vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⚠️ Dependency check report not found" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload SARIF results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: build/reports/dependency-check-report.sarif
+        continue-on-error: true
+      
+      - name: Upload dependency check results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-results
+          path: |
+            build/reports/dependency-check-*
+          retention-days: 7
+          if-no-files-found: ignore
+
+  combine-quality-results:
+    name: Combine Quality Results
+    runs-on: ubuntu-latest
+    needs: [sonarqube, checkstyle, pmd, spotbugs, dependency-check]
+    if: always()
+    
+    steps:
+      - name: Download all quality results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-results"
+          merge-multiple: true
+          path: quality-results
+      
+      - name: Generate quality summary
+        run: |
+          echo "## 📊 Code Quality Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Status | Results |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SonarQube | ${{ needs.sonarqube.result }} | Static analysis and code coverage |" >> $GITHUB_STEP_SUMMARY
+          echo "| Checkstyle | ${{ needs.checkstyle.result }} | Code style analysis |" >> $GITHUB_STEP_SUMMARY
+          echo "| PMD | ${{ needs.pmd.result }} | Source code analyzer |" >> $GITHUB_STEP_SUMMARY
+          echo "| SpotBugs | ${{ needs.spotbugs.result }} | Bug pattern detection |" >> $GITHUB_STEP_SUMMARY
+          echo "| OWASP Dependency Check | ${{ needs.dependency-check.result }} | Vulnerability scanning |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count successful checks
+          SUCCESS_COUNT=0
+          TOTAL_COUNT=5
+          
+          for result in "${{ needs.sonarqube.result }}" "${{ needs.checkstyle.result }}" "${{ needs.pmd.result }}" "${{ needs.spotbugs.result }}" "${{ needs.dependency-check.result }}"; do
+            if [ "$result" = "success" ]; then
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            fi
+          done
+          
+          echo "### Summary: $SUCCESS_COUNT/$TOTAL_COUNT checks passed" >> $GITHUB_STEP_SUMMARY
+          
+          if [ $SUCCESS_COUNT -eq $TOTAL_COUNT ]; then
+            echo "✅ All quality checks passed!" >> $GITHUB_STEP_SUMMARY
+          elif [ $SUCCESS_COUNT -gt $((TOTAL_COUNT / 2)) ]; then
+            echo "⚠️ Some quality checks failed. Please review the results." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Multiple quality checks failed. Please address the issues." >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload combined quality results
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-quality-results
+          path: quality-results/
+          retention-days: 30
+      
+      - name: Post quality summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            
+            const results = {
+              sonarqube: '${{ needs.sonarqube.result }}',
+              checkstyle: '${{ needs.checkstyle.result }}',
+              pmd: '${{ needs.pmd.result }}',
+              spotbugs: '${{ needs.spotbugs.result }}',
+              'dependency-check': '${{ needs.dependency-check.result }}'
+            };
+            
+            let successCount = 0;
+            const totalCount = Object.keys(results).length;
+            
+            let tableRows = '';
+            for (const [tool, result] of Object.entries(results)) {
+              const emoji = result === 'success' ? '✅' : result === 'failure' ? '❌' : '⚠️';
+              if (result === 'success') successCount++;
+              
+              const toolName = tool === 'dependency-check' ? 'OWASP Dependency Check' : 
+                              tool.charAt(0).toUpperCase() + tool.slice(1);
+              tableRows += `| ${toolName} | ${emoji} ${result} |\n`;
+            }
+            
+            const overallStatus = successCount === totalCount ? '✅ All Passed' : 
+                                successCount > totalCount / 2 ? '⚠️ Some Issues' : '❌ Multiple Issues';
+            
+            const comment = `## 🔍 Code Quality Analysis Summary
+            
+            **Overall Status:** ${overallStatus} (${successCount}/${totalCount} checks passed)
+            **Commit:** \`${{ github.sha }}\`
+            
+            | Tool | Status |
+            |------|--------|
+            ${tableRows}
+            
+            ### 📋 Analysis Details:
+            - **SonarQube:** Static analysis, code coverage, and maintainability
+            - **Checkstyle:** Code style and formatting compliance  
+            - **PMD:** Source code analysis for common programming flaws
+            - **SpotBugs:** Bug pattern detection and potential issues
+            - **OWASP Dependency Check:** Security vulnerability scanning
+            
+            View detailed results in the [Actions tab](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+            `;
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });

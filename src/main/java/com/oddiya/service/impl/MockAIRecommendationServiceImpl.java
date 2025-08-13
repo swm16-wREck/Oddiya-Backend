@@ -87,7 +87,7 @@ public class MockAIRecommendationServiceImpl implements AIRecommendationService 
                 .title(days + "-Day " + destination + " Adventure")
                 .description("Mock AI-generated travel plan based on your preferences: " + String.join(", ", preferences))
                 .destination(destination)
-                .duration(days)
+                .duration(days + " days")
                 .dailyItinerary(dailyItinerary)
                 .estimatedCost("$" + (days * 200) + "-" + (days * 300))
                 .tips(Arrays.asList(

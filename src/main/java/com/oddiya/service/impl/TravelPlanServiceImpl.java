@@ -260,7 +260,7 @@ public class TravelPlanServiceImpl implements TravelPlanService {
         TravelPlan travelPlan = travelPlanRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Travel plan not found"));
         
-        if (!savedPlanRepository.existsByUserIdAndTravelPlanId(userId, id)) {
+        if (!savedPlanRepository.existsSavedPlan(userId, id)) {
             SavedPlan savedPlan = SavedPlan.builder()
                     .user(user)
                     .travelPlan(travelPlan)
@@ -275,7 +275,7 @@ public class TravelPlanServiceImpl implements TravelPlanService {
     @Override
     @Transactional
     public void unsaveTravelPlan(String userId, String id) {
-        SavedPlan savedPlan = savedPlanRepository.findByUserIdAndTravelPlanId(userId, id)
+        SavedPlan savedPlan = savedPlanRepository.findSavedPlan(userId, id)
                 .orElseThrow(() -> new NotFoundException("Saved plan not found"));
         
         savedPlanRepository.delete(savedPlan);
@@ -289,7 +289,7 @@ public class TravelPlanServiceImpl implements TravelPlanService {
     
     @Override
     public PageResponse<TravelPlanResponse> getSavedTravelPlans(String userId, Pageable pageable) {
-        Page<SavedPlan> savedPlans = savedPlanRepository.findByUserId(userId, pageable);
+        Page<SavedPlan> savedPlans = savedPlanRepository.findSavedPlansByUser(userId, pageable);
         Page<TravelPlan> travelPlans = savedPlans.map(SavedPlan::getTravelPlan);
         return mapToPageResponse(travelPlans);
     }

@@ -1,0 +1,144 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:ap-northeast-2:501544476367:task-definition/oddiya-dev:18",
+    "containerDefinitions": [
+        {
+            "name": "oddiya",
+            "image": "501544476367.dkr.ecr.ap-northeast-2.amazonaws.com/oddiya:latest",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "SERVER_PORT",
+                    "value": "8080"
+                },
+                {
+                    "name": "S3_BUCKET",
+                    "value": "oddiya-dev-media-501544476367"
+                },
+                {
+                    "name": "AWS_REGION",
+                    "value": "ap-northeast-2"
+                },
+                {
+                    "name": "SPRING_DATASOURCE_URL",
+                    "value": "jdbc:h2:mem:testdb"
+                },
+                {
+                    "name": "SPRING_PROFILES_ACTIVE",
+                    "value": "aws"
+                },
+                {
+                    "name": "SPRING_JPA_HIBERNATE_DDL_AUTO",
+                    "value": "create"
+                },
+                {
+                    "name": "SPRING_DATASOURCE_USERNAME",
+                    "value": "sa"
+                },
+                {
+                    "name": "AWS_DYNAMODB_ENABLED",
+                    "value": "false"
+                },
+                {
+                    "name": "AWS_CLOUDWATCH_ENABLED",
+                    "value": "true"
+                },
+                {
+                    "name": "AWS_S3_ENABLED",
+                    "value": "true"
+                },
+                {
+                    "name": "AWS_SQS_ENABLED",
+                    "value": "false"
+                },
+                {
+                    "name": "SPRING_MAIN_ALLOW_BEAN_DEFINITION_OVERRIDING",
+                    "value": "true"
+                },
+                {
+                    "name": "SPRING_DATASOURCE_PASSWORD",
+                    "value": ""
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/oddiya-dev",
+                    "awslogs-region": "ap-northeast-2",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "healthCheck": {
+                "command": [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:8080/actuator/health || exit 1"
+                ],
+                "interval": 30,
+                "timeout": 5,
+                "retries": 3,
+                "startPeriod": 60
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "oddiya-dev",
+    "taskRoleArn": "arn:aws:iam::501544476367:role/ecsTaskRole",
+    "executionRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "revision": 18,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.container-health-check"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.29"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "FARGATE"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "512",
+    "memory": "1024",
+    "registeredAt": "2025-08-13T02:22:47.855000+09:00",
+    "registeredBy": "arn:aws:iam::501544476367:user/admin-dev"
+}
