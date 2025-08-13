@@ -3,12 +3,13 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
 
-# Force rebuild - updated 2025-08-13-15:48
+# Force rebuild - updated 2025-08-13-15:58
 # Copy everything at once to avoid caching issues
 COPY . .
 
-# Clean and build application fresh - force complete rebuild
-RUN ./gradlew clean bootJar --no-daemon -x test
+# Clean everything before building to ensure fresh build
+RUN rm -rf build/ .gradle/ && \
+    ./gradlew clean bootJar --no-daemon --no-build-cache -x test
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
