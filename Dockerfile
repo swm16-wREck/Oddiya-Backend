@@ -3,22 +3,11 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
 
-# Copy gradle files
-COPY gradlew .
-COPY gradle gradle
-COPY build.gradle .
+# Copy everything at once to avoid caching issues
+COPY . .
 
-# Download dependencies
-RUN ./gradlew dependencies --no-daemon
-
-# Invalidate cache with timestamp - MUST be before COPY
-ARG CACHEBUST=2024081303
-
-# Copy source code
-COPY src src
-
-# Build application
-RUN ./gradlew bootJar --no-daemon
+# Clean and build application fresh
+RUN ./gradlew clean bootJar --no-daemon -x test
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
