@@ -12,9 +12,6 @@ import java.util.Map;
 @Table(name = "places", indexes = {
     @Index(name = "idx_place_category", columnList = "category"),
     @Index(name = "idx_place_location", columnList = "latitude,longitude"),
-    @Index(name = "idx_place_naver", columnList = "naver_place_id", unique = true),
-    @Index(name = "idx_place_content", columnList = "content_id", unique = true),
-    @Index(name = "idx_place_google", columnList = "google_place_id"),
     @Index(name = "idx_place_area", columnList = "area_code,sigungu_code"),
     @Index(name = "idx_place_content_type", columnList = "content_type_id")
 })
@@ -54,23 +51,6 @@ public class Place extends BaseEntity {
     
     @Column
     private String website;
-    
-    @ElementCollection
-    @CollectionTable(name = "place_opening_hours", joinColumns = @JoinColumn(name = "place_id"))
-    @MapKeyColumn(name = "day_of_week")
-    @Column(name = "hours")
-    private Map<String, String> openingHours = new HashMap<>();
-    
-    @ElementCollection
-    @CollectionTable(name = "place_images", joinColumns = @JoinColumn(name = "place_id"))
-    @Column(name = "image_url")
-    @Deprecated // 별도 테이블(place_photos)로 이동 예정
-    private List<String> images = new ArrayList<>();
-    
-    @ElementCollection
-    @CollectionTable(name = "place_tags", joinColumns = @JoinColumn(name = "place_id"))
-    @Column(name = "tag")
-    private List<String> tags = new ArrayList<>();
     
     // ===== 한국관광공사 Tour API 필드 =====
     @Column(name = "content_id", unique = true, length = 50)
