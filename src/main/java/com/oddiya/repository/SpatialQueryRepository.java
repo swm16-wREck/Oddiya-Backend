@@ -12,8 +12,10 @@ import java.util.List;
 /**
  * Repository interface for spatial queries on places using PostGIS functions.
  * Provides optimized spatial operations for location-based search and recommendations.
+ * Note: This interface is implemented differently based on the database:
+ * - PostgreSQL: Uses native PostGIS functions (production)
+ * - H2: Uses simplified mock implementation (development/testing)
  */
-@Repository
 public interface SpatialQueryRepository {
     
     /**
