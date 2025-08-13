@@ -413,9 +413,9 @@ app:
       direction-url: https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving
       
   supabase:
-    url: ${SUPABASE_URL:http://localhost:8000}
-    anon-key: ${SUPABASE_ANON_KEY:dummy-anon-key}
-    service-key: ${SUPABASE_SERVICE_KEY:dummy-service-key}
+    url: ${SUPABASE_URL:http://localhost:8000/dummy}
+    anon-key: ${SUPABASE_ANON_KEY:dummy-anon-key-for-h2}
+    service-key: ${SUPABASE_SERVICE_KEY:dummy-service-key-for-h2}
     
   external-api:
     korea-tourism:
