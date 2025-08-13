@@ -11,8 +11,9 @@ COPY build.gradle .
 # Download dependencies
 RUN ./gradlew dependencies --no-daemon
 
-# Copy source code
+# Copy source code (invalidate cache with timestamp)
 COPY src src
+ARG CACHEBUST=1
 
 # Build application
 RUN ./gradlew bootJar --no-daemon
