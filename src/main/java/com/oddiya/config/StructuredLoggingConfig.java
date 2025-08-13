@@ -52,11 +52,6 @@ public class StructuredLoggingConfig implements WebMvcConfigurer {
         return new StructuredLogger();
     }
 
-    @Bean
-    public SecurityEventLogger securityEventLogger() {
-        return new SecurityEventLogger();
-    }
-
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(loggingInterceptor())
