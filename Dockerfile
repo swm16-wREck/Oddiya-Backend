@@ -3,10 +3,11 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
 
+# Force rebuild - updated 2025-08-13-15:48
 # Copy everything at once to avoid caching issues
 COPY . .
 
-# Clean and build application fresh
+# Clean and build application fresh - force complete rebuild
 RUN ./gradlew clean bootJar --no-daemon -x test
 
 # Runtime stage
