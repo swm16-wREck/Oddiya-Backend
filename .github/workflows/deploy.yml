@@ -257,11 +257,94 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
         
-      - name: Download task definition
+      - name: Prepare task definition
         run: |
-          aws ecs describe-task-definition \
+          # Try to download existing task definition, or create new one
+          if aws ecs describe-task-definition \
             --task-definition ${{ env.TASK_DEFINITION }} \
-            --query taskDefinition > task-definition.json
+            --query taskDefinition > task-definition.json 2>/dev/null; then
+            echo "Using existing task definition from AWS"
+          else
+            echo "Task definition not found, creating new one"
+            cat > task-definition.json << 'EOF'
+{
+  "family": "${{ env.TASK_DEFINITION }}",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "taskRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "${{ env.CONTAINER_NAME }}",
+      "image": "placeholder",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "postgresql,production"
+        },
+        {
+          "name": "DATABASE_HOST",
+          "value": "oddiya-db.c5qzkoxebfro.ap-northeast-2.rds.amazonaws.com"
+        },
+        {
+          "name": "DATABASE_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "DATABASE_NAME",
+          "value": "oddiya"
+        },
+        {
+          "name": "DATABASE_USERNAME",
+          "value": "oddiya_user"
+        },
+        {
+          "name": "DATABASE_PASSWORD",
+          "value": "dnjswltnduftpdls"
+        },
+        {
+          "name": "SPRING_DATASOURCE_URL",
+          "value": "jdbc:postgresql://oddiya-db.c5qzkoxebfro.ap-northeast-2.rds.amazonaws.com:5432/oddiya"
+        },
+        {
+          "name": "SPRING_DATASOURCE_USERNAME",
+          "value": "oddiya_user"
+        },
+        {
+          "name": "SPRING_DATASOURCE_PASSWORD",
+          "value": "dnjswltnduftpdls"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/${{ env.TASK_DEFINITION }}",
+          "awslogs-region": "${{ env.AWS_REGION }}",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
+EOF
+          fi
             
       - name: Update task definition
         id: task-def
