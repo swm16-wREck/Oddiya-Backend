@@ -159,7 +159,7 @@ jobs:
           chmod +x gradlew
           # Clean everything including Gradle cache
           rm -rf build/ .gradle/
-          ./gradlew clean bootJar --no-daemon --no-build-cache -x test -x compileTestJava -x checkstyleTest -x dependencyCheckAnalyze
+          ./gradlew clean bootJar --no-daemon --no-build-cache -x test -x compileTestJava -x checkstyleTest
 
       - name: Build and push Docker image
         id: build-image
