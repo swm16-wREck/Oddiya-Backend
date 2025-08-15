@@ -1,14 +1,16 @@
 {
-  "family": "oddiya-app",
+  "family": "oddiya-dev",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "1024",
-  "memory": "2048",
+  "cpu": "512",
+  "memory": "1024",
+  "taskRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
   "executionRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
       "name": "oddiya",
       "image": "501544476367.dkr.ecr.ap-northeast-2.amazonaws.com/oddiya:latest",
+      "essential": true,
       "portMappings": [
         {
           "containerPort": 8080,
@@ -18,11 +20,15 @@
       "environment": [
         {
           "name": "SPRING_PROFILES_ACTIVE",
-          "value": "aws"
+          "value": "postgresql,production"
         },
         {
           "name": "DATABASE_HOST",
-          "value": "oddiya-db.cluster-cxxx.ap-northeast-2.rds.amazonaws.com"
+          "value": "oddiya-db.c5qzkoxebfro.ap-northeast-2.rds.amazonaws.com"
+        },
+        {
+          "name": "DATABASE_PORT",
+          "value": "5432"
         },
         {
           "name": "DATABASE_NAME",
@@ -34,21 +40,41 @@
         },
         {
           "name": "DATABASE_PASSWORD",
-          "value": "oddiya_password"
+          "value": "dnjswltnduftpdls"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "jdbc:postgresql://oddiya-db.c5qzkoxebfro.ap-northeast-2.rds.amazonaws.com:5432/oddiya"
+        },
+        {
+          "name": "SPRING_DATASOURCE_URL",
+          "value": "jdbc:postgresql://oddiya-db.c5qzkoxebfro.ap-northeast-2.rds.amazonaws.com:5432/oddiya"
+        },
+        {
+          "name": "SPRING_DATASOURCE_USERNAME",
+          "value": "oddiya_user"
+        },
+        {
+          "name": "SPRING_DATASOURCE_PASSWORD",
+          "value": "dnjswltnduftpdls"
+        },
+        {
+          "name": "JAVA_TOOL_OPTIONS",
+          "value": "-Xmx768m -Xms256m"
         }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/oddiya",
+          "awslogs-group": "/ecs/oddiya-dev",
           "awslogs-region": "ap-northeast-2",
           "awslogs-stream-prefix": "ecs"
         }
       },
       "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
         "interval": 30,
-        "timeout": 10,
+        "timeout": 5,
         "retries": 3,
         "startPeriod": 60
       }
