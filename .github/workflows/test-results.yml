@@ -53,15 +53,16 @@ jobs:
         ports:
           - 5432:5432
       
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+      # Redis service commented out - not using Redis in Phase 2
+      # redis:
+      #   image: redis:7-alpine
+      #   options: >-
+      #     --health-cmd "redis-cli ping"
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 5
+      #   ports:
+      #     - 6379:6379
       
       localstack:
         image: localstack/localstack:3.0
@@ -111,8 +112,9 @@ jobs:
           echo "Waiting for PostgreSQL..."
           timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U oddiya; do sleep 2; done'
           
-          echo "Waiting for Redis..."
-          timeout 60 bash -c 'until redis-cli -h localhost -p 6379 ping | grep PONG; do sleep 2; done'
+          # Skip Redis check for now - not using Redis in Phase 2
+          # echo "Waiting for Redis..."
+          # timeout 60 bash -c 'until redis-cli -h localhost -p 6379 ping | grep PONG; do sleep 2; done'
           
           if [[ "${{ matrix.test-category }}" =~ "aws" ]] || [[ "${{ matrix.test-category }}" =~ "integration" ]]; then
             echo "Waiting for LocalStack..."

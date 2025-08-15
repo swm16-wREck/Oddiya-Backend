@@ -84,8 +84,9 @@ jobs:
           echo "Waiting for PostgreSQL..."
           timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U oddiya; do sleep 2; done'
           
-          echo "Waiting for Redis..."
-          timeout 60 bash -c 'until redis-cli -h localhost -p 6379 ping | grep PONG; do sleep 2; done'
+          # Skip Redis check for now - not using Redis in Phase 2
+          # echo "Waiting for Redis..."
+          # timeout 60 bash -c 'until redis-cli -h localhost -p 6379 ping | grep PONG; do sleep 2; done'
           
           echo "All services are ready!"
       
