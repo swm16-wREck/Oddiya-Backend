@@ -173,6 +173,11 @@ tasks.named('test') {
     finalizedBy jacocoTestReport
 }
 
+// Compiler options to show deprecation details
+tasks.withType(JavaCompile) {
+    options.compilerArgs += ['-Xlint:deprecation', '-Xlint:unchecked']
+}
+
 jacoco {
     toolVersion = "0.8.12"  // Updated to support Java 21
 }
@@ -246,6 +251,7 @@ sonarqube {
         property "sonar.java.binaries", "build/classes"
         property "sonar.java.libraries", "/home/runner/.gradle/caches/modules-2/**/*.jar"
         property "sonar.qualitygate.wait", true
+        property "sonar.gradle.skipCompile", "true"  // Fix deprecation warning
     }
 }
 
@@ -449,7 +455,7 @@ pitest {
     ])
     
     // Test plugin configuration for JUnit 5
-    testPlugin.set('junit5')
+    // testPlugin.set('junit5')  // Deprecated in PIT 1.6.7+, auto-detected now
 }
 
 // Simplified PITest profile tasks - configure via command line properties
