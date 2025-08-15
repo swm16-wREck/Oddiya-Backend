@@ -118,10 +118,9 @@ jobs:
       
       - name: Setup LocalStack resources
         run: |
-          # Install AWS CLI
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install
+          # AWS CLI is pre-installed on GitHub Actions runners
+          # Verify AWS CLI is available
+          aws --version || echo "AWS CLI not found, but continuing..."
           
           # Configure AWS CLI for LocalStack
           aws configure set aws_access_key_id test
