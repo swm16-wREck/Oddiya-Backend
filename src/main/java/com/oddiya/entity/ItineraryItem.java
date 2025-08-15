@@ -75,5 +75,6 @@ public class ItineraryItem extends BaseEntity {
     private String notes;
     
     @Column(name = "is_completed")
+    @Builder.Default
     private boolean isCompleted = false;
 }

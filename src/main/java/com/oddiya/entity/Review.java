@@ -36,15 +36,18 @@ public class Review extends BaseEntity {
     @ElementCollection
     @CollectionTable(name = "review_images", joinColumns = @JoinColumn(name = "review_id"))
     @Column(name = "image_url")
+    @Builder.Default
     private List<String> images = new ArrayList<>();
     
     @Column(name = "visit_date")
     private LocalDateTime visitDate;
     
     @Column(name = "likes_count")
+    @Builder.Default
     private Integer likesCount = 0;
     
     @Column(name = "is_verified_purchase")
+    @Builder.Default
     private boolean isVerifiedPurchase = false;
     
     @ManyToMany
@@ -53,5 +56,6 @@ public class Review extends BaseEntity {
         joinColumns = @JoinColumn(name = "review_id"),
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
+    @Builder.Default
     private List<User> likedBy = new ArrayList<>();
 }

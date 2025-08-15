@@ -87,15 +87,19 @@ public class TravelPlan extends BaseEntity {
     private List<Video> videos = new ArrayList<>();
     
     @Column(name = "view_count")
+    @Builder.Default
     private Long viewCount = 0L;
     
     @Column(name = "like_count")
+    @Builder.Default
     private Long likeCount = 0L;
     
     @Column(name = "share_count")
+    @Builder.Default
     private Long shareCount = 0L;
     
     @Column(name = "save_count")
+    @Builder.Default
     private Long saveCount = 0L;
     
     @ElementCollection

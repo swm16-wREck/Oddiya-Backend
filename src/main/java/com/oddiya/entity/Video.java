@@ -49,29 +49,36 @@ public class Video extends BaseEntity {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private VideoStatus status = VideoStatus.PROCESSING;
     
     @Column(name = "is_public")
+    @Builder.Default
     private boolean isPublic = false;
     
     @ElementCollection
     @CollectionTable(name = "video_tags", joinColumns = @JoinColumn(name = "video_id"))
     @Column(name = "tag")
+    @Builder.Default
     private List<String> tags = new ArrayList<>();
     
     @ElementCollection
     @CollectionTable(name = "video_metadata", joinColumns = @JoinColumn(name = "video_id"))
     @MapKeyColumn(name = "metadata_key")
     @Column(name = "metadata_value")
+    @Builder.Default
     private Map<String, String> metadata = new HashMap<>();
     
     @Column(name = "view_count")
+    @Builder.Default
     private Long viewCount = 0L;
     
     @Column(name = "like_count")
+    @Builder.Default
     private Long likeCount = 0L;
     
     @Column(name = "share_count")
+    @Builder.Default
     private Long shareCount = 0L;
     
     @ManyToMany
@@ -80,5 +87,6 @@ public class Video extends BaseEntity {
         joinColumns = @JoinColumn(name = "video_id"),
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
+    @Builder.Default
     private List<User> likedBy = new ArrayList<>();
 }

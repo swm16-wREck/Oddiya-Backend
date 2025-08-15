@@ -50,21 +50,26 @@ public class User extends BaseEntity {
     @CollectionTable(name = "user_preferences", joinColumns = @JoinColumn(name = "user_id"))
     @MapKeyColumn(name = "preference_key")
     @Column(name = "preference_value")
+    @Builder.Default
     private Map<String, String> preferences = new HashMap<>();
     
     @ElementCollection
     @CollectionTable(name = "user_travel_preferences", joinColumns = @JoinColumn(name = "user_id"))
     @MapKeyColumn(name = "preference_key")
     @Column(name = "preference_value")
+    @Builder.Default
     private Map<String, String> travelPreferences = new HashMap<>();
     
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
     private List<TravelPlan> travelPlans = new ArrayList<>();
     
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
     private List<Review> reviews = new ArrayList<>();
     
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
     private List<Video> videos = new ArrayList<>();
     
     @ManyToMany
@@ -73,18 +78,23 @@ public class User extends BaseEntity {
         joinColumns = @JoinColumn(name = "user_id"),
         inverseJoinColumns = @JoinColumn(name = "follower_id")
     )
+    @Builder.Default
     private List<User> followers = new ArrayList<>();
     
     @ManyToMany(mappedBy = "followers")
+    @Builder.Default
     private List<User> following = new ArrayList<>();
     
     @Column(name = "is_email_verified")
+    @Builder.Default
     private boolean isEmailVerified = false;
     
     @Column(name = "is_premium")
+    @Builder.Default
     private boolean isPremium = false;
     
     @Column(name = "is_active")
+    @Builder.Default
     private boolean isActive = true;
     
     @Column(name = "refresh_token")

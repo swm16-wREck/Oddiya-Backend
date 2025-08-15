@@ -27,8 +27,11 @@ public class PlaceDTO {
     private Double longitude;
     private String phoneNumber;
     private String website;
+    @Builder.Default
     private Map<String, String> openingHours = new HashMap<>();
+    @Builder.Default
     private List<String> images = new ArrayList<>();
+    @Builder.Default
     private List<String> tags = new ArrayList<>();
     private Double rating;
     private Integer reviewCount;

@@ -40,6 +40,7 @@ public abstract class BaseEntity {
     private Long version;
     
     @Column(name = "is_deleted")
+    @Builder.Default
     private boolean isDeleted = false;
     
     @Column(name = "deleted_at")
