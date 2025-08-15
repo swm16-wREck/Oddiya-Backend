@@ -86,14 +86,14 @@ jobs:
         
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: build/reports/tests/test/
           
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: build/reports/jacoco/test/
@@ -345,7 +345,7 @@ jobs:
           ./gradlew dependencyCheckAnalyze --no-daemon
           
       - name: Upload OWASP results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: owasp-results

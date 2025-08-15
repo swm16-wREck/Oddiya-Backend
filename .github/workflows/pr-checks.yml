@@ -43,7 +43,7 @@ jobs:
         run: ./gradlew spotbugsMain spotbugsTest --no-daemon
         
       - name: Upload code quality reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: code-quality-reports
@@ -132,7 +132,7 @@ jobs:
           ./gradlew jacocoTestCoverageVerification --no-daemon || true
           
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results
@@ -166,7 +166,7 @@ jobs:
           ./gradlew dependencyCheckAnalyze --no-daemon || true
           
       - name: Upload dependency check results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: dependency-check-report

@@ -132,7 +132,7 @@ jobs:
         working-directory: ./terraform
         
       - name: Save Plan
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
           path: terraform/tfplan
@@ -206,7 +206,7 @@ jobs:
         working-directory: ./terraform
         
       - name: Save Outputs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: terraform-outputs
           path: terraform/outputs.json
