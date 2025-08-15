@@ -50,22 +50,27 @@ public class TravelPlan extends BaseEntity {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private TravelPlanStatus status = TravelPlanStatus.DRAFT;
     
     @Column(name = "is_public")
+    @Builder.Default
     private boolean isPublic = false;
     
     @Column(name = "is_ai_generated")
+    @Builder.Default
     private boolean isAiGenerated = false;
     
     @ElementCollection
     @CollectionTable(name = "travel_plan_preferences", joinColumns = @JoinColumn(name = "travel_plan_id"))
     @MapKeyColumn(name = "preference_key")
     @Column(name = "preference_value")
+    @Builder.Default
     private Map<String, String> preferences = new HashMap<>();
     
     @OneToMany(mappedBy = "travelPlan", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("dayNumber ASC, sequence ASC")
+    @Builder.Default
     private List<ItineraryItem> itineraryItems = new ArrayList<>();
     
     @ManyToMany
@@ -74,9 +79,11 @@ public class TravelPlan extends BaseEntity {
         joinColumns = @JoinColumn(name = "travel_plan_id"),
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
+    @Builder.Default
     private List<User> collaborators = new ArrayList<>();
     
     @OneToMany(mappedBy = "travelPlan", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<Video> videos = new ArrayList<>();
     
     @Column(name = "view_count")
