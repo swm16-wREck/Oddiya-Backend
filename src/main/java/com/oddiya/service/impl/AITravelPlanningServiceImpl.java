@@ -1,6 +1,7 @@
 package com.oddiya.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oddiya.dto.request.AITravelPlanRequest;
@@ -375,7 +376,7 @@ public class AITravelPlanningServiceImpl implements AITravelPlanningService {
         try {
             // Extract JSON from AI response
             String jsonPart = extractJsonFromResponse(aiResponse);
-            return objectMapper.readValue(jsonPart, Map.class);
+            return objectMapper.readValue(jsonPart, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             log.error("Error parsing AI response: {}", e.getMessage());
             throw new BadRequestException("Failed to parse AI response");

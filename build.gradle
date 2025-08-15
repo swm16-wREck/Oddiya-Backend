@@ -237,6 +237,7 @@ bootJar {
 
 // SonarQube Configuration
 sonarqube {
+    skipCompile = true  // Fix deprecation warning - set at plugin level
     properties {
         property "sonar.projectName", "Oddiya Backend"
         property "sonar.projectKey", "oddiya-backend"
@@ -251,7 +252,7 @@ sonarqube {
         property "sonar.java.binaries", "build/classes"
         property "sonar.java.libraries", "/home/runner/.gradle/caches/modules-2/**/*.jar"
         property "sonar.qualitygate.wait", true
-        property "sonar.gradle.skipCompile", "true"  // Fix deprecation warning
+        property "sonar.gradle.skipCompile", "true"  // Also keep as property for compatibility
     }
 }
 
