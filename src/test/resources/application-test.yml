@@ -1,86 +1,241 @@
+# Test Configuration for Phase 2 PostgreSQL
+# Profile: test with PostgreSQL Testcontainers
+
 spring:
-  datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+  config:
+    activate:
+      on-profile: test
   
+  # Test Database Configuration with Testcontainers
+  datasource:
+    url: jdbc:tc:postgresql:15://localhost/testdb?TC_INITSCRIPT=test-init.sql&TC_DAEMON=true
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+    username: test
+    password: test
+    
+    # Minimal connection pool for tests
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 10000
+      validation-timeout: 5000
+      idle-timeout: 120000
+      max-lifetime: 300000
+      pool-name: OddiyaTestPool
+      
+  # JPA Configuration for Tests
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    database: POSTGRESQL
+    database-platform: org.hibernate.spatial.dialect.postgis.PostgisPG15Dialect
+    
     hibernate:
       ddl-auto: create-drop
-    show-sql: false
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+      
     properties:
       hibernate:
+        dialect: org.hibernate.spatial.dialect.postgis.PostgisPG15Dialect
+        show_sql: false
         format_sql: false
-  
-  # Disable caching for tests
-  cache:
-    type: none
+        use_sql_comments: false
+        jdbc:
+          batch_size: 15
+          fetch_size: 50
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+        hbm2ddl:
+          auto: create-drop
+        
+    defer-datasource-initialization: true
     
-  # Disable scheduling for tests
-  task:
-    scheduling:
-      enabled: false
+  # Flyway disabled for tests (using Hibernate DDL)
+  flyway:
+    enabled: false
+    
+  # SQL initialization
+  sql:
+    init:
+      mode: always
+      data-locations: classpath:test-data/sql/seed-test-data.sql
+      continue-on-error: false
       
-  # Disable Redis for testing
+  # Test Cache Configuration
+  cache:
+    type: simple
+    cache-names:
+      - test-places
+      - test-travel-plans
+      - test-users
+      
+  # Test Data Redis (disabled for unit tests)
   data:
     redis:
       repositories:
         enabled: false
-  
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: test-client-id
-            client-secret: test-client-secret
-          apple:
-            client-id: test-client-id
-            client-secret: test-client-secret
+        
+  # Transaction Configuration for Tests
+  transaction:
+    default-timeout: 10s
+    rollback-on-commit-failure: true
 
-# AWS Configuration
-aws:
-  region: ap-northeast-2
-  s3:
-    bucket: oddiya-test
-  bedrock:
-    model-id: anthropic.claude-3-sonnet-20240229-v1:0
-
-# Naver Maps Configuration
-naver:
-  maps:
-    client-id: test-client-id
-    client-secret: test-client-secret
-
-# Supabase Configuration
-supabase:
-  url: http://localhost:8080
-  anon-key: test-anon-key
-  service-key: test-service-key
-
-# JWT Configuration
-jwt:
-  secret: test-secret-key-for-jwt-token-generation-must-be-at-least-256-bits
-  expiration: 3600000
-  refresh-expiration: 604800000
-
-# Application Configuration
-app:
-  cors:
-    allowed-origins: http://localhost:3000
-  rate-limit:
-    requests-per-minute: 60
-
-# Logging
+# Logging Configuration for Tests
 logging:
   level:
-    com.oddiya: INFO
-    org.springframework.web: WARN
-    org.springframework.security: WARN
-    org.hibernate: WARN
+    org.hibernate.SQL: INFO
+    org.hibernate.type.descriptor.sql.BasicBinder: INFO
+    org.springframework.test: INFO
+    org.springframework.transaction: INFO
+    org.testcontainers: INFO
+    org.postgresql: WARN
+    org.flywaydb: WARN
+    com.zaxxer.hikari: WARN
+    
+    # Application logging
+    com.oddiya: DEBUG
+    com.oddiya.repository: DEBUG
+    com.oddiya.service: DEBUG
+    
+    # Spatial logging
+    org.hibernatespatial: INFO
+    
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
-# Server configuration for tests
-server:
-  port: 0  # Random port for tests
+# Test Management Configuration
+management:
+  endpoints:
+    enabled-by-default: false
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      enabled: true
+      show-details: always
+    info:
+      enabled: true
+
+# Test-specific Application Configuration
+oddiya:
+  database:
+    type: postgresql
+    migration:
+      enabled: false
+    performance:
+      slow-query-threshold: 5000
+      connection-pool-monitoring: false
+    spatial:
+      enabled: true
+      srid: 4326
+      default-radius-km: 1.0
+  
+  cache:
+    enabled: false
+    
+  search:
+    full-text:
+      enabled: true
+      language: english
+      min-word-length: 2
+    spatial:
+      default-radius-km: 1.0
+      max-radius-km: 10.0
+      
+  features:
+    spatial-queries: true
+    full-text-search: true
+    analytics: false
+    materialized-views: false
+
+# Test Security Configuration
+security:
+  enabled: false
+  
+# Testcontainers Configuration
+testcontainers:
+  postgresql:
+    image: postgis/postgis:15-3.3
+    init-script: test-init.sql
+    exposed-ports: 5432
+    env:
+      POSTGRES_DB: testdb
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    reuse: true
+    
+---
+# Integration Test Profile
+spring:
+  config:
+    activate:
+      on-profile: test,integration
+      
+  # Use real PostgreSQL container for integration tests
+  datasource:
+    url: jdbc:tc:postgresql:15://localhost/integrationdb?TC_INITFUNCTION=com.oddiya.config.TestContainersConfiguration::configurePostgresContainer
+    
+  jpa:
+    hibernate:
+      ddl-auto: validate # Use migrations for integration tests
+    properties:
+      hibernate:
+        show_sql: true
+        format_sql: true
+        
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: false
+    
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.testcontainers: DEBUG
+    com.oddiya: DEBUG
+
+---
+# Performance Test Profile  
+spring:
+  config:
+    activate:
+      on-profile: test,performance
+      
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      
+  jpa:
+    properties:
+      hibernate:
+        show_sql: false
+        generate_statistics: true
+        session:
+          events:
+            log:
+              LOG_QUERIES_SLOWER_THAN_MS: 100
+              
+oddiya:
+  database:
+    performance:
+      slow-query-threshold: 100
+      connection-pool-monitoring: true
+
+---
+# Security Test Profile
+spring:
+  config:
+    activate:
+      on-profile: test,security
+      
+security:
+  enabled: true
+  
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.oddiya.security: DEBUG

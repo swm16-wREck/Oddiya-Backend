@@ -20,7 +20,7 @@ package com.oddiya.repository;
  * 
  * Test Framework:
  * - @DataJpaTest for lightweight JPA testing
- * - H2 in-memory database for fast test execution
+ * - PostgreSQL TestContainers for fast test execution
  * - TestEntityManager for entity management
  * - Comprehensive validation of custom @Query methods
  * - Entity relationship and cascade behavior testing
@@ -96,7 +96,7 @@ public class RepositoryTestSuite {
      * Key Testing Features:
      * - @DataJpaTest for lightweight JPA testing
      * - TestEntityManager for direct entity manipulation
-     * - H2 in-memory database for fast execution
+     * - PostgreSQL TestContainers for fast execution
      * - Comprehensive validation of all custom @Query methods
      * - Entity relationship and cascade behavior testing
      * - Database constraint enforcement verification
@@ -108,7 +108,7 @@ public class RepositoryTestSuite {
      * 
      * Benefits:
      * - Complete data layer validation
-     * - Fast test execution with H2
+     * - Fast test execution with PostgreSQL TestContainers
      * - Comprehensive custom query coverage
      * - Database integrity verification
      * - Performance regression detection

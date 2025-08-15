@@ -116,40 +116,6 @@ class ApplicationContextLoadingTest {
     }
     
     /**
-     * Test application context loading with H2 profile
-     */
-    @SpringBootTest
-    @ActiveProfiles("h2")
-    static class H2ProfileContextTest {
-        
-        @Autowired
-        private ApplicationContext applicationContext;
-        
-        @Test
-        void contextLoadsWithH2Profile() {
-            assertNotNull(applicationContext);
-        }
-        
-        @Test
-        void h2DataSourceIsConfigured() {
-            DataSource dataSource = applicationContext.getBean(DataSource.class);
-            assertNotNull(dataSource);
-            
-            // H2 DataSource should be available
-            String className = dataSource.getClass().getName();
-            assertTrue(className.contains("HikariDataSource") || className.contains("h2"), 
-                "Should have H2 or HikariCP data source configured");
-        }
-        
-        @Test
-        void jpaConfigurationWorksWithH2() {
-            EntityManagerFactory emf = applicationContext.getBean(EntityManagerFactory.class);
-            assertNotNull(emf);
-            assertNotNull(emf.getMetamodel());
-        }
-    }
-    
-    /**
      * Test bean dependency injection and wiring
      */
     @SpringBootTest
@@ -288,7 +254,7 @@ class ApplicationContextLoadingTest {
      * Test multiple profile combinations
      */
     @SpringBootTest
-    @ActiveProfiles({"test", "h2"})
+    @ActiveProfiles({"test"})
     static class MultipleProfilesTest {
         
         @Autowired
@@ -298,7 +264,7 @@ class ApplicationContextLoadingTest {
         void contextLoadsWithMultipleProfiles() {
             assertNotNull(applicationContext);
             
-            // Both test and h2 profile configurations should work together
+            // Test profile configurations should work
             assertNotNull(applicationContext.getBean(DataSource.class));
             assertNotNull(applicationContext.getBean(SecurityConfig.class));
         }

@@ -17,6 +17,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.core.MethodParameter;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import jakarta.servlet.http.HttpServletRequest;
+import com.oddiya.config.SecurityEventLogger;
 
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
@@ -33,11 +35,17 @@ class GlobalExceptionHandlerTest {
 
     @Mock
     private MethodParameter methodParameter;
+    
+    @Mock
+    private HttpServletRequest mockRequest;
+    
+    @Mock
+    private SecurityEventLogger mockSecurityEventLogger;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        globalExceptionHandler = new GlobalExceptionHandler();
+        globalExceptionHandler = new GlobalExceptionHandler(mockSecurityEventLogger);
     }
 
     @Nested
@@ -53,7 +61,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleResourceNotFoundException(exception);
+                .handleResourceNotFoundException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -81,7 +89,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleResourceNotFoundException(exception);
+                .handleResourceNotFoundException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -107,7 +115,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleResourceNotFoundException(exception);
+                .handleResourceNotFoundException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -123,7 +131,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleResourceNotFoundException(exception);
+                .handleResourceNotFoundException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -141,7 +149,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleResourceNotFoundException(exception);
+                .handleResourceNotFoundException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -164,7 +172,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleUnauthorizedException(exception);
+                .handleUnauthorizedException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -197,7 +205,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleUnauthorizedException(exception);
+                .handleUnauthorizedException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -215,7 +223,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleUnauthorizedException(exception);
+                .handleUnauthorizedException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -231,7 +239,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleUnauthorizedException(exception);
+                .handleUnauthorizedException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -249,7 +257,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleUnauthorizedException(exception);
+                .handleUnauthorizedException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -273,7 +281,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleBadRequestException(exception);
+                .handleBadRequestException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -306,7 +314,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleBadRequestException(exception);
+                .handleBadRequestException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -324,7 +332,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleBadRequestException(exception);
+                .handleBadRequestException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -341,7 +349,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleBadRequestException(exception);
+                .handleBadRequestException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -370,7 +378,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Map<String, String>>> response = globalExceptionHandler
-                .handleValidationExceptions(exception);
+                .handleValidationExceptions(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -416,7 +424,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Map<String, String>>> response = globalExceptionHandler
-                .handleValidationExceptions(exception);
+                .handleValidationExceptions(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -444,7 +452,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Map<String, String>>> response = globalExceptionHandler
-                .handleValidationExceptions(exception);
+                .handleValidationExceptions(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -469,7 +477,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Map<String, String>>> response = globalExceptionHandler
-                .handleValidationExceptions(exception);
+                .handleValidationExceptions(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -493,7 +501,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Map<String, String>>> response = globalExceptionHandler
-                .handleValidationExceptions(exception);
+                .handleValidationExceptions(exception, mockRequest);
             
             // Then
             ApiResponse.ErrorDetail error = response.getBody().getError();
@@ -522,7 +530,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleGenericException(exception);
+                .handleGenericException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -548,7 +556,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleGenericException(exception);
+                .handleGenericException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -565,7 +573,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleGenericException(exception);
+                .handleGenericException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -582,7 +590,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleGenericException(exception);
+                .handleGenericException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -598,7 +606,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleGenericException(exception);
+                .handleGenericException(exception, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -616,7 +624,7 @@ class GlobalExceptionHandlerTest {
             
             // When
             ResponseEntity<ApiResponse<Void>> response = globalExceptionHandler
-                .handleGenericException(topLevelException);
+                .handleGenericException(topLevelException, mockRequest);
             
             // Then
             assertNotNull(response);
@@ -645,7 +653,7 @@ class GlobalExceptionHandlerTest {
                 final int index = i;
                 threads[i] = new Thread(() -> {
                     Exception exception = new Exception("Concurrent exception " + index);
-                    responses[index] = globalExceptionHandler.handleGenericException(exception);
+                    responses[index] = globalExceptionHandler.handleGenericException(exception, mockRequest);
                 });
                 threads[i].start();
             }
@@ -678,11 +686,11 @@ class GlobalExceptionHandlerTest {
             
             // When - Handle specific exceptions
             ResponseEntity<ApiResponse<Void>> resourceResponse = globalExceptionHandler
-                .handleResourceNotFoundException(resourceException);
+                .handleResourceNotFoundException(resourceException, mockRequest);
             ResponseEntity<ApiResponse<Void>> unauthorizedResponse = globalExceptionHandler
-                .handleUnauthorizedException(unauthorizedException);
+                .handleUnauthorizedException(unauthorizedException, mockRequest);
             ResponseEntity<ApiResponse<Void>> badRequestResponse = globalExceptionHandler
-                .handleBadRequestException(badRequestException);
+                .handleBadRequestException(badRequestException, mockRequest);
             
             // Then - Verify specific handlers are used with correct status codes
             assertEquals(HttpStatus.NOT_FOUND, resourceResponse.getStatusCode());
@@ -712,15 +720,15 @@ class GlobalExceptionHandlerTest {
             
             // When - Handle all exception types
             ResponseEntity<ApiResponse<Void>> resourceResponse = globalExceptionHandler
-                .handleResourceNotFoundException(resourceException);
+                .handleResourceNotFoundException(resourceException, mockRequest);
             ResponseEntity<ApiResponse<Void>> unauthorizedResponse = globalExceptionHandler
-                .handleUnauthorizedException(unauthorizedException);
+                .handleUnauthorizedException(unauthorizedException, mockRequest);
             ResponseEntity<ApiResponse<Void>> badRequestResponse = globalExceptionHandler
-                .handleBadRequestException(badRequestException);
+                .handleBadRequestException(badRequestException, mockRequest);
             ResponseEntity<ApiResponse<Void>> genericResponse = globalExceptionHandler
-                .handleGenericException(genericException);
+                .handleGenericException(genericException, mockRequest);
             ResponseEntity<ApiResponse<Map<String, String>>> validationResponse = globalExceptionHandler
-                .handleValidationExceptions(validationException);
+                .handleValidationExceptions(validationException, mockRequest);
             
             // Then - Verify consistent structure
             verifyConsistentErrorStructure(resourceResponse.getBody());
@@ -771,9 +779,9 @@ class GlobalExceptionHandlerTest {
             
             // When - Handle custom exceptions
             ResponseEntity<ApiResponse<Void>> resourceResponse = globalExceptionHandler
-                .handleResourceNotFoundException(customResourceException);
+                .handleResourceNotFoundException(customResourceException, mockRequest);
             ResponseEntity<ApiResponse<Void>> unauthorizedResponse = globalExceptionHandler
-                .handleUnauthorizedException(customUnauthorizedException);
+                .handleUnauthorizedException(customUnauthorizedException, mockRequest);
             
             // Then - Should be handled by specific handlers
             assertEquals(HttpStatus.NOT_FOUND, resourceResponse.getStatusCode());

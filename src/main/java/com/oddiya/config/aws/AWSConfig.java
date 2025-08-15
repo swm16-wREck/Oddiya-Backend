@@ -11,7 +11,6 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import lombok.Data;
@@ -22,7 +21,6 @@ import java.time.Duration;
 
 @Configuration
 @ConfigurationProperties(prefix = "app.aws")
-@ConditionalOnProperty(name = "app.aws.dynamodb.enabled", havingValue = "true", matchIfMissing = false)
 @Data
 @Slf4j
 public class AWSConfig {
@@ -32,7 +30,6 @@ public class AWSConfig {
     private String secretKey;
     
     private S3Properties s3 = new S3Properties();
-    private DynamoDBProperties dynamodb = new DynamoDBProperties();
     private SQSProperties sqs = new SQSProperties();
     private CloudWatchProperties cloudwatch = new CloudWatchProperties();
 
@@ -66,22 +63,6 @@ public class AWSConfig {
                 .build();
     }
 
-    @Bean
-    @ConditionalOnProperty(name = "app.aws.dynamodb.enabled", havingValue = "true", matchIfMissing = true)
-    public DynamoDbClient dynamoDbClient(Region region, AwsCredentialsProvider credentialsProvider) {
-        log.info("Creating DynamoDB Client for region: {}", region);
-        var builder = DynamoDbClient.builder()
-                .region(region)
-                .credentialsProvider(credentialsProvider);
-        
-        // Use custom endpoint for local development
-        if (dynamodb.getEndpoint() != null && !dynamodb.getEndpoint().trim().isEmpty()) {
-            log.info("Using custom DynamoDB endpoint: {}", dynamodb.getEndpoint());
-            builder.endpointOverride(URI.create(dynamodb.getEndpoint()));
-        }
-        
-        return builder.build();
-    }
 
     @Bean
     @ConditionalOnProperty(name = "app.aws.sqs.enabled", havingValue = "true", matchIfMissing = true)
@@ -147,18 +128,6 @@ public class AWSConfig {
         private int socketTimeout = 30000; // 30 seconds
     }
 
-    @Data
-    public static class DynamoDBProperties {
-        private boolean enabled = true;
-        private String endpoint;
-        private String tablePrefix = "oddiya_";
-        private int maxConnections = 50;
-        private int connectionTimeout = 10000; // 10 seconds
-        private int socketTimeout = 30000; // 30 seconds
-        private String billingMode = "PAY_PER_REQUEST";
-        private int readCapacity = 5;
-        private int writeCapacity = 5;
-    }
 
     @Data
     public static class SQSProperties {
@@ -185,7 +154,7 @@ public class AWSConfig {
  * Mock AWS configuration for local development and testing
  */
 @Configuration
-@Profile({"local", "test", "h2"})
+@Profile({"local", "test"})
 @Slf4j
 class MockAWSConfig {
 

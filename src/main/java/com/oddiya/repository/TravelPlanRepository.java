@@ -58,6 +58,9 @@ public interface TravelPlanRepository extends JpaRepository<TravelPlan, String> 
     @Query("SELECT tp FROM TravelPlan tp JOIN tp.collaborators c WHERE c.id = :userId AND tp.isDeleted = false")
     Page<TravelPlan> findCollaboratingPlans(@Param("userId") String userId, Pageable pageable);
     
+    @Query("SELECT sp.travelPlan FROM SavedPlan sp WHERE sp.user.id = :userId AND sp.travelPlan.isDeleted = false AND sp.isDeleted = false")
+    Page<TravelPlan> findSavedPlansByUser(@Param("userId") String userId, Pageable pageable);
+    
     Page<TravelPlan> findByUserId(String userId, Pageable pageable);
     Page<TravelPlan> findByIsPublicTrue(Pageable pageable);
     Page<TravelPlan> findByTitleContainingIgnoreCaseOrDestinationContainingIgnoreCase(

@@ -1,0 +1,27 @@
+FROM eclipse-temurin:21-jre-alpine
+
+# Add non-root user
+RUN addgroup -g 1000 spring && \
+    adduser -D -s /bin/sh -u 1000 -G spring spring
+
+WORKDIR /app
+
+# Install required packages
+RUN apk add --no-cache \
+    curl \
+    tzdata \
+    postgresql-client \
+    && rm -rf /var/cache/apk/*
+
+# Copy the pre-built JAR
+COPY build/libs/*.jar app.jar
+
+# Set proper ownership
+RUN mkdir -p /app/logs /app/temp && \
+    chown -R spring:spring /app
+
+USER spring
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

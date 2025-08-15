@@ -3,7 +3,7 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
 
-# Force rebuild - updated 2025-08-13-15:58
+# Force rebuild - updated 2025-08-14 for Phase 2 PostgreSQL support
 # Copy everything at once to avoid caching issues
 COPY . .
 
@@ -20,10 +20,11 @@ RUN addgroup -g 1000 spring && \
 
 WORKDIR /app
 
-# Install required packages
+# Install required packages including PostgreSQL client for health checks
 RUN apk add --no-cache \
     curl \
     tzdata \
+    postgresql-client \
     && rm -rf /var/cache/apk/*
 
 # Set timezone
@@ -39,7 +40,7 @@ RUN mkdir -p /app/logs /app/temp && \
 # Switch to non-root user
 USER spring:spring
 
-# JVM options for container environment
+# JVM options for container environment with PostgreSQL support
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:MaxRAMPercentage=75.0 \
     -XX:InitialRAMPercentage=50.0 \
@@ -47,11 +48,12 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:+HeapDumpOnOutOfMemoryError \
     -XX:HeapDumpPath=/app/logs \
     -Djava.security.egd=file:/dev/./urandom \
-    -Dspring.profiles.active=docker"
+    -Dspring.profiles.active=postgresql,docker \
+    -Duser.timezone=Asia/Seoul"
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/actuator/health || exit 1
+# Health check with database connectivity validation
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
+    CMD curl -f http://localhost:8080/actuator/health/readiness || exit 1
 
 # Expose port
 EXPOSE 8080

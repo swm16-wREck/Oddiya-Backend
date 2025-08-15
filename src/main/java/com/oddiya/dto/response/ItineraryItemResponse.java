@@ -21,4 +21,9 @@ public class ItineraryItemResponse {
     private String notes;
     private String transportMode;
     private Integer transportDuration;
+    
+    // Alias method for compatibility with tests
+    public Integer getSequence() {
+        return this.order;
+    }
 }

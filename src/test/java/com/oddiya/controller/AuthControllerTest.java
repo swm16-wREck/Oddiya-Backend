@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -249,7 +250,7 @@ class AuthControllerTest {
         @DisplayName("Should return true when token is valid")
         void validateTokenSuccess() throws Exception {
             // Given
-            given(authService.validateToken(anyString())).willReturn(true);
+            willDoNothing().given(authService).validateToken(anyString());
 
             // When & Then
             mockMvc.perform(get("/api/v1/auth/validate")

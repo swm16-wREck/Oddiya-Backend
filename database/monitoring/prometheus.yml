@@ -1,0 +1,53 @@
+# Prometheus Configuration for Local Development
+# Scrapes metrics from PostgreSQL and other services
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Rule files
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # PostgreSQL Exporter
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    params:
+      format: ['prometheus']
+
+  # Spring Boot Application (when running)
+  - job_name: 'oddiya-app'
+    static_configs:
+      - targets: ['host.docker.internal:8080']  # Adjust if app runs differently
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /actuator/prometheus
+    params:
+      format: ['prometheus']
+
+  # Redis Exporter (if enabled)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+# Alerting (can be added later)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           # - alertmanager:9093

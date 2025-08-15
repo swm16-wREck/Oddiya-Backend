@@ -1,10 +1,12 @@
 package com.oddiya.service.storage;
 
+import com.oddiya.config.ProfileConfiguration;
 import com.oddiya.dto.response.FileUploadResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,6 +25,7 @@ import java.util.stream.Stream;
  */
 @Service
 @ConditionalOnProperty(name = "app.aws.s3.enabled", havingValue = "false", matchIfMissing = true)
+@Profile("!" + ProfileConfiguration.AWS_PROFILE)
 @Slf4j
 public class LocalStorageService implements StorageService {
 

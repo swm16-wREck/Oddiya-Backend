@@ -22,6 +22,9 @@ public class CreateItineraryItemRequest {
     @NotNull(message = "Order is required")
     private Integer order;
     
+    // Alias field for compatibility with tests - maps to order
+    private Integer sequence;
+    
     @NotBlank(message = "Place ID is required")
     private String placeId;
     
@@ -37,4 +40,20 @@ public class CreateItineraryItemRequest {
     private String transportMode;
     
     private Integer transportDuration;
+    
+    // Alias method for compatibility with tests
+    public Integer getSequence() {
+        return this.order;
+    }
+    
+    // Keep sequence and order in sync
+    public void setSequence(Integer sequence) {
+        this.sequence = sequence;
+        this.order = sequence;
+    }
+    
+    public void setOrder(Integer order) {
+        this.order = order;
+        this.sequence = order;
+    }
 }

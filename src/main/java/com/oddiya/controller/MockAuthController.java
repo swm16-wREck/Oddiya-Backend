@@ -17,7 +17,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-@Profile({"test", "local", "h2"})
+@Profile({"test", "local"})
 @Tag(name = "Mock Authentication", description = "Mock authentication for testing")
 public class MockAuthController {
     

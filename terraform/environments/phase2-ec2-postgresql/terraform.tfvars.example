@@ -1,0 +1,69 @@
+# Example Terraform Variables for EC2 PostgreSQL Infrastructure
+# Copy this file to terraform.tfvars and customize for your deployment
+
+# ==========================================
+# General Configuration
+# ==========================================
+aws_region  = "us-east-1"
+environment = "dev"
+
+# ==========================================
+# Network Configuration
+# ==========================================
+vpc_cidr           = "10.0.0.0/16"
+enable_nat_gateway = false  # Set to true if database needs internet access
+
+# Security - Restrict access to your IP ranges
+ssh_allowed_cidrs         = ["YOUR_IP/32"]        # Replace with your IP
+db_admin_cidrs           = ["10.0.0.0/16"]        # VPC CIDR for app access
+monitoring_allowed_cidrs = ["10.0.0.0/16"]        # VPC CIDR for monitoring
+bastion_allowed_cidrs    = ["YOUR_IP/32"]         # Replace with your IP
+
+# ==========================================
+# EC2 Configuration
+# ==========================================
+db_instance_type     = "t3.medium"                # Adjust based on workload
+db_root_volume_size  = 20                         # GB
+db_data_volume_size  = 50                         # GB - adjust based on data size
+enable_db_eip        = false                      # Set to true if you need static IP
+
+# SSH Key Pair - Add your public key here
+ec2_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC... your-key@your-machine"
+
+# ==========================================
+# Database Configuration
+# ==========================================
+db_name           = "oddiya"
+db_username       = "oddiya_user"
+postgresql_version = "15"
+enable_postgis    = true
+max_connections   = 100
+
+# ==========================================
+# Backup Configuration
+# ==========================================
+backup_retention_days = 30
+backup_schedule       = "0 2 * * *"  # Daily at 2 AM UTC
+
+# ==========================================
+# Monitoring Configuration
+# ==========================================
+enable_monitoring     = true
+monitoring_instance_type = "t3.small"
+enable_custom_metrics = false
+alert_email          = "your-email@example.com"  # Replace with your email
+
+# ==========================================
+# Optional Features
+# ==========================================
+enable_bastion           = false  # Set to true if you need bastion host
+enable_read_replica      = false  # Set to true for read replica
+enable_scheduled_scaling = false  # Set to true for dev environments
+enable_spot_instances    = false  # Set to true for cost savings (non-production)
+
+# ==========================================
+# Performance Tuning
+# ==========================================
+shared_buffers         = "25%"    # Percentage of RAM
+effective_cache_size   = "75%"    # Percentage of RAM
+enable_performance_insights = true

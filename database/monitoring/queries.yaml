@@ -1,0 +1,218 @@
+# PostgreSQL Exporter Custom Queries
+# Custom metrics for monitoring Oddiya database performance
+
+pg_stat_user_tables:
+  query: "SELECT current_database() datname, schemaname, tablename, seq_scan, seq_tup_read, idx_scan, idx_tup_fetch, n_tup_ins, n_tup_upd, n_tup_del, n_tup_hot_upd, n_live_tup, n_dead_tup, n_mod_since_analyze, last_vacuum, last_autovacuum, last_analyze, last_autoanalyze, vacuum_count, autovacuum_count, analyze_count, autoanalyze_count FROM pg_stat_user_tables"
+  master: true
+  metrics:
+    - datname:
+        usage: "LABEL"
+        description: "Name of current database"
+    - schemaname:
+        usage: "LABEL"
+        description: "Name of the schema that this table is in"
+    - tablename:
+        usage: "LABEL"
+        description: "Name of this table"
+    - seq_scan:
+        usage: "COUNTER"
+        description: "Number of sequential scans initiated on this table"
+    - seq_tup_read:
+        usage: "COUNTER"
+        description: "Number of live rows fetched by sequential scans"
+    - idx_scan:
+        usage: "COUNTER"
+        description: "Number of index scans initiated on this table"
+    - idx_tup_fetch:
+        usage: "COUNTER"
+        description: "Number of live rows fetched by index scans"
+    - n_tup_ins:
+        usage: "COUNTER"
+        description: "Number of rows inserted"
+    - n_tup_upd:
+        usage: "COUNTER"
+        description: "Number of rows updated"
+    - n_tup_del:
+        usage: "COUNTER"
+        description: "Number of rows deleted"
+    - n_tup_hot_upd:
+        usage: "COUNTER"
+        description: "Number of rows HOT updated"
+    - n_live_tup:
+        usage: "GAUGE"
+        description: "Estimated number of live rows"
+    - n_dead_tup:
+        usage: "GAUGE"
+        description: "Estimated number of dead rows"
+    - n_mod_since_analyze:
+        usage: "GAUGE"
+        description: "Estimated number of rows changed since last analyze"
+    - vacuum_count:
+        usage: "COUNTER"
+        description: "Number of times this table has been manually vacuumed"
+    - autovacuum_count:
+        usage: "COUNTER"
+        description: "Number of times this table has been vacuumed by the autovacuum daemon"
+    - analyze_count:
+        usage: "COUNTER"
+        description: "Number of times this table has been manually analyzed"
+    - autoanalyze_count:
+        usage: "COUNTER"
+        description: "Number of times this table has been analyzed by the autovacuum daemon"
+
+pg_stat_database_conflicts:
+  query: "SELECT datname, confl_tablespace, confl_lock, confl_snapshot, confl_bufferpin, confl_deadlock FROM pg_stat_database_conflicts WHERE datname = current_database()"
+  master: true
+  metrics:
+    - datname:
+        usage: "LABEL"
+        description: "Database name"
+    - confl_tablespace:
+        usage: "COUNTER"
+        description: "Number of queries canceled due to dropped tablespaces"
+    - confl_lock:
+        usage: "COUNTER"
+        description: "Number of queries canceled due to lock timeouts"
+    - confl_snapshot:
+        usage: "COUNTER"
+        description: "Number of queries canceled due to old snapshots"
+    - confl_bufferpin:
+        usage: "COUNTER"
+        description: "Number of queries canceled due to pinned buffers"
+    - confl_deadlock:
+        usage: "COUNTER"
+        description: "Number of queries canceled due to deadlocks"
+
+pg_locks:
+  query: "SELECT mode, locktype, database, relation::regclass, page, tuple, virtualxid, transactionid, classid, objid, objsubid FROM pg_locks"
+  master: true
+  metrics:
+    - mode:
+        usage: "LABEL"
+        description: "Lock mode"
+    - locktype:
+        usage: "LABEL"
+        description: "Lock type"
+    - database:
+        usage: "LABEL"
+        description: "Database OID"
+    - relation:
+        usage: "LABEL"
+        description: "Relation name"
+
+pg_stat_replication:
+  query: "SELECT application_name, client_addr, client_hostname, client_port, backend_start, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state FROM pg_stat_replication"
+  master: true
+  metrics:
+    - application_name:
+        usage: "LABEL"
+        description: "Name of the application"
+    - client_addr:
+        usage: "LABEL"
+        description: "IP address of the client"
+    - client_hostname:
+        usage: "LABEL"
+        description: "Host name of the client"
+    - client_port:
+        usage: "LABEL"
+        description: "TCP port number of the client"
+    - state:
+        usage: "LABEL"
+        description: "Current WAL sender state"
+    - sync_state:
+        usage: "LABEL"
+        description: "Synchronous state of this standby server"
+
+pg_stat_archiver:
+  query: "SELECT archived_count, last_archived_wal, last_archived_time, failed_count, last_failed_wal, last_failed_time, stats_reset FROM pg_stat_archiver"
+  master: true
+  metrics:
+    - archived_count:
+        usage: "COUNTER"
+        description: "Number of WAL files archived"
+    - failed_count:
+        usage: "COUNTER"
+        description: "Number of failed attempts for archiving WAL files"
+
+pg_stat_bgwriter:
+  query: "SELECT checkpoints_timed, checkpoints_req, checkpoint_write_time, checkpoint_sync_time, buffers_checkpoint, buffers_clean, maxwritten_clean, buffers_backend, buffers_backend_fsync, buffers_alloc, stats_reset FROM pg_stat_bgwriter"
+  master: true
+  metrics:
+    - checkpoints_timed:
+        usage: "COUNTER"
+        description: "Number of scheduled checkpoints"
+    - checkpoints_req:
+        usage: "COUNTER"
+        description: "Number of requested checkpoints"
+    - checkpoint_write_time:
+        usage: "COUNTER"
+        description: "Time spent writing files to disk during checkpoints"
+    - checkpoint_sync_time:
+        usage: "COUNTER"
+        description: "Time spent synchronizing files to disk during checkpoints"
+    - buffers_checkpoint:
+        usage: "COUNTER"
+        description: "Number of buffers written during checkpoints"
+    - buffers_clean:
+        usage: "COUNTER"
+        description: "Number of buffers written by the background writer"
+    - maxwritten_clean:
+        usage: "COUNTER"
+        description: "Number of times the background writer stopped because it had written too many buffers"
+    - buffers_backend:
+        usage: "COUNTER"
+        description: "Number of buffers written directly by a backend"
+    - buffers_backend_fsync:
+        usage: "COUNTER"
+        description: "Number of times a backend had to execute its own fsync call"
+    - buffers_alloc:
+        usage: "COUNTER"
+        description: "Number of buffers allocated"
+
+pg_slow_queries:
+  query: "SELECT query, calls, total_time, mean_time, max_time, stddev_time FROM pg_stat_statements WHERE mean_time > 100 ORDER BY mean_time DESC LIMIT 10"
+  master: true
+  metrics:
+    - query:
+        usage: "LABEL"
+        description: "Query text"
+    - calls:
+        usage: "COUNTER"
+        description: "Number of times executed"
+    - total_time:
+        usage: "COUNTER"
+        description: "Total time spent executing"
+    - mean_time:
+        usage: "GAUGE"
+        description: "Mean execution time"
+    - max_time:
+        usage: "GAUGE"
+        description: "Maximum execution time"
+    - stddev_time:
+        usage: "GAUGE"
+        description: "Standard deviation of execution time"
+
+pg_database_size:
+  query: "SELECT datname, pg_database_size(datname) as size_bytes FROM pg_database WHERE datallowconn = true"
+  master: true
+  metrics:
+    - datname:
+        usage: "LABEL"
+        description: "Database name"
+    - size_bytes:
+        usage: "GAUGE"
+        description: "Database size in bytes"
+
+pg_table_size:
+  query: "SELECT schemaname, tablename, pg_total_relation_size(schemaname||'.'||tablename) as size_bytes FROM pg_tables WHERE schemaname NOT IN ('information_schema', 'pg_catalog')"
+  master: true
+  metrics:
+    - schemaname:
+        usage: "LABEL"
+        description: "Schema name"
+    - tablename:
+        usage: "LABEL"
+        description: "Table name"
+    - size_bytes:
+        usage: "GAUGE"
+        description: "Table size in bytes including indexes"

@@ -30,8 +30,15 @@ public class PlaceResponse {
     private List<String> images;
     private List<String> tags;
     private String googlePlaceId;
+    private String naverPlaceId;
     private Map<String, Object> metadata;
     private Boolean isSaved;
+    private Integer viewCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    
+    // Alias method for compatibility with tests
+    public Double getRating() {
+        return this.averageRating;
+    }
 }

@@ -1,0 +1,140 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:ap-northeast-2:501544476367:task-definition/oddiya-task:5",
+    "containerDefinitions": [
+        {
+            "name": "oddiya",
+            "image": "501544476367.dkr.ecr.ap-northeast-2.amazonaws.com/oddiya:latest",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "SERVER_PORT",
+                    "value": "8080"
+                },
+                {
+                    "name": "DATABASE_NAME",
+                    "value": "oddiya"
+                },
+                {
+                    "name": "DATABASE_HOST",
+                    "value": "172.31.10.25"
+                },
+                {
+                    "name": "SPRING_PROFILES_ACTIVE",
+                    "value": "aws,postgresql,no-redis"
+                },
+                {
+                    "name": "DATABASE_PORT",
+                    "value": "5432"
+                },
+                {
+                    "name": "JAVA_OPTS",
+                    "value": "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -Dspring.profiles.active=aws,postgresql,no-redis -Dspring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration"
+                },
+                {
+                    "name": "SPRING_REDIS_ENABLED",
+                    "value": "false"
+                },
+                {
+                    "name": "SUPABASE_URL",
+                    "value": "http://dummy.supabase.co"
+                },
+                {
+                    "name": "SPRING_CACHE_TYPE",
+                    "value": "none"
+                },
+                {
+                    "name": "SUPABASE_ANON_KEY",
+                    "value": "dummy-anon-key-postgresql"
+                },
+                {
+                    "name": "SUPABASE_SERVICE_KEY",
+                    "value": "dummy-service-key-postgresql"
+                },
+                {
+                    "name": "JPA_DDL_AUTO",
+                    "value": "update"
+                },
+                {
+                    "name": "DATABASE_USERNAME",
+                    "value": "oddiya_user"
+                },
+                {
+                    "name": "DATABASE_PASSWORD",
+                    "value": "OddiyaSecure2025!"
+                },
+                {
+                    "name": "MANAGEMENT_HEALTH_REDIS_ENABLED",
+                    "value": "false"
+                },
+                {
+                    "name": "SPRING_DATA_REDIS_ENABLED",
+                    "value": "false"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/oddiya",
+                    "awslogs-region": "ap-northeast-2",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "oddiya-task",
+    "taskRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
+    "executionRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "revision": 5,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "FARGATE"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "512",
+    "memory": "1024",
+    "registeredAt": "2025-08-15T08:03:24.535000+09:00",
+    "registeredBy": "arn:aws:iam::501544476367:user/admin-dev"
+}

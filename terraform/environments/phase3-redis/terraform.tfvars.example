@@ -1,0 +1,114 @@
+# Example Terraform variables for Phase 3 Redis deployment
+# Agent 1 - EC2 Infrastructure Specialist
+# Copy this file to terraform.tfvars and customize the values
+
+# Basic Configuration
+aws_region      = "ap-northeast-2"
+environment     = "dev"
+project_name    = "oddiya"
+
+# Network Configuration
+vpc_cidr         = "10.0.0.0/16"
+management_cidr  = "10.0.0.0/8"  # Adjust to your management network CIDR
+app_cidr         = "172.31.0.0/16"  # Adjust to your application VPC CIDR
+
+# Redis Cluster Configuration
+redis_node_count = 3  # 1 master + 2 slaves
+
+# EC2 Instance Configuration
+redis_instance_type      = "t3.medium"   # 2 vCPU, 4 GB RAM, ~$30/month
+redis_instance_type_spot = "t3.large"    # Alternative for spot instances
+
+# Storage Configuration
+redis_disk_size       = 50    # GB
+redis_disk_iops       = 3000  # GP3 IOPS
+redis_disk_throughput = 250   # GP3 throughput MB/s
+
+# Cost Optimization
+redis_on_demand_base       = 1   # Keep at least 1 on-demand instance
+redis_on_demand_percentage = 50  # 50% on-demand, 50% spot for cost savings
+
+# Redis Configuration
+redis_version  = "7.2"
+redis_password = "your-super-secure-redis-password-change-me"  # CHANGE THIS!
+
+# SSH Key for EC2 Access (REQUIRED)
+# Generate with: ssh-keygen -t rsa -b 4096 -f ~/.ssh/oddiya-redis-key
+# Then use: cat ~/.ssh/oddiya-redis-key.pub
+redis_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... your-public-key-here"
+
+# Backup and Monitoring
+backup_retention_days = 30
+log_retention_days    = 14
+
+# Security
+enable_deletion_protection = false  # Set to true for production
+
+# Redis Performance Tuning
+redis_max_memory        = 0  # 0 = auto-calculate (75% of instance memory)
+redis_max_memory_policy = "allkeys-lru"
+
+# Persistence Settings
+redis_save_enabled = true
+redis_aof_enabled  = true
+
+# High Availability
+sentinel_enabled = true
+sentinel_quorum  = 2  # Number of sentinels needed to agree on failover
+
+# Monitoring
+enable_cloudwatch_monitoring = true
+monitoring_interval          = 60  # seconds
+
+# Backup Configuration
+backup_schedule     = "0 2 * * *"  # Daily at 2 AM UTC
+backup_compression  = true
+
+# Additional Tags
+additional_tags = {
+  Owner       = "DevOps Team"
+  Purpose     = "Redis Cache Layer"
+  CostCenter  = "Engineering"
+  Backup      = "Required"
+  Monitoring  = "Enabled"
+}
+
+# Environment-specific overrides
+# Uncomment and modify for different environments:
+
+# For Staging Environment:
+# environment = "staging"
+# redis_node_count = 3
+# redis_instance_type = "t3.small"
+# backup_retention_days = 7
+# enable_deletion_protection = false
+
+# For Production Environment:
+# environment = "production"
+# redis_node_count = 5
+# redis_instance_type = "r6g.large"  # Memory-optimized
+# redis_on_demand_base = 2
+# redis_on_demand_percentage = 100  # All on-demand for stability
+# backup_retention_days = 90
+# enable_deletion_protection = true
+# redis_disk_size = 100
+# redis_disk_iops = 5000
+
+# Security Notes:
+# 1. Always change the default redis_password
+# 2. Restrict management_cidr to your actual management network
+# 3. Use strong SSH keys and rotate them regularly
+# 4. Enable deletion protection for production environments
+# 5. Regularly review and update security groups
+
+# Cost Optimization Notes:
+# 1. Use spot instances for non-critical environments
+# 2. Right-size instances based on actual memory usage
+# 3. Adjust backup retention based on requirements
+# 4. Monitor CloudWatch costs and optimize log retention
+
+# Performance Tuning Notes:
+# 1. Monitor memory usage and adjust maxmemory settings
+# 2. Tune redis_max_memory_policy based on workload
+# 3. Use memory-optimized instances for large datasets
+# 4. Consider Redis Cluster mode for horizontal scaling (future)

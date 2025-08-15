@@ -13,10 +13,9 @@ import jakarta.annotation.PostConstruct;
 
 /**
  * JPA Configuration that is conditionally enabled based on active profiles.
- * Only activates when NOT using DynamoDB profile to avoid conflicts.
+ * Always enabled since we only support JPA now.
  */
 @Configuration
-@Profile("!" + ProfileConfiguration.DYNAMODB_PROFILE)
 @EnableJpaRepositories(
     basePackages = "com.oddiya.repository",
     excludeFilters = @org.springframework.context.annotation.ComponentScan.Filter(

@@ -22,8 +22,12 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willDoNothing;
@@ -57,11 +61,11 @@ class PlaceControllerTest {
                 .longitude(139.7454)
                 .phoneNumber("+81-3-3433-5111")
                 .website("https://www.tokyotower.co.jp")
-                .openingHours("9:00-23:00")
-                .priceRange("$$")
-                .rating(4.5)
+                .openingHours(Map.of("daily", "9:00-23:00"))
+                .priceRange(2.0)
+                .averageRating(4.5)
                 .viewCount(1000)
-                .imageUrls(Arrays.asList("https://example.com/image1.jpg", "https://example.com/image2.jpg"))
+                .images(Arrays.asList("https://example.com/image1.jpg", "https://example.com/image2.jpg"))
                 .tags(Arrays.asList("tower", "viewpoint", "landmark"))
                 .createdAt(LocalDateTime.now().minusDays(30))
                 .updatedAt(LocalDateTime.now())
@@ -85,9 +89,9 @@ class PlaceControllerTest {
                     .longitude(139.7454)
                     .phoneNumber("+81-3-3433-5111")
                     .website("https://www.tokyotower.co.jp")
-                    .openingHours("9:00-23:00")
-                    .priceRange("$$")
-                    .imageUrls(Arrays.asList("https://example.com/image1.jpg"))
+                    .openingHours(Map.of("daily", "9:00-23:00"))
+                    .priceRange(2.0)
+                    .images(Arrays.asList("https://example.com/image1.jpg"))
                     .tags(Arrays.asList("tower", "viewpoint"))
                     .build();
 
@@ -109,7 +113,7 @@ class PlaceControllerTest {
                     .andExpect(jsonPath("$.data.latitude", is(35.6586)))
                     .andExpect(jsonPath("$.data.longitude", is(139.7454)))
                     .andExpect(jsonPath("$.data.rating", is(4.5)))
-                    .andExpect(jsonPath("$.data.imageUrls", hasSize(2)))
+                    .andExpect(jsonPath("$.data.images", hasSize(2)))
                     .andExpect(jsonPath("$.data.tags", hasSize(3)));
         }
 

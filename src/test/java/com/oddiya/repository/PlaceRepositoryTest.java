@@ -268,7 +268,7 @@ class PlaceRepositoryTest extends RepositoryTestBase {
             List<Place> nearbyPlaces = placeRepository.findNearbyPlaces(latitude, longitude, radius);
 
             // Then
-            // Note: This test might not work perfectly with H2 as it doesn't support PostGIS
+            // PostgreSQL with PostGIS extension supports full spatial operations
             // In a real PostgreSQL environment, it would find places within the specified radius
             // For now, we'll test that the method executes without error
             assertThat(nearbyPlaces).isNotNull();

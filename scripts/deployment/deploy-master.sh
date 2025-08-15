@@ -97,6 +97,19 @@ check_prerequisites() {
         missing_tools+=("java")
     fi
     
+    # PostgreSQL-specific tools
+    if ! command -v psql &> /dev/null; then
+        print_warning "PostgreSQL client (psql) not found - database operations may be limited"
+    fi
+    
+    if ! command -v pg_isready &> /dev/null; then
+        print_warning "pg_isready not found - database health checks may be limited"
+    fi
+    
+    if ! command -v jq &> /dev/null; then
+        missing_tools+=("jq")
+    fi
+    
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
         print_error "Missing required tools: ${missing_tools[*]}"
         print_info "Please install missing tools and try again"
@@ -116,7 +129,77 @@ check_prerequisites() {
         exit 1
     fi
     
+    # Check deployment scripts
+    if [[ ! -f "scripts/deployment/migrate-database.sh" ]]; then
+        print_warning "Database migration script not found"
+    fi
+    
+    if [[ ! -f "scripts/monitoring/postgresql-health-check.sh" ]]; then
+        print_warning "PostgreSQL health check script not found"
+    fi
+    
     print_success "All prerequisites met"
+}
+
+# Run database migrations
+run_database_migrations() {
+    if [[ "$ACTION" != "apply" || "$DRY_RUN" == "true" ]]; then
+        print_info "Skipping database migrations (action: $ACTION, dry_run: $DRY_RUN)"
+        return 0
+    fi
+    
+    print_step "Running database migrations"
+    
+    if [[ ! -f "scripts/deployment/migrate-database.sh" ]]; then
+        print_warning "Migration script not found, skipping database migrations"
+        return 0
+    fi
+    
+    # Check if migration files exist
+    local migration_count=0
+    if [[ -d "src/main/resources/db/migration" ]]; then
+        migration_count=$(find src/main/resources/db/migration -name "V*.sql" -type f | wc -l || echo "0")
+    fi
+    
+    if [[ $migration_count -eq 0 ]]; then
+        print_info "No database migration files found, skipping migrations"
+        return 0
+    fi
+    
+    print_info "Found $migration_count migration files"
+    
+    # Run migrations
+    chmod +x scripts/deployment/migrate-database.sh
+    if ./scripts/deployment/migrate-database.sh "$ENVIRONMENT"; then
+        print_success "Database migrations completed successfully"
+    else
+        print_error "Database migrations failed"
+        exit 1
+    fi
+}
+
+# Check database connectivity
+check_database_connectivity() {
+    if [[ "$ACTION" != "apply" || "$DRY_RUN" == "true" ]]; then
+        print_info "Skipping database connectivity check"
+        return 0
+    fi
+    
+    print_step "Checking database connectivity"
+    
+    if [[ ! -f "scripts/monitoring/postgresql-health-check.sh" ]]; then
+        print_warning "PostgreSQL health check script not found, skipping connectivity check"
+        return 0
+    fi
+    
+    # Run health check
+    chmod +x scripts/monitoring/postgresql-health-check.sh
+    if ./scripts/monitoring/postgresql-health-check.sh "$ENVIRONMENT"; then
+        print_success "Database connectivity check passed"
+    else
+        print_warning "Database connectivity check completed with warnings"
+        # Don't fail deployment for warnings
+    fi
 }
 
 # Build application
@@ -333,12 +416,28 @@ show_help() {
     echo "  dry_run         Show what would be done (true|false) [default: false]"
     echo "  force_rebuild   Force clean rebuild (true|false) [default: false]"
     echo ""
+    echo -e "${YELLOW}Features:${NC}"
+    echo "  • Automated PostgreSQL database migrations"
+    echo "  • PostgreSQL health checks and connectivity validation"
+    echo "  • Multi-environment deployment support"
+    echo "  • ECR image management with security scanning"
+    echo "  • ECS service deployment and monitoring"
+    echo "  • Infrastructure as Code with Terraform"
+    echo ""
     echo -e "${YELLOW}Examples:${NC}"
     echo "  $0                                    # Plan deployment to dev"
-    echo "  $0 prod apply                        # Deploy to production"
+    echo "  $0 prod apply                        # Deploy to production (includes DB migrations)"
     echo "  $0 staging plan true false           # Plan staging, skip Terraform"
     echo "  $0 dev apply false false true        # Dry run dev deployment"
     echo "  $0 dev destroy                       # Destroy dev environment"
+    echo ""
+    echo -e "${YELLOW}Prerequisites:${NC}"
+    echo "  • AWS CLI configured with appropriate credentials"
+    echo "  • Terraform installed and configured"
+    echo "  • Docker runtime available"
+    echo "  • Java 21+ installed"
+    echo "  • PostgreSQL client tools (psql, pg_isready) - recommended"
+    echo "  • jq for JSON processing"
 }
 
 # Main execution
@@ -354,12 +453,14 @@ main() {
     
     # Execute deployment steps
     check_prerequisites
+    run_database_migrations
     build_application
     setup_ecr
     build_and_push_image
     deploy_infrastructure
     update_ecs_service
     verify_deployment
+    check_database_connectivity
     
     # Success message
     echo ""

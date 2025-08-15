@@ -525,7 +525,7 @@ class UserServiceTest {
 
             // Then
             verify(userRepository).save(argThat(user -> {
-                assertThat(user.getIsActive()).isTrue();
+                assertThat(user.isActive()).isTrue();
                 return true;
             }));
         }
@@ -542,7 +542,7 @@ class UserServiceTest {
 
             // Then
             verify(userRepository).save(argThat(user -> {
-                assertThat(user.getIsActive()).isFalse();
+                assertThat(user.isActive()).isFalse();
                 return true;
             }));
         }

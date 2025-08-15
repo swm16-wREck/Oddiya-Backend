@@ -2,7 +2,7 @@ spring:
   application:
     name: oddiya
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
+    active: ${SPRING_PROFILES_ACTIVE:postgresql}
     
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/oddiya}
@@ -21,7 +21,7 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.spatial.dialect.postgis.PostgisDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
         use_sql_comments: true
         default_batch_fetch_size: 16
@@ -171,6 +171,8 @@ app:
       - http://localhost:3000
       - https://app.oddiya.com
       - https://admin.oddiya.com
+      - https://*.cloudfront.net
+      - https://*.execute-api.us-east-1.amazonaws.com
     allowed-methods:
       - GET
       - POST
@@ -311,7 +313,7 @@ app:
         incomplete-multipart-days: 7
     
     dynamodb:
-      enabled: ${AWS_DYNAMODB_ENABLED:false}
+      enabled: false  # PostgreSQL is the primary database
       endpoint: ${DYNAMODB_ENDPOINT:}
       table-prefix: ${DYNAMODB_TABLE_PREFIX:oddiya_}
       billing-mode: ${DYNAMODB_BILLING_MODE:PAY_PER_REQUEST}
@@ -414,8 +416,8 @@ app:
       
   supabase:
     url: ${SUPABASE_URL:http://localhost:8000/dummy}
-    anon-key: ${SUPABASE_ANON_KEY:dummy-anon-key-for-h2}
-    service-key: ${SUPABASE_SERVICE_KEY:dummy-service-key-for-h2}
+    anon-key: ${SUPABASE_ANON_KEY:dummy-anon-key-for-postgresql}
+    service-key: ${SUPABASE_SERVICE_KEY:dummy-service-key-for-postgresql}
     
   external-api:
     korea-tourism:
@@ -443,19 +445,19 @@ spring:
       on-profile: docker
       
   datasource:
-    url: jdbc:h2:mem:dockerdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
+    url: jdbc:postgresql://db:5432/oddiya
+    driver-class-name: org.postgresql.Driver
+    username: ${POSTGRES_USER:oddiya}
+    password: ${POSTGRES_PASSWORD:oddiya123}
     hikari:
-      driver-class-name: org.h2.Driver
+      driver-class-name: org.postgresql.Driver
       
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         
   flyway:
     enabled: false
@@ -476,8 +478,8 @@ spring:
       on-profile: test
       
   datasource:
-    url: jdbc:h2:mem:testdb
-    driver-class-name: org.h2.Driver
+    url: jdbc:tc:postgresql:15://localhost/testdb?TC_INITSCRIPT=test-init.sql&TC_DAEMON=true
+    driver-class-name: org.postgresql.Driver
     username: sa
     password: 
     
@@ -486,7 +488,7 @@ spring:
       ddl-auto: create-drop
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         
   redis:
     host: localhost
@@ -534,6 +536,29 @@ spring:
     activate:
       on-profile: aws
       
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/oddiya}
+    username: ${DATABASE_USERNAME:oddiya}
+    password: ${DATABASE_PASSWORD:oddiya123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DATABASE_MAX_POOL_SIZE:20}
+      minimum-idle: ${DATABASE_MIN_IDLE:5}
+      connection-timeout: 30000
+      
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    properties:
+      hibernate:
+        dialect: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+        format_sql: false
+        use_sql_comments: false
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+        
 logging:
   level:
     root: INFO
@@ -547,8 +572,8 @@ app.aws.s3.enabled: true
 app.aws.s3.create-bucket-on-startup: true
 app.aws.s3.cors.enabled: true
 app.aws.s3.lifecycle.enabled: true
-app.aws.dynamodb.enabled: true
-app.aws.dynamodb.create-tables-on-startup: true
+app.aws.dynamodb.enabled: false  # Using PostgreSQL instead
+# app.aws.dynamodb.create-tables-on-startup: true  # Not needed for PostgreSQL
 app.aws.sqs.enabled: true
 app.aws.sqs.create-queues-on-startup: true
 app.aws.cloudwatch.enabled: true
@@ -561,11 +586,11 @@ app.aws.health.enabled: true
 app.aws.health.global-timeout-seconds: 10
 app.aws.health.cache-interval-seconds: 30
 app.aws.health.detailed-error-reporting: true
-app.aws.health.dynamodb.enabled: true
-app.aws.health.dynamodb.timeout-seconds: 5
-app.aws.health.dynamodb.test-table-access: true
-app.aws.health.dynamodb.test-permissions: true
-app.aws.health.dynamodb.max-tables-check: 5
+app.aws.health.dynamodb.enabled: false  # Using PostgreSQL instead
+# app.aws.health.dynamodb.timeout-seconds: 5
+# app.aws.health.dynamodb.test-table-access: true
+# app.aws.health.dynamodb.test-permissions: true
+# app.aws.health.dynamodb.max-tables-check: 5
 app.aws.health.s3.enabled: true
 app.aws.health.s3.timeout-seconds: 5
 app.aws.health.s3.test-bucket-access: true
@@ -587,6 +612,30 @@ app.aws.health.cloudwatch.check-dashboards: true
 app.aws.health.cloudwatch.max-alarms-check: 100
 app.aws.info.enabled: true
 
+---
+spring:
+  config:
+    activate:
+      on-profile: no-redis
+      
+  cache:
+    type: none
+    
+  redis:
+    enabled: false
+    
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+logging:
+  level:
+    com.oddiya.config.SessionAnalyticsService: OFF
+
+# Disable Redis-dependent app configurations
+app.redis.enabled: false
+
 # Enable comprehensive monitoring in AWS profile
 app.tracing.xray.enabled: true
 app.alerting.enabled: true
@@ -604,49 +653,3 @@ management:
         namespace: Oddiya-Production
         region: ${AWS_REGION:ap-northeast-2}
 
----
-spring:
-  config:
-    activate:
-      on-profile: dynamodb
-      
-  # Dummy H2 configuration to satisfy JPA requirements
-  datasource:
-    url: jdbc:h2:mem:dummydb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
-    hikari:
-      driver-class-name: org.h2.Driver
-      maximum-pool-size: 1
-      minimum-idle: 0
-      
-  jpa:
-    hibernate:
-      ddl-auto: none
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
-        
-  flyway:
-    enabled: false
-    
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      
-logging:
-  level:
-    root: INFO
-    com.oddiya: INFO
-    com.amazonaws.services.dynamodbv2: DEBUG
-    
-# DynamoDB profile specific app configuration
-app.aws.dynamodb.enabled: true
-app.aws.dynamodb.create-tables-on-startup: true
-app.aws.s3.enabled: true
-app.aws.s3.create-bucket-on-startup: true
-app.aws.sqs.enabled: false
-app.aws.cloudwatch.enabled: true
-app.aws.mock.enabled: false

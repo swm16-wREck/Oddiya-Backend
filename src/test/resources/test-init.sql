@@ -1,7 +1,7 @@
--- TestContainers PostgreSQL + PostGIS initialization script
--- This script sets up the test database with PostGIS extension and basic schema
+-- Phase 2 PostgreSQL TestContainers initialization script
+-- Updated for PostgreSQL migration with PostGIS extension and spatial testing
 
--- Enable PostGIS extension for spatial queries as per PRD requirements
+-- Enable PostGIS extension for spatial queries
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS postgis_topology;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

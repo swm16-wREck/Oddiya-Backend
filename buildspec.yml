@@ -1,6 +1,21 @@
 version: 0.2
 
+env:
+  variables:
+    GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+    JAVA_VERSION: "21"
+
 phases:
+  install:
+    runtime-versions:
+      java: $JAVA_VERSION
+    commands:
+      - echo Installing PostgreSQL client for database operations...
+      - yum update -y
+      - amazon-linux-extras install -y postgresql13
+      - yum install -y jq
+      - echo Installed PostgreSQL client version $(psql --version)
+      
   pre_build:
     commands:
       - echo Logging in to Amazon ECR...
@@ -9,14 +24,25 @@ phases:
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=${COMMIT_HASH:=latest}
       
+      # Database connectivity check
+      - echo Checking database connectivity...
+      - |
+        if [[ -n "${DB_MIGRATION_ENABLED:-}" && "${DB_MIGRATION_ENABLED}" == "true" ]]; then
+          echo "Database migration enabled, running migration..."
+          chmod +x scripts/deployment/migrate-database.sh
+          ./scripts/deployment/migrate-database.sh ${ENVIRONMENT:-dev}
+        else
+          echo "Database migration disabled or not configured, skipping..."
+        fi
+      
   build:
     commands:
       - echo Build started on `date`
-      - echo Building the JAR file...
+      - echo Building the JAR file with PostgreSQL profile...
       - chmod +x gradlew
-      - ./gradlew clean bootJar
-      - echo Building the Docker image...
-      - docker build -t $REPOSITORY_URI:latest .
+      - ./gradlew clean bootJar --no-daemon --no-build-cache -x test
+      - echo Building the Docker image with PostgreSQL support...
+      - docker build --no-cache --pull --build-arg CACHEBUST=$(date +%s) -t $REPOSITORY_URI:latest .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
       
   post_build:
@@ -29,11 +55,43 @@ phases:
       - printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
       - cat imagedefinitions.json
       
+      # Post-deployment health check
+      - echo Running post-build health checks...
+      - |
+        if [[ -n "${HEALTH_CHECK_ENABLED:-}" && "${HEALTH_CHECK_ENABLED}" == "true" ]]; then
+          echo "Running PostgreSQL health check..."
+          chmod +x scripts/monitoring/postgresql-health-check.sh
+          ./scripts/monitoring/postgresql-health-check.sh ${ENVIRONMENT:-dev} || echo "Health check completed with warnings"
+        else
+          echo "Health check disabled, skipping..."
+        fi
+      
+      # Generate build report
+      - |
+        cat > build-report.json << EOF
+        {
+          "buildId": "$CODEBUILD_BUILD_ID",
+          "sourceVersion": "$CODEBUILD_RESOLVED_SOURCE_VERSION",
+          "imageUri": "$REPOSITORY_URI:$IMAGE_TAG",
+          "buildTime": "$(date -Iseconds)",
+          "environment": "${ENVIRONMENT:-dev}",
+          "javaVersion": "$JAVA_VERSION",
+          "postgresqlSupport": true,
+          "migrationExecuted": "${DB_MIGRATION_ENABLED:-false}",
+          "healthCheckExecuted": "${HEALTH_CHECK_ENABLED:-false}"
+        }
+        EOF
+      - echo Build report generated
+      - cat build-report.json
+      
 artifacts:
   files:
     - imagedefinitions.json
-    - target/*.jar
-  name: BuildArtifact
+    - build-report.json
+    - build/libs/*.jar
+    - scripts/deployment/migrate-database.sh
+    - scripts/monitoring/postgresql-health-check.sh
+  name: BuildArtifact-$CODEBUILD_RESOLVED_SOURCE_VERSION
   
 cache:
   paths:

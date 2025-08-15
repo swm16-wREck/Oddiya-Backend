@@ -20,6 +20,10 @@ public class LoginRequest {
     
     private String token; // Alternative field name for OAuth token
     
+    private String providerId; // Provider-specific user ID
+    private String email; // User email from OAuth provider
+    private String nickname; // User nickname from OAuth provider
+    
     private String deviceId;
     private String deviceType;
 }

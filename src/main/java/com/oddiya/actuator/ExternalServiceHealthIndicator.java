@@ -4,7 +4,7 @@ import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 
 import com.oddiya.service.NaverMapsService;
@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit;
  * Monitors AWS Bedrock, Naver Maps API, Supabase, and other critical dependencies
  */
 @Component("externalServices")
-@RequiredArgsConstructor
 @Slf4j
 public class ExternalServiceHealthIndicator implements HealthIndicator {
 
@@ -34,9 +33,22 @@ public class ExternalServiceHealthIndicator implements HealthIndicator {
     private final SupabaseService supabaseService;
     
     // AWS clients (optional dependencies)
-    private final BedrockClient bedrockClient;
-    private final S3Client s3Client;
-    private final CloudWatchClient cloudWatchClient;
+    @Autowired(required = false)
+    private BedrockClient bedrockClient;
+    
+    @Autowired(required = false)
+    private S3Client s3Client;
+    
+    @Autowired(required = false)
+    private CloudWatchClient cloudWatchClient;
+    
+    public ExternalServiceHealthIndicator(NaverMapsService naverMapsService, 
+                                        AIRecommendationService aiRecommendationService,
+                                        SupabaseService supabaseService) {
+        this.naverMapsService = naverMapsService;
+        this.aiRecommendationService = aiRecommendationService;
+        this.supabaseService = supabaseService;
+    }
 
     private static final Duration HEALTH_CHECK_TIMEOUT = Duration.ofSeconds(5);
 
@@ -136,6 +148,19 @@ public class ExternalServiceHealthIndicator implements HealthIndicator {
     private CompletableFuture<ServiceHealth> checkBedrockHealth() {
         return CompletableFuture.supplyAsync(() -> {
             try {
+                // Check if client is available
+                if (bedrockClient == null) {
+                    return ServiceHealth.builder()
+                        .serviceName("AWS Bedrock")
+                        .healthy(false)
+                        .details(Map.of(
+                            "service", "AWS Bedrock AI",
+                            "operation", "not configured",
+                            "status", "NOT_CONFIGURED"
+                        ))
+                        .build();
+                }
+                
                 Instant start = Instant.now();
                 
                 boolean isHealthy = testServiceConnection("bedrock", () -> {
@@ -217,6 +242,19 @@ public class ExternalServiceHealthIndicator implements HealthIndicator {
     private CompletableFuture<ServiceHealth> checkS3Health() {
         return CompletableFuture.supplyAsync(() -> {
             try {
+                // Check if client is available
+                if (s3Client == null) {
+                    return ServiceHealth.builder()
+                        .serviceName("AWS S3")
+                        .healthy(false)
+                        .details(Map.of(
+                            "service", "AWS S3 Storage",
+                            "operation", "not configured",
+                            "status", "NOT_CONFIGURED"
+                        ))
+                        .build();
+                }
+                
                 Instant start = Instant.now();
                 
                 boolean isHealthy = testServiceConnection("s3", () -> {
@@ -257,6 +295,19 @@ public class ExternalServiceHealthIndicator implements HealthIndicator {
     private CompletableFuture<ServiceHealth> checkCloudWatchHealth() {
         return CompletableFuture.supplyAsync(() -> {
             try {
+                // Check if client is available
+                if (cloudWatchClient == null) {
+                    return ServiceHealth.builder()
+                        .serviceName("AWS CloudWatch")
+                        .healthy(false)
+                        .details(Map.of(
+                            "service", "AWS CloudWatch Monitoring",
+                            "operation", "not configured",
+                            "status", "NOT_CONFIGURED"
+                        ))
+                        .build();
+                }
+                
                 Instant start = Instant.now();
                 
                 boolean isHealthy = testServiceConnection("cloudwatch", () -> {

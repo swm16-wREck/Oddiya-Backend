@@ -29,7 +29,7 @@ public class SavedPlan extends BaseEntity {
     @Column(name = "saved_at", nullable = false)
     private LocalDateTime savedAt;
     
-    // Helper methods for DynamoDB compatibility
+    // Helper methods for entity access
     public String getUserId() {
         return user != null ? user.getId() : null;
     }

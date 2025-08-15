@@ -23,7 +23,10 @@ import org.springframework.web.context.WebApplicationContext;
 @AutoConfigureMessageVerifier
 @ActiveProfiles("contract-test")
 @TestPropertySource(properties = {
-    "spring.datasource.url=jdbc:h2:mem:contract-testdb",
+    "spring.datasource.url=jdbc:tc:postgresql:15://localhost/contract-testdb?TC_INITSCRIPT=test-init.sql&TC_DAEMON=true",
+    "spring.datasource.driver-class-name=org.testcontainers.jdbc.ContainerDatabaseDriver",
+    "spring.datasource.username=test",
+    "spring.datasource.password=test",
     "app.aws.enabled=false",
     "app.supabase.enabled=false",
     "logging.level.org.springframework.cloud.contract=DEBUG"

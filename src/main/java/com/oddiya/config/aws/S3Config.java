@@ -399,7 +399,7 @@ public class S3Config {
  * Mock S3 configuration for local development and testing
  */
 @Configuration
-@Profile({"local", "test", "h2"})
+@Profile({"local", "test"})
 @Slf4j
 class MockS3Config {
 

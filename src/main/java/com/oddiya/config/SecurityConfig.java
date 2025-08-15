@@ -94,7 +94,7 @@ public class SecurityConfig {
                             "style-src 'self' 'unsafe-inline'; " +
                             "img-src 'self' data: blob: https:; " +
                             "font-src 'self' data:; " +
-                            "connect-src 'self' https://api.oddiya.com https://*.supabase.co; " +
+                            "connect-src 'self' https://api.oddiya.com https://*.supabase.co https://*.cloudfront.net https://*.amazonaws.com; " +
                             "media-src 'self' blob:; " +
                             "object-src 'none'; " +
                             "base-uri 'self'; " +
@@ -177,7 +177,7 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .headers(headers -> headers.frameOptions().disable()) // Allow H2 console in tests
+            .headers(headers -> headers.frameOptions().disable()) // Allow frame options for testing
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/**").permitAll() // Allow all in test
             )

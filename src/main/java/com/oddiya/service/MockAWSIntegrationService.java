@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * requiring actual AWS credentials or services.
  */
 @Service
-@Profile({"local", "test", "h2"})
+@Profile({"local", "test"})
 @ConditionalOnProperty(name = "app.aws.mock.enabled", havingValue = "true", matchIfMissing = true)
 @Slf4j
 public class MockAWSIntegrationService {

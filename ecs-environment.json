@@ -1,0 +1,11 @@
+{
+  "DATABASE_URL": "jdbc:postgresql://172.31.10.25:5432/oddiya?sslmode=disable",
+  "DATABASE_USERNAME": "oddiya_user",
+  "DATABASE_PASSWORD": "OddiyaSecure2025!",
+  "SPRING_PROFILES_ACTIVE": "aws,postgresql",
+  "SPRING_DATASOURCE_URL": "jdbc:postgresql://172.31.10.25:5432/oddiya?sslmode=disable",
+  "SPRING_DATASOURCE_USERNAME": "oddiya_user",
+  "SPRING_DATASOURCE_PASSWORD": "OddiyaSecure2025!",
+  "SPRING_JPA_DATABASE_PLATFORM": "org.hibernate.dialect.PostgreSQLDialect",
+  "SPRING_JPA_HIBERNATE_DDL_AUTO": "update"
+}

@@ -11,13 +11,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
 import javax.sql.DataSource;
 
 /**
  * Centralized datasource configuration that handles switching between
- * JPA datasources (PostgreSQL, H2) and DynamoDB client configuration.
+ * JPA datasources (PostgreSQL).
  */
 @Configuration
 @RequiredArgsConstructor
@@ -28,11 +27,10 @@ public class DataSourceConfiguration {
     private final ProfileConfiguration profileConfiguration;
     
     /**
-     * Primary datasource for JPA profiles (local, test, docker)
+     * Primary datasource for JPA profiles (all profiles)
      */
     @Bean
     @Primary
-    @Profile("!" + ProfileConfiguration.DYNAMODB_PROFILE)
     public DataSource jpaDataSource() {
         ProfileConfiguration.DataSourceType dataSourceType = profileConfiguration.getDataSourceType();
         
@@ -41,8 +39,8 @@ public class DataSourceConfiguration {
         HikariConfig config = new HikariConfig();
         
         switch (dataSourceType) {
-            case H2_MEMORY:
-                configureH2MemoryDataSource(config);
+            case POSTGRESQL_TESTCONTAINERS:
+                configurePostgreSQLTestContainersDataSource(config);
                 break;
             case POSTGRESQL_LOCAL:
                 configurePostgreSQLLocalDataSource(config);
@@ -54,8 +52,8 @@ public class DataSourceConfiguration {
                 configurePostgreSQLAwsDataSource(config);
                 break;
             default:
-                log.warn("Unknown datasource type {}, falling back to H2", dataSourceType);
-                configureH2MemoryDataSource(config);
+                log.warn("Unknown datasource type {}, falling back to PostgreSQL Local", dataSourceType);
+                configurePostgreSQLLocalDataSource(config);
         }
         
         // Common HikariCP settings
@@ -67,71 +65,26 @@ public class DataSourceConfiguration {
         return dataSource;
     }
     
-    /**
-     * Dummy datasource for DynamoDB profile to prevent JPA initialization issues
-     */
-    @Bean
-    @Primary
-    @Profile(ProfileConfiguration.DYNAMODB_PROFILE)
-    public DataSource dynamoDbDummyDataSource() {
-        log.info("Configuring dummy H2 DataSource for DynamoDB profile");
-        
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:h2:mem:dummydb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL");
-        config.setUsername("sa");
-        config.setPassword("");
-        config.setDriverClassName("org.h2.Driver");
-        
-        // Minimal settings for dummy datasource
-        config.setMaximumPoolSize(1);
-        config.setMinimumIdle(0);
-        config.setConnectionTimeout(5000);
-        config.setIdleTimeout(300000);
-        config.setMaxLifetime(600000);
-        
-        // Prevent actual usage
-        config.setConnectionTestQuery("SELECT 1");
-        
-        HikariDataSource dataSource = new HikariDataSource(config);
-        log.info("Dummy H2 DataSource configured for DynamoDB profile");
-        
-        return dataSource;
-    }
     
-    /**
-     * DynamoDB client configuration for DynamoDB profile
-     */
-    @Bean
-    @ConditionalOnProperty(
-            name = "spring.profiles.active", 
-            havingValue = ProfileConfiguration.DYNAMODB_PROFILE
-    )
-    public DynamoDbClient dynamoDbClient() {
-        log.info("DynamoDB client will be configured by AWSConfig");
-        // DynamoDbClient is configured in AWSConfig
-        return null;
-    }
     
-    private void configureH2MemoryDataSource(HikariConfig config) {
-        // Get H2 URL from configuration, with appropriate default based on profile
-        String activeProfile = environment.getProperty("spring.profiles.active", "");
-        String defaultUrl = activeProfile.contains("docker") 
-            ? "jdbc:h2:mem:dockerdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE"
-            : "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL";
-        
-        String url = environment.getProperty("spring.datasource.url", defaultUrl);
-        String username = environment.getProperty("spring.datasource.username", "sa");
-        String password = environment.getProperty("spring.datasource.password", "");
+    private void configurePostgreSQLTestContainersDataSource(HikariConfig config) {
+        // TestContainers PostgreSQL configuration - handled by TestContainersConfiguration
+        String url = environment.getProperty("spring.datasource.url", 
+                "jdbc:tc:postgresql:15://localhost/testdb?TC_INITSCRIPT=test-init.sql&TC_DAEMON=true");
+        String username = environment.getProperty("spring.datasource.username", "test");
+        String password = environment.getProperty("spring.datasource.password", "test");
         
         config.setJdbcUrl(url);
         config.setUsername(username);
         config.setPassword(password);
-        config.setDriverClassName("org.h2.Driver");
+        config.setDriverClassName("org.testcontainers.jdbc.ContainerDatabaseDriver");
         
-        // H2 specific optimizations
+        // TestContainers specific optimizations
         config.setMaximumPoolSize(5);
         config.setMinimumIdle(1);
         config.setConnectionTimeout(10000);
+        
+        log.info("Configuring PostgreSQL TestContainers: {}", maskUrl(url));
     }
     
     private void configurePostgreSQLLocalDataSource(HikariConfig config) {

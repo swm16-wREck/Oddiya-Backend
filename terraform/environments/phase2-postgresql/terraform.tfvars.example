@@ -1,0 +1,21 @@
+# Example Terraform variables for Phase 2 PostgreSQL Infrastructure
+# Copy this file to terraform.tfvars and update values as needed
+
+# AWS Configuration
+aws_region = "ap-northeast-2"
+environment = "dev"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+
+# Database Configuration
+db_name = "oddiya"
+db_username = "oddiya_admin"
+db_instance_class = "db.t4g.medium"
+db_instance_count = 2
+backup_retention_period = 7
+deletion_protection = true
+
+# Application Configuration
+app_port = 8080
+health_check_path = "/actuator/health"

@@ -1,0 +1,46 @@
+{
+  "family": "oddiya-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "containerDefinitions": [
+    {
+      "name": "oddiya",
+      "image": "501544476367.dkr.ecr.ap-northeast-2.amazonaws.com/oddiya:latest",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "DATABASE_HOST", "value": "172.31.10.25"},
+        {"name": "DATABASE_PORT", "value": "5432"},
+        {"name": "DATABASE_NAME", "value": "oddiya"},
+        {"name": "DATABASE_USERNAME", "value": "oddiya_user"},
+        {"name": "DATABASE_PASSWORD", "value": "OddiyaSecure2025!"},
+        {"name": "SPRING_PROFILES_ACTIVE", "value": "aws,postgresql,no-redis"},
+        {"name": "JPA_DDL_AUTO", "value": "update"},
+        {"name": "SERVER_PORT", "value": "8080"},
+        {"name": "SUPABASE_URL", "value": "http://dummy.supabase.co"},
+        {"name": "SUPABASE_ANON_KEY", "value": "dummy-anon-key-postgresql"},
+        {"name": "SUPABASE_SERVICE_KEY", "value": "dummy-service-key-postgresql"},
+        {"name": "JAVA_OPTS", "value": "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -Dspring.profiles.active=aws,postgresql,no-redis"},
+        {"name": "SPRING_CACHE_TYPE", "value": "none"},
+        {"name": "SPRING_REDIS_ENABLED", "value": "false"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/oddiya",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "essential": true
+    }
+  ],
+  "executionRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole"
+}

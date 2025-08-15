@@ -29,7 +29,7 @@ class ProfileConfigurationTest {
         // When & Then
         assertThat(activeProfiles).contains("test");
         assertThat(profileConfiguration.isTestProfile()).isTrue();
-        assertThat(profileConfiguration.isDynamoDBProfile()).isFalse();
+        assertThat(profileConfiguration.isAwsProfile()).isFalse();
         assertThat(profileConfiguration.isJpaProfile()).isTrue();
     }
     
@@ -48,7 +48,7 @@ class ProfileConfigurationTest {
         ProfileConfiguration.DataSourceType dataSourceType = profileConfiguration.getDataSourceType();
         
         // Then
-        assertThat(dataSourceType).isEqualTo(ProfileConfiguration.DataSourceType.H2_MEMORY);
+        assertThat(dataSourceType).isEqualTo(ProfileConfiguration.DataSourceType.POSTGRESQL_TESTCONTAINERS);
     }
     
     @Test
@@ -90,16 +90,15 @@ class ProfileConfigurationTest {
         assertThat(ProfileConfiguration.getRecommendedProfile("testing"))
                 .isEqualTo(ProfileConfiguration.TEST_PROFILE);
         assertThat(ProfileConfiguration.getRecommendedProfile("production"))
-                .isEqualTo(ProfileConfiguration.DYNAMODB_PROFILE);
+                .isEqualTo(ProfileConfiguration.AWS_PROFILE);
     }
     
     @Test
     void shouldProvideMigrationPath() {
         // When
-        String migrationPath = profileConfiguration.getMigrationPath(ProfileConfiguration.DYNAMODB_PROFILE);
+        String migrationPath = profileConfiguration.getMigrationPath(ProfileConfiguration.AWS_PROFILE);
         
         // Then
-        assertThat(migrationPath).contains("Migration path: JPA -> DYNAMODB");
-        assertThat(migrationPath).contains("DataMigrationService");
+        assertThat(migrationPath).contains("No migration needed");
     }
 }

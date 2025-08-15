@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# PostGIS Initialization Script for Oddiya
-# This script sets up PostGIS extension and spatial data structures
+# PostGIS Initialization Script for Oddiya Phase 2
+# This script sets up PostGIS extension and spatial data structures for PostgreSQL migration
+# Updated for Phase 2 PostgreSQL support
 
 set -euo pipefail
 

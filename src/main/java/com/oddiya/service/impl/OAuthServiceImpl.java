@@ -35,10 +35,10 @@ public class OAuthServiceImpl implements OAuthService {
     private final SupabaseService supabaseService;
     private final ObjectMapper objectMapper;
     
-    @Value("${supabase.url}")
+    @Value("${app.supabase.url}")
     private String supabaseUrl;
     
-    @Value("${supabase.anon-key}")
+    @Value("${app.supabase.anon-key}")
     private String supabaseAnonKey;
     
     @Override

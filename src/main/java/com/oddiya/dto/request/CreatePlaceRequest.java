@@ -28,6 +28,9 @@ public class CreatePlaceRequest {
     @Size(min = 1, max = 500, message = "Address must be between 1 and 500 characters")
     private String address;
     
+    @Size(max = 500, message = "Road address cannot exceed 500 characters")
+    private String roadAddress;
+    
     @NotNull(message = "Latitude is required")
     private Double latitude;
     
@@ -50,6 +53,8 @@ public class CreatePlaceRequest {
     private List<String> tags;
     
     private String googlePlaceId;
+    
+    private String naverPlaceId;
     
     private Map<String, Object> metadata;
 }

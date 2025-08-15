@@ -26,7 +26,7 @@ import java.util.Map;
 
 /**
  * Base class for comprehensive integration tests.
- * Uses @SpringBootTest with real beans and H2 database.
+ * Uses @SpringBootTest with real beans and PostgreSQL TestContainers.
  * Tests complete workflows end-to-end without mocking internal services.
  */
 @SpringBootTest(

@@ -1,0 +1,106 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-deploy.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-2
+  S3_BUCKET: oddiya-frontend
+  CLOUDFRONT_DISTRIBUTION_ID: E2P5XBQZK3FXQD
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Frontend
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: /Users/wjs/Oddiya-Front
+        
+    steps:
+      - name: Checkout frontend code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/Oddiya-Front
+          path: frontend
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+          
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+        
+      - name: Build application
+        run: npm run build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: ${{ github.ref == 'refs/heads/main' && 'https://api.oddiya.com' || 'https://staging-api.oddiya.com' }}
+          NEXT_PUBLIC_ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Deploy to S3
+        run: |
+          aws s3 sync out/ s3://${{ env.S3_BUCKET }}/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*.html" \
+            --exclude "_next/static/chunks/pages/*"
+            
+          # HTML files with no cache
+          aws s3 sync out/ s3://${{ env.S3_BUCKET }}/ \
+            --delete \
+            --cache-control "public, max-age=0, must-revalidate" \
+            --exclude "*" \
+            --include "*.html" \
+            --include "_next/static/chunks/pages/*"
+        working-directory: frontend
+        
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+            
+      - name: Wait for CloudFront invalidation
+        run: |
+          INVALIDATION_ID=$(aws cloudfront list-invalidations \
+            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --query "InvalidationList.Items[0].Id" \
+            --output text)
+            
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --id $INVALIDATION_ID
+            
+      - name: Health check
+        run: |
+          URL=${{ github.ref == 'refs/heads/main' && 'https://oddiya.com' || 'https://staging.oddiya.com' }}
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" $URL || true)
+            if [ "$response" = "200" ]; then
+              echo "Frontend is healthy!"
+              exit 0
+            fi
+            echo "Waiting for frontend to be healthy... (attempt $i/10)"
+            sleep 10
+          done
+          echo "Health check failed!"
+          exit 1

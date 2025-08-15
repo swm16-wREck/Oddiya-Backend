@@ -77,7 +77,6 @@ public class RepositoryFactory {
      */
     public static class RepositoryProperties {
         
-        public static final String H2_PROFILE = "h2";
         public static final String POSTGRESQL_PROFILE = "postgresql";
         public static final String MYSQL_PROFILE = "mysql";
         
@@ -88,13 +87,11 @@ public class RepositoryFactory {
             switch (useCase.toLowerCase()) {
                 case "development":
                 case "testing":
-                    return H2_PROFILE;
                 case "production":
                 case "complex-queries":
                 case "analytics":
-                    return POSTGRESQL_PROFILE;
                 default:
-                    return H2_PROFILE;
+                    return POSTGRESQL_PROFILE;
             }
         }
         
@@ -103,12 +100,9 @@ public class RepositoryFactory {
          */
         public static String getRepositoryCapabilities(String repositoryType) {
             switch (repositoryType.toLowerCase()) {
-                case H2_PROFILE:
-                    return "In-memory, Fast startup, Development friendly, "
-                         + "Full SQL support, Not persistent, Testing optimized";
                 case POSTGRESQL_PROFILE:
                     return "Relational, ACID compliant, Complex queries, "
-                         + "Full-text search, JSON support, Mature ecosystem";
+                         + "Full-text search, JSON support, Spatial support, Mature ecosystem";
                 case MYSQL_PROFILE:
                     return "Relational, High performance, Web applications, "
                          + "Replication support, Large community, Proven reliability";

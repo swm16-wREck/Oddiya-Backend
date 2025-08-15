@@ -35,10 +35,9 @@ public class ConditionalBeans {
     // ========================================
     
     /**
-     * JPA Repository Configuration - Active when NOT using DynamoDB
+     * JPA Repository Configuration - Always active (only supported storage type)
      */
     @Configuration
-    @Profile("!" + ProfileConfiguration.DYNAMODB_PROFILE)
     static class JpaRepositoryConfiguration {
         
         @Bean
@@ -49,24 +48,6 @@ public class ConditionalBeans {
         }
     }
     
-    /**
-     * DynamoDB Repository Configuration - Active when using DynamoDB profile
-     */
-    @Configuration
-    @Profile(ProfileConfiguration.DYNAMODB_PROFILE)
-    static class DynamoDBRepositoryConfiguration {
-        
-        @Bean
-        @Primary
-        public String repositoryType() {
-            log.info("Configuring DynamoDB repositories");
-            return "DynamoDB";
-        }
-        
-        // DynamoDB repositories are auto-configured by DynamoDBRepositoryConfiguration
-        // in the repository.dynamodb.config package
-    }
-    
     // ========================================
     // Storage Service Bean Definitions
     // ========================================
@@ -75,8 +56,7 @@ public class ConditionalBeans {
      * Local Storage Service - Active for local/test profiles
      */
     @Bean
-    @Primary
-    @Profile({"!" + ProfileConfiguration.AWS_PROFILE, "!" + ProfileConfiguration.DYNAMODB_PROFILE})
+    @Profile("!" + ProfileConfiguration.AWS_PROFILE)
     @ConditionalOnMissingBean(StorageService.class)
     public StorageService localStorageService() {
         log.info("Configuring Local Storage Service");
@@ -91,9 +71,11 @@ public class ConditionalBeans {
     
     /**
      * Fallback Local Storage Service for AWS profiles when S3 is disabled
+     * Note: This bean is @Primary to resolve conflicts with auto-detected LocalStorageService
      */
     @Bean
-    @Profile({ProfileConfiguration.AWS_PROFILE, ProfileConfiguration.DYNAMODB_PROFILE})
+    @Primary
+    @Profile(ProfileConfiguration.AWS_PROFILE)
     @ConditionalOnProperty(name = "app.aws.s3.enabled", havingValue = "false")
     public StorageService fallbackLocalStorageService() {
         log.warn("S3 is disabled in AWS profile, falling back to Local Storage Service");
@@ -109,7 +91,7 @@ public class ConditionalBeans {
      */
     @Bean
     @Primary
-    @Profile({"!" + ProfileConfiguration.AWS_PROFILE, "!" + ProfileConfiguration.DYNAMODB_PROFILE})
+    @Profile("!" + ProfileConfiguration.AWS_PROFILE)
     @ConditionalOnMissingBean(MessagingService.class)
     public MessagingService localMessagingService(ObjectMapper objectMapper) {
         log.info("Configuring Local Messaging Service");
@@ -126,7 +108,7 @@ public class ConditionalBeans {
      * Fallback Local Messaging Service for AWS profiles when SQS is disabled
      */
     @Bean
-    @Profile({ProfileConfiguration.AWS_PROFILE, ProfileConfiguration.DYNAMODB_PROFILE})
+    @Profile(ProfileConfiguration.AWS_PROFILE)
     @ConditionalOnProperty(name = "app.aws.sqs.enabled", havingValue = "false")
     public MessagingService fallbackLocalMessagingService(ObjectMapper objectMapper) {
         log.warn("SQS is disabled in AWS profile, falling back to Local Messaging Service");
@@ -176,9 +158,6 @@ public class ConditionalBeans {
                 case JPA:
                     validateJpaConfiguration();
                     break;
-                case DYNAMODB:
-                    validateDynamoDBConfiguration();
-                    break;
                 default:
                     log.warn("Unknown storage type: {}", storageType);
             }
@@ -209,13 +188,6 @@ public class ConditionalBeans {
             }
         }
         
-        private void validateDynamoDBConfiguration() {
-            log.debug("Validating DynamoDB configuration");
-            // DynamoDB-specific validation logic
-            if (!profileConfiguration.supportsFeature(ProfileConfiguration.Feature.HIGH_SCALABILITY)) {
-                log.warn("DynamoDB should support high scalability");
-            }
-        }
         
         private void validateLocalEnvironment() {
             log.debug("Validating local environment configuration");
@@ -263,14 +235,9 @@ public class ConditionalBeans {
             
             switch (storageType) {
                 case JPA:
-                    recommendations.add("Consider DynamoDB for high-scale production workloads");
                     recommendations.add("Enable connection pooling optimization for better performance");
                     recommendations.add("Use read replicas for read-heavy workloads");
-                    break;
-                case DYNAMODB:
-                    recommendations.add("Use JPA for complex analytical queries");
-                    recommendations.add("Implement proper GSI design for query patterns");
-                    recommendations.add("Monitor capacity utilization and costs");
+                    recommendations.add("Consider PostgreSQL partitioning for large tables");
                     break;
             }
             
@@ -302,11 +269,7 @@ public class ConditionalBeans {
         }
         
         public String getOptimalQueryStrategy() {
-            if (profileConfiguration.getStorageType() == ProfileConfiguration.StorageType.JPA) {
-                return "Use JOIN queries, complex WHERE clauses, and aggregations";
-            } else {
-                return "Use single-table design patterns, GSIs, and key-based queries";
-            }
+            return "Use JOIN queries, complex WHERE clauses, and aggregations";
         }
         
         public String getRecommendedCachingStrategy() {

@@ -22,15 +22,13 @@ public class ProfileConfiguration {
     public static final String LOCAL_PROFILE = "local";
     public static final String TEST_PROFILE = "test";
     public static final String AWS_PROFILE = "aws";
-    public static final String DYNAMODB_PROFILE = "dynamodb";
-    public static final String H2_PROFILE = "h2";
     public static final String DOCKER_PROFILE = "docker";
+    public static final String POSTGRESQL_PROFILE = "postgresql";
     
     // Profile Groups for easier management
-    public static final String[] JPA_PROFILES = {LOCAL_PROFILE, TEST_PROFILE, H2_PROFILE, DOCKER_PROFILE};
-    public static final String[] NOSQL_PROFILES = {DYNAMODB_PROFILE};
-    public static final String[] AWS_PROFILES = {AWS_PROFILE, DYNAMODB_PROFILE};
-    public static final String[] LOCAL_PROFILES = {LOCAL_PROFILE, TEST_PROFILE, H2_PROFILE};
+    public static final String[] JPA_PROFILES = {LOCAL_PROFILE, TEST_PROFILE, DOCKER_PROFILE, POSTGRESQL_PROFILE};
+    public static final String[] AWS_PROFILES = {AWS_PROFILE};
+    public static final String[] LOCAL_PROFILES = {LOCAL_PROFILE, TEST_PROFILE};
     
     private final Environment environment;
     private final String activeProfiles;
@@ -59,9 +57,7 @@ public class ProfileConfiguration {
      * Determines the primary storage type based on active profiles
      */
     public StorageType getStorageType() {
-        if (isDynamoDBProfile()) {
-            return StorageType.DYNAMODB;
-        } else if (isJpaProfile()) {
+        if (isJpaProfile()) {
             return StorageType.JPA;
         } else {
             log.warn("No recognized storage profile found, defaulting to JPA");
@@ -85,19 +81,12 @@ public class ProfileConfiguration {
     }
     
     /**
-     * Check if DynamoDB profile is active
-     */
-    public boolean isDynamoDBProfile() {
-        return activeProfileSet.contains(DYNAMODB_PROFILE);
-    }
-    
-    /**
      * Check if any JPA profile is active
      */
     public boolean isJpaProfile() {
         return Arrays.stream(JPA_PROFILES)
                 .anyMatch(activeProfileSet::contains) || 
-                (!isDynamoDBProfile() && activeProfileSet.isEmpty());
+                activeProfileSet.isEmpty(); // Default to JPA
     }
     
     /**
@@ -135,12 +124,10 @@ public class ProfileConfiguration {
      * Get datasource type for current profile
      */
     public DataSourceType getDataSourceType() {
-        if (isDynamoDBProfile()) {
-            return DataSourceType.DUMMY_H2; // DynamoDB uses dummy H2 to avoid conflicts
-        } else if (isTestProfile()) {
-            return DataSourceType.H2_MEMORY;
+        if (isTestProfile()) {
+            return DataSourceType.POSTGRESQL_TESTCONTAINERS;
         } else if (isDockerProfile()) {
-            return DataSourceType.H2_MEMORY; // Docker uses H2 for simplicity
+            return DataSourceType.POSTGRESQL_DOCKER;
         } else if (isLocalProfile()) {
             return DataSourceType.POSTGRESQL_LOCAL;
         } else if (isAwsProfile()) {
@@ -176,24 +163,9 @@ public class ProfileConfiguration {
      * Validate profile configuration to ensure consistency
      */
     private void validateProfileConfiguration() {
-        // Check for conflicting profiles
-        boolean hasJpaProfile = Arrays.stream(JPA_PROFILES)
-                .anyMatch(activeProfileSet::contains);
-        boolean hasDynamoDBProfile = isDynamoDBProfile();
-        
-        if (hasJpaProfile && hasDynamoDBProfile) {
-            log.warn("Both JPA and DynamoDB profiles are active. DynamoDB will take precedence.");
-        }
-        
-        // Validate AWS dependencies
-        if (isDynamoDBProfile() && !isAwsProfile()) {
-            log.info("DynamoDB profile is active without AWS profile. Adding AWS profile implicitly.");
-        }
-        
         // Log configuration summary
         log.info("Profile Configuration Summary:");
-        log.info("  Storage: {} ({})", getStorageType(), 
-                isDynamoDBProfile() ? "NoSQL" : "Relational");
+        log.info("  Storage: {} (Relational)", getStorageType());
         log.info("  Environment: {}", getEnvironmentType());
         log.info("  DataSource: {}", getDataSourceType());
         log.info("  Storage Service: {}", getStorageServiceType());
@@ -213,21 +185,15 @@ public class ProfileConfiguration {
     public boolean supportsFeature(Feature feature) {
         switch (feature) {
             case COMPLEX_QUERIES:
-                return isJpaProfile();
-            case HIGH_SCALABILITY:
-                return isDynamoDBProfile();
             case TRANSACTIONS:
-                return isJpaProfile();
-            case GLOBAL_SECONDARY_INDEXES:
-                return isDynamoDBProfile();
             case FULL_TEXT_SEARCH:
-                return isJpaProfile();
-            case AUTO_SCALING:
-                return isDynamoDBProfile();
             case ACID_COMPLIANCE:
                 return isJpaProfile();
+            case HIGH_SCALABILITY:
+            case AUTO_SCALING:
             case EVENTUAL_CONSISTENCY:
-                return isDynamoDBProfile();
+            case GLOBAL_SECONDARY_INDEXES:
+                return false; // These were DynamoDB features
             default:
                 return false;
         }
@@ -235,8 +201,7 @@ public class ProfileConfiguration {
     
     // Enums for type safety
     public enum StorageType {
-        JPA("Java Persistence API"),
-        DYNAMODB("Amazon DynamoDB");
+        JPA("Java Persistence API");
         
         private final String description;
         
@@ -267,8 +232,7 @@ public class ProfileConfiguration {
     }
     
     public enum DataSourceType {
-        H2_MEMORY("H2 In-Memory Database"),
-        DUMMY_H2("H2 Dummy Database for DynamoDB"),
+        POSTGRESQL_TESTCONTAINERS("PostgreSQL TestContainers"),
         POSTGRESQL_LOCAL("PostgreSQL Local"),
         POSTGRESQL_DOCKER("PostgreSQL in Docker"),
         POSTGRESQL_AWS("PostgreSQL on AWS");
@@ -339,10 +303,9 @@ public class ProfileConfiguration {
             case "production":
             case "scaling":
             case "high-availability":
-                return DYNAMODB_PROFILE;
             case "complex-analytics":
             case "reporting":
-                return LOCAL_PROFILE; // JPA for complex queries
+                return AWS_PROFILE; // PostgreSQL on AWS for production
             case "containerized":
                 return DOCKER_PROFILE;
             default:
@@ -355,13 +318,12 @@ public class ProfileConfiguration {
      */
     public String getMigrationPath(String targetProfile) {
         String currentStorageType = getStorageType().name();
-        StorageType targetStorageType = targetProfile.equals(DYNAMODB_PROFILE) ? 
-                StorageType.DYNAMODB : StorageType.JPA;
+        StorageType targetStorageType = StorageType.JPA; // Only JPA supported now
         
         if (getStorageType() == targetStorageType) {
             return "No migration needed - same storage type";
         } else {
-            return String.format("Migration path: %s -> %s (Use DataMigrationService)", 
+            return String.format("Migration path: %s -> %s", 
                     currentStorageType, targetStorageType.name());
         }
     }

@@ -19,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 @Service
 @ConditionalOnProperty(name = "app.aws.sqs.enabled", havingValue = "false", matchIfMissing = true)
+@org.springframework.context.annotation.Profile("!" + com.oddiya.config.ProfileConfiguration.AWS_PROFILE)
 @Slf4j
 public class LocalMessagingService implements MessagingService {
 

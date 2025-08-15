@@ -21,12 +21,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -57,12 +59,12 @@ class TravelPlanControllerTest {
                 .id("plan-123")
                 .title("Tokyo Adventure")
                 .description("Amazing trip to Tokyo")
-                .startDate(LocalDateTime.now().plusDays(30))
-                .endDate(LocalDateTime.now().plusDays(37))
+                .startDate(LocalDate.now().plusDays(30))
+                .endDate(LocalDate.now().plusDays(37))
                 .isPublic(true)
-                .viewCount(0)
+                .viewCount(0L)
                 .userId("user-123")
-                .collaborators(Collections.emptyList())
+                .collaboratorIds(Collections.emptyList())
                 .itineraryItems(Collections.emptyList())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -81,8 +83,8 @@ class TravelPlanControllerTest {
             CreateTravelPlanRequest request = CreateTravelPlanRequest.builder()
                     .title("Tokyo Adventure")
                     .description("Amazing trip to Tokyo")
-                    .startDate(LocalDateTime.now().plusDays(30))
-                    .endDate(LocalDateTime.now().plusDays(37))
+                    .startDate(LocalDate.now().plusDays(30))
+                    .endDate(LocalDate.now().plusDays(37))
                     .isPublic(true)
                     .build();
 
@@ -112,8 +114,8 @@ class TravelPlanControllerTest {
             CreateTravelPlanRequest request = CreateTravelPlanRequest.builder()
                     .title("Tokyo Adventure")
                     .description("Amazing trip to Tokyo")
-                    .startDate(LocalDateTime.now().plusDays(30))
-                    .endDate(LocalDateTime.now().plusDays(37))
+                    .startDate(LocalDate.now().plusDays(30))
+                    .endDate(LocalDate.now().plusDays(37))
                     .isPublic(true)
                     .build();
 
@@ -132,8 +134,8 @@ class TravelPlanControllerTest {
             // Given - request without required title
             CreateTravelPlanRequest request = CreateTravelPlanRequest.builder()
                     .description("Amazing trip to Tokyo")
-                    .startDate(LocalDateTime.now().plusDays(30))
-                    .endDate(LocalDateTime.now().plusDays(37))
+                    .startDate(LocalDate.now().plusDays(30))
+                    .endDate(LocalDate.now().plusDays(37))
                     .build();
 
             // When & Then

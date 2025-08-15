@@ -17,7 +17,7 @@ import org.junit.platform.suite.api.SuiteDisplayName;
  * - Transaction consistency across all services
  * 
  * Configuration:
- * - Uses @SpringBootTest with real beans and H2 database
+ * - Uses @SpringBootTest with real beans and PostgreSQL TestContainers
  * - Tests complete workflows without mocking internal services
  * - Validates data consistency and transaction integrity
  * - Covers authentication, business logic, and data persistence
@@ -70,7 +70,7 @@ class ComprehensiveIntegrationTestSuite {
      * 
      * Technical Features Tested:
      * - Spring Boot @SpringBootTest integration with TestRestTemplate
-     * - H2 in-memory database with @ActiveProfiles("test")
+     * - PostgreSQL TestContainers with @ActiveProfiles("test")
      * - JPA entity relationships and cascade operations
      * - Transaction management and rollback scenarios
      * - JWT authentication and authorization
@@ -151,7 +151,7 @@ class ComprehensiveIntegrationTestSuite {
      * 8. Resource cleanup is validated after each test class
      * 
      * Performance Considerations:
-     * - Tests use H2 in-memory database for speed
+     * - Tests use PostgreSQL TestContainers for speed
      * - Minimal external dependencies for reliability
      * - Efficient test data setup and teardown
      * - Optimized query patterns to reduce test execution time

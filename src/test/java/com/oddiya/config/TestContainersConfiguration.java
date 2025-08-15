@@ -25,7 +25,7 @@ public class TestContainersConfiguration {
 
     /**
      * PostgreSQL container with PostGIS extension for spatial testing
-     * As specified in PRD: Aurora PostgreSQL 15 + PostGIS
+     * Phase 2: Updated for PostgreSQL migration with PostGIS support
      */
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgis/postgis:15-3.3")
@@ -33,6 +33,10 @@ public class TestContainersConfiguration {
             .withUsername("test_user")
             .withPassword("test_password")
             .withInitScript("test-init.sql")
+            .withCommand("postgres", 
+                "-c", "shared_preload_libraries=postgis",
+                "-c", "max_connections=100",
+                "-c", "log_statement=none")
             .withReuse(true);
 
     /**
@@ -60,11 +64,12 @@ public class TestContainersConfiguration {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         
-        // JPA configuration for testing
+        // JPA configuration for testing (Phase 2 PostgreSQL)
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("spring.jpa.show-sql", () -> "false");
         registry.add("spring.jpa.properties.hibernate.format_sql", () -> "false");
-        registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.spatial.dialect.postgis.PostGISDialect");
+        registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.spatial.dialect.postgis.PostgisPG15Dialect");
+        registry.add("spring.jpa.database-platform", () -> "org.hibernate.spatial.dialect.postgis.PostgisPG15Dialect");
         
         // Flyway configuration for testing
         registry.add("spring.flyway.enabled", () -> "true");

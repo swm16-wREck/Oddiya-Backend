@@ -1,0 +1,57 @@
+{
+  "family": "oddiya-app",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "oddiya",
+      "image": "501544476367.dkr.ecr.ap-northeast-2.amazonaws.com/oddiya:latest",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "aws"
+        },
+        {
+          "name": "DATABASE_HOST",
+          "value": "oddiya-db.cluster-cxxx.ap-northeast-2.rds.amazonaws.com"
+        },
+        {
+          "name": "DATABASE_NAME",
+          "value": "oddiya"
+        },
+        {
+          "name": "DATABASE_USERNAME",
+          "value": "oddiya_user"
+        },
+        {
+          "name": "DATABASE_PASSWORD",
+          "value": "oddiya_password"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/oddiya",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

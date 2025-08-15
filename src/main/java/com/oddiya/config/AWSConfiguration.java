@@ -48,25 +48,7 @@ public class AWSConfiguration {
         }
     }
 
-    @Bean
-    @ConditionalOnProperty(name = "app.aws.s3.enabled", havingValue = "true")
-    @Profile("!test")
-    public S3Client s3Client() {
-        log.info("Creating S3Client for region: {}", awsRegion);
-        
-        try {
-            return S3Client.builder()
-                    .region(Region.of(awsRegion))
-                    .credentialsProvider(DefaultCredentialsProvider.create())
-                    .overrideConfiguration(builder -> builder
-                            .apiCallTimeout(Duration.ofMinutes(1))
-                            .apiCallAttemptTimeout(Duration.ofSeconds(30)))
-                    .build();
-        } catch (Exception e) {
-            log.error("Failed to create S3Client: {}", e.getMessage());
-            throw new RuntimeException("AWS S3 client initialization failed", e);
-        }
-    }
+    // S3Client is configured in AWSConfig.java to avoid bean conflicts
 
     @Bean
     @ConditionalOnProperty(name = "app.aws.mock.enabled", havingValue = "true")

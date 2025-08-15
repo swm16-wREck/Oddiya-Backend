@@ -19,7 +19,7 @@ import java.util.List;
 
 /**
  * Base class for repository tests providing common test data and utilities.
- * Uses @DataJpaTest for lightweight JPA testing with H2 in-memory database.
+ * Uses @DataJpaTest for lightweight JPA testing with PostgreSQL TestContainers.
  */
 @DataJpaTest
 @ActiveProfiles("test")

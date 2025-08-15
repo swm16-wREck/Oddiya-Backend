@@ -28,4 +28,21 @@ public class ReviewResponse {
     private Boolean isHelpful;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    
+    // For compatibility with tests - return user info as UserProfileResponse
+    public UserProfileResponse getUser() {
+        return UserProfileResponse.builder()
+                .id(this.userId)
+                .name(this.userName)
+                .profileImageUrl(this.userProfilePicture)
+                .build();
+    }
+    
+    // For compatibility with tests - return place info as PlaceResponse
+    public PlaceResponse getPlace() {
+        return PlaceResponse.builder()
+                .id(this.placeId)
+                .name(this.placeName)
+                .build();
+    }
 }

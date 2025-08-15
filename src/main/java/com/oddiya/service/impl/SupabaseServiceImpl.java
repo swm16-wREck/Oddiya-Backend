@@ -30,13 +30,13 @@ public class SupabaseServiceImpl implements SupabaseService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     
-    @Value("${supabase.url}")
+    @Value("${app.supabase.url}")
     private String supabaseUrl;
     
-    @Value("${supabase.anon-key}")
+    @Value("${app.supabase.anon-key}")
     private String supabaseAnonKey;
     
-    @Value("${supabase.service-key}")
+    @Value("${app.supabase.service-key}")
     private String supabaseServiceKey;
     
     @Override

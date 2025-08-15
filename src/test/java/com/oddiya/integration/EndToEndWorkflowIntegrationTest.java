@@ -10,6 +10,7 @@ import org.springframework.test.annotation.DirtiesContext;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -76,7 +77,7 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         userId = authResponse.getUser().getId();
 
         // Verify user is properly stored in database
-        Optional<User> savedUser = userRepository.findById(Long.parseLong(userId));
+        Optional<User> savedUser = userRepository.findById(userId);
         assertThat(savedUser).isPresent();
         assertThat(savedUser.get().getEmail()).isEqualTo(loginRequest.getEmail());
         assertThat(savedUser.get().getProvider()).isEqualTo("google");
@@ -136,7 +137,7 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         createdPlaceId = placeResponse.getId();
 
         // Verify place is stored in database with proper initial values
-        Optional<Place> savedPlace = placeRepository.findById(Long.parseLong(createdPlaceId));
+        Optional<Place> savedPlace = placeRepository.findById(createdPlaceId);
         assertThat(savedPlace).isPresent();
         assertThat(savedPlace.get().getName()).isEqualTo(placeRequest.getName());
         assertThat(savedPlace.get().getReviewCount()).isEqualTo(0);
@@ -155,24 +156,24 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
                 .placeId(testPlace1.getId().toString()) // Use pre-existing test place
                 .dayNumber(1)
                 .sequence(1)
-                .startTime("09:00")
-                .endTime("11:30")
+                .startTime(LocalDateTime.now().plusDays(30).withHour(9).withMinute(0))
+                .endTime(LocalDateTime.now().plusDays(30).withHour(11).withMinute(30))
                 .notes("Start the day at Seoul Tower for panoramic city views")
                 .build(),
             CreateItineraryItemRequest.builder()
                 .placeId(createdPlaceId) // Use newly created cafe
                 .dayNumber(1)
                 .sequence(2)
-                .startTime("12:00")
-                .endTime("14:00")
+                .startTime(LocalDateTime.now().plusDays(30).withHour(12).withMinute(0))
+                .endTime(LocalDateTime.now().plusDays(30).withHour(14).withMinute(0))
                 .notes("Lunch and coffee break at cozy cafe")
                 .build(),
             CreateItineraryItemRequest.builder()
                 .placeId(testPlace2.getId().toString()) // Use pre-existing test place
                 .dayNumber(2)
                 .sequence(1)
-                .startTime("10:00")
-                .endTime("16:00")
+                .startTime(LocalDateTime.now().plusDays(30).withHour(10).withMinute(0))
+                .endTime(LocalDateTime.now().plusDays(30).withHour(16).withMinute(0))
                 .notes("Relax at the beach and enjoy water activities")
                 .build()
         );
@@ -221,15 +222,15 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         createdTravelPlanId = planResponse.getId();
 
         // Verify travel plan is stored with proper relationships
-        Optional<TravelPlan> savedPlan = travelPlanRepository.findById(Long.parseLong(createdTravelPlanId));
+        Optional<TravelPlan> savedPlan = travelPlanRepository.findById(createdTravelPlanId);
         assertThat(savedPlan).isPresent();
-        assertThat(savedPlan.get().getUser().getId()).isEqualTo(Long.parseLong(userId));
+        assertThat(savedPlan.get().getUser().getId()).isEqualTo(userId);
         assertThat(savedPlan.get().getTitle()).isEqualTo(travelPlanRequest.getTitle());
         assertThat(savedPlan.get().isDeleted()).isFalse();
 
         // Verify all itinerary items are created and properly ordered
         List<ItineraryItem> savedItems = itineraryItemRepository
-            .findByTravelPlanIdOrderByDayNumberAscSequenceAsc(Long.parseLong(createdTravelPlanId));
+            .findByTravelPlanIdOrderByDayNumberAscSequenceAsc(createdTravelPlanId);
         assertThat(savedItems).hasSize(3);
         
         // Verify first item (Day 1, Sequence 1 - Seoul Tower)
@@ -244,7 +245,7 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         ItineraryItem item2 = savedItems.get(1);
         assertThat(item2.getDayNumber()).isEqualTo(1);
         assertThat(item2.getSequence()).isEqualTo(2);
-        assertThat(item2.getPlace().getId()).isEqualTo(Long.parseLong(createdPlaceId));
+        assertThat(item2.getPlace().getId()).isEqualTo(createdPlaceId);
 
         // Verify third item (Day 2, Sequence 1 - Beach)
         ItineraryItem item3 = savedItems.get(2);
@@ -258,7 +259,7 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
     @DisplayName("Step 4: Submit detailed reviews and verify rating calculations")
     void step4_SubmitDetailedReviewsAndVerifyRatingCalculations() throws InterruptedException {
         // Given: User has visited places from the travel plan and wants to leave reviews
-        Place cafePlace = placeRepository.findById(Long.parseLong(createdPlaceId)).orElse(null);
+        Place cafePlace = placeRepository.findById(createdPlaceId).orElse(null);
         assertThat(cafePlace).isNotNull();
         
         Double initialRating = cafePlace.getRating();
@@ -314,16 +315,16 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         waitForAsyncOperations();
 
         // Verify review is stored in database
-        Optional<User> userWithReviews = userRepository.findById(Long.parseLong(userId));
+        Optional<User> userWithReviews = userRepository.findById(userId);
         assertThat(userWithReviews).isPresent();
         
         boolean reviewExists = userWithReviews.get().getReviews().stream()
-            .anyMatch(r -> r.getPlace().getId().equals(Long.parseLong(createdPlaceId)) && 
+            .anyMatch(r -> r.getPlace().getId().equals(createdPlaceId) && 
                           r.getRating().equals(5));
         assertThat(reviewExists).isTrue();
 
         // Verify place rating is recalculated correctly
-        Place updatedPlace = placeRepository.findById(Long.parseLong(createdPlaceId)).orElse(null);
+        Place updatedPlace = placeRepository.findById(createdPlaceId).orElse(null);
         assertThat(updatedPlace).isNotNull();
         assertThat(updatedPlace.getReviewCount()).isEqualTo(initialReviewCount + 1);
         
@@ -336,7 +337,7 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
     @DisplayName("Step 5: Verify complete data integrity and relationships")
     void step5_VerifyCompleteDataIntegrityAndRelationships() {
         // Verify User data integrity
-        Optional<User> savedUser = userRepository.findById(Long.parseLong(userId));
+        Optional<User> savedUser = userRepository.findById(userId);
         assertThat(savedUser).isPresent();
         
         User user = savedUser.get();
@@ -346,7 +347,7 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         assertThat(user.getReviews()).hasSize(1);
 
         // Verify Place data integrity
-        Optional<Place> savedPlace = placeRepository.findById(Long.parseLong(createdPlaceId));
+        Optional<Place> savedPlace = placeRepository.findById(createdPlaceId);
         assertThat(savedPlace).isPresent();
         
         Place place = savedPlace.get();
@@ -356,12 +357,12 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         assertThat(place.getReviews()).hasSize(1);
 
         // Verify TravelPlan data integrity and relationships
-        Optional<TravelPlan> savedPlan = travelPlanRepository.findById(Long.parseLong(createdTravelPlanId));
+        Optional<TravelPlan> savedPlan = travelPlanRepository.findById(createdTravelPlanId);
         assertThat(savedPlan).isPresent();
         
         TravelPlan plan = savedPlan.get();
         assertThat(plan.getTitle()).isEqualTo("E2E Seoul & Busan Adventure");
-        assertThat(plan.getUser().getId()).isEqualTo(Long.parseLong(userId));
+        assertThat(plan.getUser().getId()).isEqualTo(userId);
         assertThat(plan.getItineraryItems()).hasSize(3);
         assertThat(plan.getStatus()).isEqualTo(TravelPlanStatus.DRAFT);
 
@@ -374,7 +375,7 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         assertThat(containsSeoulTower).isTrue();
 
         boolean containsNewCafe = itineraryItems.stream()
-            .anyMatch(item -> item.getPlace().getId().equals(Long.parseLong(createdPlaceId)));
+            .anyMatch(item -> item.getPlace().getId().equals(createdPlaceId));
         assertThat(containsNewCafe).isTrue();
 
         boolean containsBeach = itineraryItems.stream()
@@ -386,12 +387,12 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         assertThat(userReviews).hasSize(1);
         
         Review review = userReviews.get(0);
-        assertThat(review.getPlace().getId()).isEqualTo(Long.parseLong(createdPlaceId));
-        assertThat(review.getUser().getId()).isEqualTo(Long.parseLong(userId));
+        assertThat(review.getPlace().getId()).isEqualTo(createdPlaceId);
+        assertThat(review.getUser().getId()).isEqualTo(userId);
         assertThat(review.getRating()).isEqualTo(5);
 
         // Verify bidirectional relationships
-        assertThat(place.getReviews().get(0).getUser().getId()).isEqualTo(Long.parseLong(userId));
+        assertThat(place.getReviews().get(0).getUser().getId()).isEqualTo(userId);
         
         // Verify no orphaned data exists
         assertThat(plan.getUser()).isNotNull();
@@ -478,7 +479,7 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
     @DisplayName("Step 7: Test token refresh and session continuity")
     void step7_TestTokenRefreshAndSessionContinuity() throws InterruptedException {
         // Given: Current refresh token
-        Optional<User> currentUser = userRepository.findById(Long.parseLong(userId));
+        Optional<User> currentUser = userRepository.findById(userId);
         assertThat(currentUser).isPresent();
         String currentRefreshToken = currentUser.get().getRefreshToken();
 
@@ -539,17 +540,17 @@ class EndToEndWorkflowIntegrationTest extends OddiyaIntegrationTestBase {
         assertThat(totalItineraryItems).isEqualTo(3); // 3 items created in our travel plan
 
         // Verify no data corruption occurred during the workflow
-        Optional<User> finalUser = userRepository.findById(Long.parseLong(userId));
+        Optional<User> finalUser = userRepository.findById(userId);
         assertThat(finalUser).isPresent();
         assertThat(finalUser.get().isDeleted()).isFalse();
         assertThat(finalUser.get().isActive()).isTrue();
 
-        Optional<Place> finalPlace = placeRepository.findById(Long.parseLong(createdPlaceId));
+        Optional<Place> finalPlace = placeRepository.findById(createdPlaceId);
         assertThat(finalPlace).isPresent();
         assertThat(finalPlace.get().isDeleted()).isFalse();
         assertThat(finalPlace.get().getReviewCount()).isEqualTo(1);
 
-        Optional<TravelPlan> finalPlan = travelPlanRepository.findById(Long.parseLong(createdTravelPlanId));
+        Optional<TravelPlan> finalPlan = travelPlanRepository.findById(createdTravelPlanId);
         assertThat(finalPlan).isPresent();
         assertThat(finalPlan.get().isDeleted()).isFalse();
         assertThat(finalPlan.get().getItineraryItems()).hasSize(3);
