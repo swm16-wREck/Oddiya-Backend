@@ -1,6 +1,7 @@
 name: Test Results & Reporting
 
 on:
+  workflow_call:  # Make workflow reusable
   push:
     branches: [ main, develop ]
   pull_request:

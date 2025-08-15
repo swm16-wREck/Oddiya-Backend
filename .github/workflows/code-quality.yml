@@ -1,6 +1,7 @@
 name: Code Quality
 
 on:
+  workflow_call:  # Make workflow reusable
   push:
     branches: [ main, develop ]
   pull_request:
@@ -258,25 +259,8 @@ jobs:
       
       - name: Run OWASP Dependency Check
         run: |
-          # Add dependency check plugin if not present
-          if ! grep -q "dependencyCheck" build.gradle; then
-            echo "Adding OWASP Dependency Check plugin..."
-            cat >> build.gradle << 'EOF'
-
-// OWASP Dependency Check Plugin
-plugins {
-    id 'org.owasp.dependencycheck' version '8.4.2'
-}
-
-dependencyCheck {
-    format = 'ALL'
-    suppressionFile = 'dependency-check-suppressions.xml'
-    failBuildOnCVSS = 7.0
-    analyzedTypes = ['jar']
-    analyzeConfiguration = true
-}
-EOF
-          fi
+          # Skip adding plugin - should be in build.gradle already
+          echo "OWASP Dependency Check will be configured in build.gradle"
           
           # Create suppressions file if it doesn't exist
           if [ ! -f dependency-check-suppressions.xml ]; then

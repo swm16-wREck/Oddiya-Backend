@@ -1,6 +1,7 @@
 name: Integration Tests
 
 on:
+  workflow_call:  # Make workflow reusable
   pull_request:
     branches: [ main, develop ]
     types: [opened, synchronize, ready_for_review]

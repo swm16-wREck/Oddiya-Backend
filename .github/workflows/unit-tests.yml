@@ -1,6 +1,7 @@
 name: Unit Tests
 
 on:
+  workflow_call:  # Make workflow reusable
   push:
     branches: [ main, develop, feature/*, bugfix/* ]
   pull_request:
