@@ -109,21 +109,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client jq
       
-      - name: Run database migrations
-        run: |
-          chmod +x scripts/deployment/migrate-database.sh
-          ./scripts/deployment/migrate-database.sh ${{ needs.pre-deployment-checks.outputs.environment }}
-        env:
-          SNS_TOPIC_ARN: ${{ secrets.SNS_TOPIC_ARN }}
+      # Skip database migrations - using JPA DDL auto-update instead
+      # Uncomment below if you want to use Flyway migrations with AWS Secrets Manager
+      # - name: Run database migrations
+      #   run: |
+      #     chmod +x scripts/deployment/migrate-database.sh
+      #     ./scripts/deployment/migrate-database.sh ${{ needs.pre-deployment-checks.outputs.environment }}
+      #   env:
+      #     SNS_TOPIC_ARN: ${{ secrets.SNS_TOPIC_ARN }}
       
-      - name: Upload migration logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: migration-logs-${{ needs.pre-deployment-checks.outputs.environment }}
-          path: /tmp/db-migration-*.log
-          retention-days: 30
-          if-no-files-found: ignore
+      # Migration logs upload skipped since we're using JPA DDL auto-update
 
   build-and-deploy:
     name: Build and Deploy
