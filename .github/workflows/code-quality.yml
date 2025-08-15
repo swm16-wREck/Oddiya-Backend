@@ -264,20 +264,10 @@ jobs:
           
           # Create suppressions file if it doesn't exist
           if [ ! -f dependency-check-suppressions.xml ]; then
-            cat > dependency-check-suppressions.xml << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
-    <!-- Example suppression - remove or modify as needed -->
-    <!--
-    <suppress>
-        <notes><![CDATA[
-        Known false positive for spring boot
-        ]]></notes>
-        <cve>CVE-XXXX-XXXX</cve>
-    </suppress>
-    -->
-</suppressions>
-EOF
+            echo '<?xml version="1.0" encoding="UTF-8"?>' > dependency-check-suppressions.xml
+            echo '<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">' >> dependency-check-suppressions.xml
+            echo '    <!-- Example suppression - remove or modify as needed -->' >> dependency-check-suppressions.xml
+            echo '</suppressions>' >> dependency-check-suppressions.xml
           fi
           
           ./gradlew dependencyCheckAnalyze --no-daemon
