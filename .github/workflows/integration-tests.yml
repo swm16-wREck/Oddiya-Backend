@@ -188,7 +188,7 @@ jobs:
       - name: Generate integration test report
         if: always()
         run: |
-          ./gradlew testReport --no-daemon
+          ./gradlew jacocoTestReport --no-daemon || true
           echo "## Integration Test Results - ${{ matrix.test-suite }}" >> $GITHUB_STEP_SUMMARY
           if [ -f build/reports/tests/test/index.html ]; then
             echo "✅ Test results generated successfully" >> $GITHUB_STEP_SUMMARY
