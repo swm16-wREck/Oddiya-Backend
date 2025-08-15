@@ -8,7 +8,7 @@ spring:
   
   # Test Database Configuration with Testcontainers
   datasource:
-    url: jdbc:tc:postgresql:15://localhost/testdb?TC_INITSCRIPT=test-init.sql&TC_DAEMON=true
+    url: jdbc:tc:postgresql:15://localhost/testdb?TC_INITSCRIPT=test-init.sql&TC_DAEMON=true&TC_REUSABLE=true
     driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
     username: test
     password: test
