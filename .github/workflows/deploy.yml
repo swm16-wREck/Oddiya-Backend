@@ -347,14 +347,15 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
           
-      - name: OWASP Dependency Check
-        continue-on-error: true
-        run: |
-          ./gradlew dependencyCheckAnalyze --no-daemon || echo "OWASP check failed, continuing anyway"
-          
-      - name: Upload OWASP results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: owasp-results
-          path: build/reports/dependency-check-report.html
+      # OWASP Dependency Check disabled due to CPE parsing errors
+      # - name: OWASP Dependency Check
+      #   continue-on-error: true
+      #   run: |
+      #     ./gradlew dependencyCheckAnalyze --no-daemon || echo "OWASP check failed, continuing anyway"
+      #   
+      # - name: Upload OWASP results
+      #   uses: actions/upload-artifact@v4
+      #   if: always()
+      #   with:
+      #     name: owasp-results
+      #     path: build/reports/dependency-check-report.html

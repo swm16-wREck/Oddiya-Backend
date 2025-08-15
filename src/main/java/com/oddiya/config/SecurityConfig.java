@@ -75,8 +75,8 @@ public class SecurityConfig {
             
             // Security Headers - A02: Cryptographic Failures, A05: Security Misconfiguration
             .headers(headers -> headers
-                .frameOptions().deny()
-                .contentTypeOptions().and()
+                .frameOptions(frameOptions -> frameOptions.deny())
+                .contentTypeOptions(contentTypeOptions -> {})
                 .httpStrictTransportSecurity(hstsConfig -> hstsConfig
                     .maxAgeInSeconds(hstsMaxAge)
                     .includeSubDomains(true)
@@ -177,7 +177,7 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .headers(headers -> headers.frameOptions().disable()) // Allow frame options for testing
+            .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable())) // Allow frame options for testing
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/**").permitAll() // Allow all in test
             )
