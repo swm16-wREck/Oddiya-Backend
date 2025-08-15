@@ -112,23 +112,30 @@ jobs:
 
       - name: 🧬 Run Mutation Tests - ${{ matrix.profile }}
         run: |
+          # PITest profiles - use property-based configuration
           case "${{ matrix.profile }}" in
             "fast")
-              ./gradlew pitestFast
+              # Fast profile - only critical service classes
+              ./gradlew pitest -Ppitest.targetClasses='com.oddiya.service.AuthService,com.oddiya.service.UserService'
               ;;
             "critical")
-              ./gradlew pitestCritical
+              # Critical profile - auth and security related
+              ./gradlew pitest -Ppitest.targetClasses='com.oddiya.service.Auth*,com.oddiya.security.*'
               ;;
             "service")
-              ./gradlew pitestService
+              # Service layer testing
+              ./gradlew pitest -Ppitest.targetClasses='com.oddiya.service.*'
               ;;
             "controller")
-              ./gradlew pitestController
+              # Controller layer testing
+              ./gradlew pitest -Ppitest.targetClasses='com.oddiya.controller.*'
               ;;
             "repository")
-              ./gradlew pitestRepository
+              # Repository layer testing
+              ./gradlew pitest -Ppitest.targetClasses='com.oddiya.repository.*'
               ;;
             "all")
+              # Full mutation testing
               ./gradlew pitest
               ;;
             *)
