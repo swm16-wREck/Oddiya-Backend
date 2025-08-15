@@ -20,6 +20,14 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+  security-events: write
+  id-token: write
+
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: oddiya

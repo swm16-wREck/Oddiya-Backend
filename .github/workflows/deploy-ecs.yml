@@ -5,6 +5,12 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+  checks: write
+
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: oddiya
