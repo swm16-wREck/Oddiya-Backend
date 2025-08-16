@@ -309,7 +309,7 @@ jobs:
         },
         {
           "name": "DATABASE_PASSWORD",
-          "value": "dnjswltnduftpdls"
+          "value": "${{ secrets.PROD_DATABASE_PASSWORD }}"
         },
         {
           "name": "SPRING_DATASOURCE_URL",
@@ -321,7 +321,7 @@ jobs:
         },
         {
           "name": "SPRING_DATASOURCE_PASSWORD",
-          "value": "dnjswltnduftpdls"
+          "value": "${{ secrets.PROD_DATABASE_PASSWORD }}"
         }
       ],
       "logConfiguration": {
