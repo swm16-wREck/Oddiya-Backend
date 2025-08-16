@@ -3,13 +3,22 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
 
-# Force rebuild - updated 2025-08-14 for Phase 2 PostgreSQL support
-# Copy everything at once to avoid caching issues
+# Install wget for downloading Gradle if needed
+RUN apk add --no-cache wget
+
+# Copy gradle wrapper files first
+COPY gradlew .
+COPY gradle gradle
+
+# Download Gradle distribution to avoid timeout during build
+RUN ./gradlew --version || true
+
+# Copy project files
 COPY . .
 
-# Clean everything before building to ensure fresh build
-RUN rm -rf build/ .gradle/ && \
-    ./gradlew clean bootJar --no-daemon --no-build-cache -x test
+# Build the application (Gradle is already downloaded)
+RUN ./gradlew clean bootJar --no-daemon --offline -x test || \
+    ./gradlew clean bootJar --no-daemon -x test
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
