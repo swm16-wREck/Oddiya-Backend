@@ -56,7 +56,7 @@ public class ComprehensiveTestDataFactory {
         return User.builder()
                 .id(id)
                 .email(faker.internet().emailAddress())
-                .nickname(isKorean ? generateKoreanNickname() : faker.name().username())
+                .nickname(isKorean ? generateKoreanNickname() : faker.internet().username())
                 .profileImageUrl(faker.internet().url())
                 .provider("google")
                 .providerId(UUID.randomUUID().toString())

@@ -173,6 +173,28 @@ tasks.named('test') {
     finalizedBy jacocoTestReport
 }
 
+// Integration Test Task
+task integrationTest(type: Test) {
+    description = 'Runs integration tests'
+    group = 'verification'
+    
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+    
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+    
+    shouldRunAfter test
+}
+
+check.dependsOn integrationTest
+
 // Compiler options to show deprecation details
 tasks.withType(JavaCompile) {
     options.compilerArgs += ['-Xlint:deprecation', '-Xlint:unchecked']
@@ -425,13 +447,14 @@ pitest {
     ])
     
     // Mutation operators - comprehensive set
+    // Using PIT 1.16.1 compatible mutator names
     mutators.set([
         'CONDITIONALS_BOUNDARY',
         'INCREMENTS',
         'INVERT_NEGS',
         'MATH',
         'NEGATE_CONDITIONALS',
-        'RETURN_VALS',
+        'RETURNS',  // Changed from RETURN_VALS
         'VOID_METHOD_CALLS',
         'NON_VOID_METHOD_CALLS',
         'CONSTRUCTOR_CALLS',

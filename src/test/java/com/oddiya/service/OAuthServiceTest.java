@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -115,7 +116,7 @@ class OAuthServiceTest {
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
             when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.bodyToMono(Map.class)).thenReturn(Mono.just(responseBody));
+            when(responseSpec.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})).thenReturn(Mono.just(responseBody));
 
             // When
             Map<String, Object> result = oAuthService.verifyToken("google", "test-id-token");
@@ -137,7 +138,7 @@ class OAuthServiceTest {
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
             when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.bodyToMono(Map.class)).thenReturn(Mono.just(null));
+            when(responseSpec.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})).thenReturn(Mono.empty());
 
             // When & Then
             assertThatThrownBy(() -> oAuthService.verifyToken("google", "invalid-token"))
@@ -158,7 +159,7 @@ class OAuthServiceTest {
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
             when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.bodyToMono(Map.class)).thenReturn(Mono.just(responseBody));
+            when(responseSpec.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})).thenReturn(Mono.just(responseBody));
 
             // When & Then
             assertThatThrownBy(() -> oAuthService.verifyToken("google", "invalid-token"))
@@ -195,7 +196,7 @@ class OAuthServiceTest {
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
             when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.bodyToMono(Map.class)).thenReturn(Mono.just(responseBody));
+            when(responseSpec.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})).thenReturn(Mono.just(responseBody));
 
             // When
             Map<String, Object> result = oAuthService.verifyToken("apple", "apple-id-token");
@@ -206,6 +207,7 @@ class OAuthServiceTest {
             assertThat(result.get("email")).isEqualTo("apple@example.com");
 
             verify(requestBodySpec).bodyValue(argThat(body -> {
+                @SuppressWarnings("unchecked")
                 Map<String, Object> requestBody = (Map<String, Object>) body;
                 return "apple".equals(requestBody.get("provider"));
             }));
@@ -444,7 +446,7 @@ class OAuthServiceTest {
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
             when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.bodyToMono(Map.class)).thenReturn(Mono.just(verifyResponse));
+            when(responseSpec.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})).thenReturn(Mono.just(verifyResponse));
 
             when(supabaseService.signInWithOAuth("google", "test-token")).thenReturn(mockAuthResponse);
 
@@ -535,7 +537,7 @@ class OAuthServiceTest {
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
             when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.bodyToMono(Map.class)).thenReturn(Mono.just(responseBody));
+            when(responseSpec.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})).thenReturn(Mono.just(responseBody));
 
             // When
             Map<String, Object> result = oAuthService.verifyToken("unknown-provider", "test-token");
