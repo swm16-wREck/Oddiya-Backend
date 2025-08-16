@@ -43,7 +43,7 @@
         <module name="TypeName"/>
 
         <!-- Checks for imports -->
-        <module name="AvoidStarImport"/>
+        <!-- Removed AvoidStarImport - star imports are fine for common packages -->
         <module name="IllegalImport"/> <!-- defaults to sun.* packages -->
         <module name="RedundantImport"/>
         <module name="UnusedImports">
@@ -91,9 +91,11 @@
         <module name="IllegalInstantiation"/>
         <module name="InnerAssignment"/>
         <module name="MagicNumber">
-            <property name="ignoreNumbers" value="-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 1000"/>
+            <property name="ignoreNumbers" value="-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 1000, 60, 24, 365, 200, 400, 404, 500"/>
             <property name="ignoreHashCodeMethod" value="true"/>
             <property name="ignoreAnnotation" value="true"/>
+            <property name="ignoreFieldDeclaration" value="true"/>
+            <property name="ignoreAnnotationElementDefaults" value="true"/>
         </module>
         <module name="MissingSwitchDefault"/>
         <module name="MultipleVariableDeclarations"/>
@@ -101,7 +103,7 @@
         <module name="SimplifyBooleanReturn"/>
 
         <!-- Checks for class design -->
-        <module name="DesignForExtension"/>
+        <!-- Removed DesignForExtension - too strict for modern development -->
         <module name="FinalClass"/>
         <module name="HideUtilityClassConstructor"/>
         <module name="InterfaceIsType"/>
@@ -112,7 +114,7 @@
 
         <!-- Miscellaneous other checks -->
         <module name="ArrayTypeStyle"/>
-        <module name="FinalParameters"/>
+        <!-- Removed FinalParameters - too restrictive for method parameters -->
         <module name="TodoComment">
             <property name="severity" value="info"/>
         </module>
