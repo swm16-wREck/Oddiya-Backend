@@ -196,86 +196,57 @@ jobs:
             echo "✅ Current task definition downloaded"
           else
             echo "⚠️ Task definition not found, creating new one"
-            cat > current-task-definition.json <<'TASKDEF'
-{
-  "family": "$TASK_FAMILY",
-  "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "512",
-  "memory": "1024",
-  "taskRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
-  "executionRoleArn": "arn:aws:iam::501544476367:role/ecsTaskExecutionRole",
-  "containerDefinitions": [
-    {
-      "name": "oddiya",
-      "image": "placeholder",
-      "essential": true,
-      "portMappings": [
-        {
-          "containerPort": 8080,
-          "protocol": "tcp"
-        }
-      ],
-      "environment": [
-        {
-          "name": "SPRING_PROFILES_ACTIVE",
-          "value": "postgresql,production"
-        },
-        {
-          "name": "DATABASE_HOST",
-          "value": "$DATABASE_HOST"
-        },
-        {
-          "name": "DATABASE_PORT",
-          "value": "5432"
-        },
-        {
-          "name": "DATABASE_NAME",
-          "value": "oddiya"
-        },
-        {
-          "name": "DATABASE_USERNAME",
-          "value": "$DATABASE_USERNAME"
-        },
-        {
-          "name": "DATABASE_PASSWORD",
-          "value": "$DATABASE_PASSWORD"
-        },
-        {
-          "name": "SPRING_DATASOURCE_URL",
-          "value": "jdbc:postgresql://$DATABASE_HOST:5432/oddiya"
-        }
-      ],
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group": "/ecs/$TASK_FAMILY",
-          "awslogs-region": "$AWS_REGION",
-          "awslogs-stream-prefix": "ecs",
-          "awslogs-create-group": "true"
-        }
-      },
-      "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
-        "interval": 30,
-        "timeout": 5,
-        "retries": 3,
-        "startPeriod": 60
-      }
-    }
-  ]
-}
-TASKDEF
-            # Replace variables in the JSON file
-            export TASK_FAMILY="${{ steps.vars.outputs.task-family }}"
-            export DATABASE_HOST="${{ secrets.PROD_DATABASE_HOST || 'oddiya-db.c5qzkoxebfro.ap-northeast-2.rds.amazonaws.com' }}"
-            export DATABASE_USERNAME="${{ secrets.PROD_DATABASE_USERNAME || 'oddiya_user' }}"
-            export DATABASE_PASSWORD="${{ secrets.PROD_DATABASE_PASSWORD }}"
-            export AWS_REGION="${{ env.AWS_REGION }}"
             
-            # Use envsubst to replace variables
-            envsubst < current-task-definition.json > task-def-temp.json
-            mv task-def-temp.json current-task-definition.json
+            # Create task definition JSON using jq for proper JSON formatting
+            echo '{}' | jq \
+              --arg family "${{ steps.vars.outputs.task-family }}" \
+              --arg image "placeholder" \
+              --arg dbhost "${{ secrets.PROD_DATABASE_HOST || 'oddiya-db.c5qzkoxebfro.ap-northeast-2.rds.amazonaws.com' }}" \
+              --arg dbuser "${{ secrets.PROD_DATABASE_USERNAME || 'oddiya_user' }}" \
+              --arg dbpass "${{ secrets.PROD_DATABASE_PASSWORD }}" \
+              --arg region "${{ env.AWS_REGION }}" \
+              --arg logsgroup "/ecs/${{ steps.vars.outputs.task-family }}" \
+              '.family = $family |
+              .networkMode = "awsvpc" |
+              .requiresCompatibilities = ["FARGATE"] |
+              .cpu = "512" |
+              .memory = "1024" |
+              .taskRoleArn = "arn:aws:iam::501544476367:role/ecsTaskExecutionRole" |
+              .executionRoleArn = "arn:aws:iam::501544476367:role/ecsTaskExecutionRole" |
+              .containerDefinitions = [{
+                name: "oddiya",
+                image: $image,
+                essential: true,
+                portMappings: [{
+                  containerPort: 8080,
+                  protocol: "tcp"
+                }],
+                environment: [
+                  {name: "SPRING_PROFILES_ACTIVE", value: "postgresql,production"},
+                  {name: "DATABASE_HOST", value: $dbhost},
+                  {name: "DATABASE_PORT", value: "5432"},
+                  {name: "DATABASE_NAME", value: "oddiya"},
+                  {name: "DATABASE_USERNAME", value: $dbuser},
+                  {name: "DATABASE_PASSWORD", value: $dbpass},
+                  {name: "SPRING_DATASOURCE_URL", value: ("jdbc:postgresql://" + $dbhost + ":5432/oddiya")}
+                ],
+                logConfiguration: {
+                  logDriver: "awslogs",
+                  options: {
+                    "awslogs-group": $logsgroup,
+                    "awslogs-region": $region,
+                    "awslogs-stream-prefix": "ecs",
+                    "awslogs-create-group": "true"
+                  }
+                },
+                healthCheck: {
+                  command: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
+                  interval: 30,
+                  timeout: 5,
+                  retries: 3,
+                  startPeriod: 60
+                }
+              }]' > current-task-definition.json
             
             echo "✅ New task definition created"
           fi
