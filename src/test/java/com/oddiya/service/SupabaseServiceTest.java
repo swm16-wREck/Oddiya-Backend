@@ -29,6 +29,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SupabaseService Tests")
+@SuppressWarnings("unchecked")  // Suppress unchecked warnings for Mockito WebClient mocking
 class SupabaseServiceTest {
 
     @Mock

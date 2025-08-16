@@ -100,6 +100,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should successfully verify OAuth token")
+        @SuppressWarnings("unchecked")
         void shouldSuccessfullyVerifyOAuthToken() {
             // Given
             Map<String, Object> userInfo = new HashMap<>();
@@ -130,6 +131,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should throw exception when response is null")
+        @SuppressWarnings("unchecked")
         void shouldThrowExceptionWhenResponseIsNull() {
             // Given
             when(webClient.post()).thenReturn(requestBodyUriSpec);
@@ -148,6 +150,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should throw exception when user not in response")
+        @SuppressWarnings("unchecked")
         void shouldThrowExceptionWhenUserNotInResponse() {
             // Given
             Map<String, Object> responseBody = new HashMap<>();
@@ -181,6 +184,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should handle different providers")
+        @SuppressWarnings("unchecked")
         void shouldHandleDifferentProviders() {
             // Given
             Map<String, Object> userInfo = new HashMap<>();
@@ -220,6 +224,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should successfully authenticate with Google auth code")
+        @SuppressWarnings("unchecked")
         void shouldSuccessfullyAuthenticateWithGoogleAuthCode() throws Exception {
             // Given
             String authCode = "google-auth-code";
@@ -249,6 +254,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should throw exception when Google token exchange fails")
+        @SuppressWarnings("unchecked")
         void shouldThrowExceptionWhenGoogleTokenExchangeFails() {
             // Given
             when(oAuthConfig.getGoogle()).thenReturn(googleProvider);
@@ -267,6 +273,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should throw exception when JSON parsing fails")
+        @SuppressWarnings("unchecked")
         void shouldThrowExceptionWhenJsonParsingFails() throws Exception {
             // Given
             String tokenResponse = "invalid-json";
@@ -322,6 +329,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should successfully authenticate with Apple auth code")
+        @SuppressWarnings("unchecked")
         void shouldSuccessfullyAuthenticateWithAppleAuthCode() throws Exception {
             // Given
             String authCode = "apple-auth-code";
@@ -351,6 +359,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should throw exception when Apple token exchange fails")
+        @SuppressWarnings("unchecked")
         void shouldThrowExceptionWhenAppleTokenExchangeFails() {
             // Given
             when(oAuthConfig.getApple()).thenReturn(appleProvider);
@@ -398,6 +407,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should generate placeholder Apple client secret")
+        @SuppressWarnings("unchecked")
         void shouldGeneratePlaceholderAppleClientSecret() throws Exception {
             // Given
             String authCode = "apple-auth-code";
@@ -431,6 +441,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should handle full OAuth flow with token verification")
+        @SuppressWarnings("unchecked")
         void shouldHandleFullOAuthFlowWithTokenVerification() {
             // Given
             Map<String, Object> userInfo = new HashMap<>();
@@ -523,6 +534,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should handle unknown provider gracefully")
+        @SuppressWarnings("unchecked")
         void shouldHandleUnknownProviderGracefully() {
             // Given
             Map<String, Object> userInfo = new HashMap<>();
@@ -549,6 +561,7 @@ class OAuthServiceTest {
 
         @Test
         @DisplayName("Should handle malformed JSON response")
+        @SuppressWarnings("unchecked")
         void shouldHandleMalformedJsonResponse() throws Exception {
             // Given
             String malformedJson = "invalid-json-response";
