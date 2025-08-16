@@ -5,8 +5,8 @@ plugins {
     id 'jacoco'
     id 'org.sonarqube' version '5.1.0.4882'
     // id 'org.owasp.dependencycheck' version '8.4.2'  // Temporarily disabled due to CPE parsing errors
-    id 'pmd'
-    id 'checkstyle'
+    // id 'pmd' // Disabled for deployment (Java compatibility issues)
+    // id 'checkstyle' // Disabled for deployment
     id 'com.github.spotbugs' version '5.0.14'
     // id 'org.springframework.cloud.contract' version '4.1.1'  // Temporarily commented for PITest setup
     id 'info.solidsoft.pitest' version '1.15.0'
@@ -312,22 +312,23 @@ tasks.named('sonarqube') {
 //     failOnError = false
 // }
 
-// PMD Configuration
-pmd {
-    consoleOutput = true
-    toolVersion = '6.55.0'
-    ruleSets = ['basic', 'braces', 'design', 'empty', 'imports', 'unusedcode']
-    ignoreFailures = true
-}
+// PMD Configuration (disabled for deployment)
+// pmd {
+//     consoleOutput = true
+//     toolVersion = '6.55.0'
+//     ruleSets = ['basic', 'braces', 'design', 'empty', 'imports', 'unusedcode']
+//     ignoreFailures = true
+// }
 
-// Checkstyle Configuration
-checkstyle {
-    toolVersion = '10.12.4'
-    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
-    ignoreFailures = true
-    maxWarnings = 0
-    maxErrors = 0
-}
+// Checkstyle Configuration (disabled for deployment)
+// Uncomment to enable checkstyle
+// checkstyle {
+//     toolVersion = '10.12.4'
+//     configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+//     ignoreFailures = true
+//     maxWarnings = 0
+//     maxErrors = 0
+// }
 
 // SpotBugs Configuration
 spotbugs {
