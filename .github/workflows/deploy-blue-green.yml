@@ -259,6 +259,52 @@ jobs:
           container-name: oddiya-app
           image: ${{ needs.build-and-prepare.outputs.image-uri }}
 
+      - name: Ensure ECS infrastructure exists
+        id: ensure-infrastructure
+        run: |
+          echo "🏗️ Checking and creating ECS infrastructure..."
+          
+          # Check if cluster exists, create if not
+          if ! aws ecs describe-clusters --clusters ${{ steps.vars.outputs.cluster }} --query 'clusters[0].clusterName' --output text | grep -q ${{ steps.vars.outputs.cluster }}; then
+            echo "⚙️ Creating ECS cluster: ${{ steps.vars.outputs.cluster }}"
+            aws ecs create-cluster --cluster-name ${{ steps.vars.outputs.cluster }}
+            echo "✅ ECS cluster created"
+          else
+            echo "✅ ECS cluster already exists: ${{ steps.vars.outputs.cluster }}"
+          fi
+          
+          # Check if service exists, create if not
+          if ! aws ecs describe-services --cluster ${{ steps.vars.outputs.cluster }} --services ${{ steps.vars.outputs.service }} --query 'services[0].serviceName' --output text 2>/dev/null | grep -q ${{ steps.vars.outputs.service }}; then
+            echo "⚙️ Creating ECS service: ${{ steps.vars.outputs.service }}"
+            
+            # Create default VPC config (using default VPC and subnets)
+            DEFAULT_VPC=$(aws ec2 describe-vpcs --filters "Name=is-default,Values=true" --query 'Vpcs[0].VpcId' --output text)
+            SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$DEFAULT_VPC" --query 'Subnets[].SubnetId' --output text | tr '\t' ',')
+            SECURITY_GROUPS=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$DEFAULT_VPC" "Name=group-name,Values=default" --query 'SecurityGroups[0].GroupId' --output text)
+            
+            # First register the task definition to get the ARN
+            NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+              --cli-input-json file://${{ steps.new-task-def.outputs.task-definition }} \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text)
+              
+            # Create service
+            aws ecs create-service \
+              --cluster ${{ steps.vars.outputs.cluster }} \
+              --service-name ${{ steps.vars.outputs.service }} \
+              --task-definition $NEW_TASK_DEF_ARN \
+              --desired-count 1 \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
+              --enable-execute-command
+            
+            echo "✅ ECS service created"
+            echo "⏳ Waiting for initial service to stabilize..."
+            sleep 30
+          else
+            echo "✅ ECS service already exists: ${{ steps.vars.outputs.service }}"
+          fi
+
       - name: Deploy to ECS (Blue-Green)
         id: deploy
         run: |
