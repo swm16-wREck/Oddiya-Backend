@@ -130,7 +130,9 @@ jobs:
     name: Test Results
     needs: [validate, unit-tests, integration-tests]
     if: needs.validate.outputs.should-run-tests == 'true' && always()
-    uses: ./.github/workflows/test-results.yml
+    uses: ./.github/workflows/unified-testing.yml
+    with:
+      test-type: 'all'
     secrets: inherit
 
   # Final Stage: Quality Gates
