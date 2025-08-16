@@ -397,8 +397,6 @@ jobs:
                 --cluster ${{ steps.vars.outputs.cluster }} \
                 --service-name ${{ steps.vars.outputs.service }} \
                 --desired-status STOPPED \
-                --sort-by createdAt \
-                --sort-order descending \
                 --max-items 3 \
                 --query 'taskArns' \
                 --output text)
