@@ -214,7 +214,7 @@ jobs:
               .taskRoleArn = "arn:aws:iam::501544476367:role/ecsTaskExecutionRole" |
               .executionRoleArn = "arn:aws:iam::501544476367:role/ecsTaskExecutionRole" |
               .containerDefinitions = [{
-                name: "oddiya",
+                name: "oddiya-app",
                 image: $image,
                 essential: true,
                 portMappings: [{
