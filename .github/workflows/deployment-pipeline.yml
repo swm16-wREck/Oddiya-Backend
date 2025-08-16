@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: deployment-jar-${{ github.sha }}
-          path: build/libs/oddiya.jar
+          path: build/libs/*.jar
           retention-days: 30
           if-no-files-found: error
       
@@ -69,11 +69,11 @@ jobs:
           echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**JAR:** oddiya.jar" >> $GITHUB_STEP_SUMMARY
+          echo "**JAR:** *.jar" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build Information" >> $GITHUB_STEP_SUMMARY
-          if [ -f build/libs/oddiya.jar ]; then
-            JAR_SIZE=$(du -h build/libs/oddiya.jar | cut -f1)
+          if ls build/libs/*.jar 1> /dev/null 2>&1; then
+            JAR_SIZE=$(du -h build/libs/*.jar | cut -f1)
             echo "- JAR Size: $JAR_SIZE" >> $GITHUB_STEP_SUMMARY
             echo "- Build Time: $(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
             echo "- Java Version: ${{ env.JAVA_VERSION }}" >> $GITHUB_STEP_SUMMARY
