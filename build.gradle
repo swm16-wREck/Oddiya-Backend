@@ -5,8 +5,8 @@ plugins {
     id 'jacoco'
     id 'org.sonarqube' version '5.1.0.4882'
     // id 'org.owasp.dependencycheck' version '8.4.2'  // Temporarily disabled due to CPE parsing errors
-    id 'pmd' version '6.55.0'
-    id 'checkstyle' version '10.12.7'
+    id 'pmd'
+    id 'checkstyle'
     id 'com.github.spotbugs' version '5.0.14'
     // id 'org.springframework.cloud.contract' version '4.1.1'  // Temporarily commented for PITest setup
     id 'info.solidsoft.pitest' version '1.15.0'
