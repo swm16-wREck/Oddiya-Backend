@@ -1,0 +1,43 @@
+# Bootstrap profile for initial ECS deployment
+# Allows the application to start without database connectivity
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/oddiya
+    username: oddiya
+    password: changeme
+    hikari:
+      initialization-fail-timeout: -1  # Don't fail on startup if DB is unavailable
+      connection-timeout: 5000  # Short timeout for health checks
+      
+  jpa:
+    hibernate:
+      ddl-auto: none  # Don't try to validate or create schema
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        temp:
+          use_jdbc_metadata_defaults: false  # Don't check database on startup
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    
+  flyway:
+    enabled: false  # Disable Flyway migrations for bootstrap
+    
+  redis:
+    enabled: false  # Disable Redis for bootstrap
+    
+  sql:
+    init:
+      mode: never  # Don't run SQL scripts
+      
+# Disable features that require external services
+management:
+  health:
+    db:
+      enabled: false
+    redis:
+      enabled: false
+      
+# Allow the app to start even if some beans fail
+spring.main.allow-bean-definition-overriding: true
+spring.main.lazy-initialization: true
