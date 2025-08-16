@@ -231,9 +231,26 @@ jacocoTestCoverageVerification {
     }
 }
 
-// Enable coverage verification for CI/CD
-check {
-    dependsOn jacocoTestCoverageVerification
+// Enable coverage verification for CI/CD (but allow disabling for deployment)
+if (!project.hasProperty('skipQualityChecks')) {
+    check {
+        dependsOn jacocoTestCoverageVerification
+    }
+}
+
+// Deployment build task - builds JAR without tests or quality checks
+tasks.register('buildForDeployment') {
+    description = 'Builds the application JAR for deployment without running tests or quality checks'
+    group = 'build'
+    dependsOn 'bootJar'
+    
+    doFirst {
+        println "Building deployment JAR without tests or quality checks..."
+    }
+    
+    doLast {
+        println "Deployment JAR built successfully: ${bootJar.archiveFile.get().asFile.absolutePath}"
+    }
 }
 
 springBoot {
