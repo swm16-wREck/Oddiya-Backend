@@ -1,18 +1,19 @@
 version: '3.9'
 
 services:
+  # Core Application Service
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: oddiya-app
+    container_name: oddiya-app-${ENVIRONMENT:-dev}
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-docker}
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/oddiya
-      - SPRING_DATASOURCE_USERNAME=oddiya
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-oddiya123}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-oddiya}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-oddiya123}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
       - AWS_REGION=${AWS_REGION:-ap-northeast-2}
@@ -32,34 +33,44 @@ services:
       - ./logs:/app/logs
       - ./temp:/app/temp
     restart: unless-stopped
+    profiles:
+      - dev
+      - dev-enhanced
+      - production
 
+  # PostgreSQL Database (PostGIS-enabled for compatibility)
   postgres:
-    image: postgres:15-alpine
-    container_name: oddiya-postgres
+    image: postgis/postgis:15-3.4
+    container_name: oddiya-postgres-${ENVIRONMENT:-dev}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
-      - POSTGRES_DB=oddiya
-      - POSTGRES_USER=oddiya
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-oddiya123}
+      - POSTGRES_DB=${POSTGRES_DB:-oddiya}
+      - POSTGRES_USER=${POSTGRES_USER:-oddiya}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-oddiya123}
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U oddiya -d oddiya"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-oddiya} -d ${POSTGRES_DB:-oddiya}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - oddiya-network
     restart: unless-stopped
+    profiles:
+      - dev
+      - dev-enhanced
+      - production
 
+  # Redis Cache Service
   redis:
     image: redis:7-alpine
-    container_name: oddiya-redis
+    container_name: oddiya-redis-${ENVIRONMENT:-dev}
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
@@ -71,28 +82,144 @@ services:
     networks:
       - oddiya-network
     restart: unless-stopped
+    profiles:
+      - dev
+      - dev-enhanced
+      - production
 
+  # pgAdmin - Database Management Tool (Development Enhancement)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: oddiya-pgadmin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@oddiya.local}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin123}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - oddiya-network
+    restart: unless-stopped
+    profiles:
+      - dev-enhanced
+
+  # LocalStack - AWS Services Mock (Testing)
   localstack:
-    image: localstack/localstack:latest
-    container_name: oddiya-localstack
+    image: localstack/localstack:3.0
+    container_name: localstack-main
     ports:
       - "4566:4566"
-      - "4571:4571"
+      - "4510-4559:4510-4559"
     environment:
-      - SERVICES=s3,sqs,dynamodb
-      - DEBUG=0
+      - SERVICES=dynamodb,s3,sqs,cloudwatch,lambda,sns,ses,rds
+      - AWS_DEFAULT_REGION=ap-northeast-2
+      - EDGE_PORT=4566
+      - DEBUG=1
       - DATA_DIR=/tmp/localstack/data
+      - LAMBDA_EXECUTOR=local
       - DOCKER_HOST=unix:///var/run/docker.sock
-      - AWS_DEFAULT_REGION=${AWS_REGION:-ap-northeast-2}
+      - HOSTNAME_EXTERNAL=localstack
+      - PERSISTENCE=1
     volumes:
       - localstack-data:/tmp/localstack
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./scripts/localstack-init.sh:/docker-entrypoint-initaws.d/init.sh
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+    networks:
+      - oddiya-test-network
+    profiles:
+      - test
+
+  # Test PostgreSQL (Integration Testing)
+  postgres-test:
+    image: postgis/postgis:15-3.4
+    container_name: oddiya-postgres-test
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=oddiya_test
+      - POSTGRES_USER=oddiya_test
+      - POSTGRES_PASSWORD=test_password
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - oddiya-test-network
+    profiles:
+      - test
+
+  # Test Redis (Integration Testing)
+  redis-test:
+    image: redis:7-alpine
+    container_name: oddiya-redis-test
+    ports:
+      - "6380:6379"
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    tmpfs:
+      - /data
+    networks:
+      - oddiya-test-network
+    profiles:
+      - test
+
+  # Prometheus - Metrics Collection (Monitoring)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: oddiya-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+    volumes:
+      - ./database/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     networks:
       - oddiya-network
+    restart: unless-stopped
     profiles:
-      - dev
+      - monitoring
 
+  # Grafana - Metrics Visualization (Monitoring)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: oddiya-grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./database/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - oddiya-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # PostgreSQL Exporter for Prometheus (Monitoring)
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: oddiya-postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-oddiya}:${POSTGRES_PASSWORD:-oddiya123}@postgres:5432/${POSTGRES_DB:-oddiya}?sslmode=disable
+    networks:
+      - oddiya-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Nginx - Production Web Server
   nginx:
     image: nginx:alpine
     container_name: oddiya-nginx
@@ -100,20 +227,40 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./static:/usr/share/nginx/html:ro
     depends_on:
       - app
     networks:
       - oddiya-network
+    restart: unless-stopped
     profiles:
       - production
 
 networks:
   oddiya-network:
     driver: bridge
+    name: oddiya-network
+    
+  oddiya-test-network:
+    driver: bridge
+    name: oddiya-test-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   postgres-data:
+    name: oddiya-postgres-data
   redis-data:
+    name: oddiya-redis-data
+  pgadmin-data:
+    name: oddiya-pgadmin-data
   localstack-data:
+    name: oddiya-localstack-data
+  prometheus-data:
+    name: oddiya-prometheus-data
+  grafana-data:
+    name: oddiya-grafana-data

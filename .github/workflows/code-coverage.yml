@@ -32,7 +32,7 @@ jobs:
         image: postgres:15-alpine
         env:
           POSTGRES_USER: oddiya
-          POSTGRES_PASSWORD: oddiya123
+          POSTGRES_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
           POSTGRES_DB: oddiya_coverage_test
         options: >-
           --health-cmd pg_isready
@@ -98,7 +98,7 @@ jobs:
           SPRING_PROFILES_ACTIVE: test
           DATABASE_URL: jdbc:postgresql://localhost:5432/oddiya_coverage_test
           DATABASE_USERNAME: oddiya
-          DATABASE_PASSWORD: oddiya123
+          DATABASE_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           TESTCONTAINERS_RYUK_DISABLED: true
