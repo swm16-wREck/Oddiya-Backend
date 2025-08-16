@@ -155,7 +155,7 @@ jobs:
       # Integration Tests
       - name: Run Core Integration Tests
         if: matrix.test-suite == 'integration-core'
-        run: ./gradlew integrationTest --tests "com.oddiya.integration.core.*" --no-daemon
+        run: ./gradlew integrationTest --tests "com.oddiya.integration.*" --no-daemon
         env:
           SPRING_PROFILES_ACTIVE: integration-test
           DATABASE_HOST: localhost
@@ -166,7 +166,7 @@ jobs:
           
       - name: Run AWS Integration Tests
         if: matrix.test-suite == 'integration-aws'
-        run: ./gradlew integrationTest --tests "com.oddiya.integration.aws.*" --no-daemon
+        run: ./gradlew integrationTest --tests "com.oddiya.aws.*" --no-daemon
         env:
           SPRING_PROFILES_ACTIVE: integration-test
           AWS_ENDPOINT: http://localhost:4566
