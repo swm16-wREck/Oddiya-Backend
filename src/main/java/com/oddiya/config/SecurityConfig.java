@@ -112,6 +112,7 @@ public class SecurityConfig {
                 .requestMatchers(
                     AntPathRequestMatcher.antMatcher("/api/v1/auth/**"),
                     AntPathRequestMatcher.antMatcher("/api/v1/health/**"),
+                    AntPathRequestMatcher.antMatcher("/api/v1/video/**"),
                     AntPathRequestMatcher.antMatcher("/actuator/health"),
                     AntPathRequestMatcher.antMatcher("/actuator/info")
                 ).permitAll()

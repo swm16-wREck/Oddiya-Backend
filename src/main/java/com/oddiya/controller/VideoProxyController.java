@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
-@RequestMapping("/v1/video")
+@RequestMapping("/api/v1/video")
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class VideoProxyController {
 
@@ -36,7 +36,7 @@ public class VideoProxyController {
                 "status", "success",
                 "message", "Video generation completed successfully!",
                 "outputUrl", SAMPLE_VIDEO_URL,
-                "downloadUrl", "/v1/video/download/sample"
+                "downloadUrl", "/api/v1/video/download/sample"
             );
             
             log.info("Video render response: {}", response);
