@@ -5,8 +5,8 @@ plugins {
     id 'jacoco'
     id 'org.sonarqube' version '5.1.0.4882'
     // id 'org.owasp.dependencycheck' version '8.4.2'  // Temporarily disabled due to CPE parsing errors
-    id 'pmd'
-    id 'checkstyle'
+    id 'pmd' version '6.55.0'
+    id 'checkstyle' version '10.12.7'
     id 'com.github.spotbugs' version '5.0.14'
     // id 'org.springframework.cloud.contract' version '4.1.1'  // Temporarily commented for PITest setup
     id 'info.solidsoft.pitest' version '1.15.0'
@@ -167,14 +167,14 @@ tasks.named('test') {
     useJUnitPlatform()
     ignoreFailures = true  // Allow tests to fail but still generate coverage report
     testLogging {
-        events "passed", "skipped", "failed"
-        exceptionFormat "full"
+        events = ["passed", "skipped", "failed"]
+        exceptionFormat = "full"
     }
     finalizedBy jacocoTestReport
 }
 
 // Integration Test Task
-task integrationTest(type: Test) {
+tasks.register('integrationTest', Test) {
     description = 'Runs integration tests'
     group = 'verification'
     
@@ -186,8 +186,8 @@ task integrationTest(type: Test) {
     }
     
     testLogging {
-        events "passed", "skipped", "failed"
-        exceptionFormat "full"
+        events = ["passed", "skipped", "failed"]
+        exceptionFormat = "full"
     }
     
     shouldRunAfter test
@@ -329,11 +329,11 @@ spotbugsMain {
     reports {
         html {
             required = true
-            outputLocation = file("$buildDir/reports/spotbugs/main.html")
+            outputLocation = layout.buildDirectory.file("reports/spotbugs/main.html").get().asFile
         }
         xml {
             required = true
-            outputLocation = file("$buildDir/reports/spotbugs/main.xml")
+            outputLocation = layout.buildDirectory.file("reports/spotbugs/main.xml").get().asFile
         }
     }
 }
@@ -342,11 +342,11 @@ spotbugsTest {
     reports {
         html {
             required = true  
-            outputLocation = file("$buildDir/reports/spotbugs/test.html")
+            outputLocation = layout.buildDirectory.file("reports/spotbugs/test.html").get().asFile
         }
         xml {
             required = true
-            outputLocation = file("$buildDir/reports/spotbugs/test.xml")
+            outputLocation = layout.buildDirectory.file("reports/spotbugs/test.xml").get().asFile
         }
     }
 }
