@@ -238,13 +238,6 @@ jobs:
                     "awslogs-stream-prefix": "ecs",
                     "awslogs-create-group": "true"
                   }
-                },
-                healthCheck: {
-                  command: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
-                  interval: 30,
-                  timeout: 10,
-                  retries: 5,
-                  startPeriod: 120
                 }
               }]' > current-task-definition.json
             
@@ -398,16 +391,53 @@ jobs:
             
             if [ "$STOPPED_TASKS" -gt 0 ]; then
               echo "⚠️ Found $STOPPED_TASKS stopped tasks, checking reasons..."
-              aws ecs list-tasks \
+              
+              # Get the most recent stopped tasks (limit to 3 for readability)
+              RECENT_STOPPED_TASKS=$(aws ecs list-tasks \
                 --cluster ${{ steps.vars.outputs.cluster }} \
                 --service-name ${{ steps.vars.outputs.service }} \
                 --desired-status STOPPED \
-                --query 'taskArns[:3]' \
-                --output text | head -3 | xargs -I {} aws ecs describe-tasks \
-                  --cluster ${{ steps.vars.outputs.cluster }} \
-                  --tasks {} \
-                  --query 'tasks[0].{TaskArn:taskArn,StoppedReason:stoppedReason,LastStatus:lastStatus,StoppedAt:stoppedAt}' \
-                  --output table || true
+                --sort-by createdAt \
+                --sort-order descending \
+                --max-items 3 \
+                --query 'taskArns' \
+                --output text)
+              
+              if [ ! -z "$RECENT_STOPPED_TASKS" ]; then
+                echo "📋 Most recent stopped task details:"
+                for task_arn in $RECENT_STOPPED_TASKS; do
+                  echo "Checking task: $task_arn"
+                  aws ecs describe-tasks \
+                    --cluster ${{ steps.vars.outputs.cluster }} \
+                    --tasks "$task_arn" \
+                    --query 'tasks[0].{StoppedReason:stoppedReason,LastStatus:lastStatus,StoppedAt:stoppedAt,Containers:containers[].{Name:name,ExitCode:exitCode,Reason:reason}}' \
+                    --output json | jq . || true
+                  echo "---"
+                done
+                
+                # Try to get recent logs from CloudWatch (if available)
+                echo "📋 Checking recent container logs..."
+                LOG_GROUP="/ecs/${{ steps.vars.outputs.task-family }}"
+                LATEST_LOGS=$(aws logs describe-log-streams \
+                  --log-group-name "$LOG_GROUP" \
+                  --order-by LastEventTime \
+                  --descending \
+                  --max-items 1 \
+                  --query 'logStreams[0].logStreamName' \
+                  --output text 2>/dev/null || echo "none")
+                
+                if [ "$LATEST_LOGS" != "none" ] && [ "$LATEST_LOGS" != "null" ]; then
+                  echo "Latest log stream: $LATEST_LOGS"
+                  aws logs get-log-events \
+                    --log-group-name "$LOG_GROUP" \
+                    --log-stream-name "$LATEST_LOGS" \
+                    --limit 10 \
+                    --query 'events[].[timestamp,message]' \
+                    --output table 2>/dev/null || echo "Could not retrieve logs"
+                else
+                  echo "No log streams found in $LOG_GROUP"
+                fi
+              fi
             fi
             
             sleep $INTERVAL
