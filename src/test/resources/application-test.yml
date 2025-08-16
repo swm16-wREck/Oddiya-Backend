@@ -80,6 +80,14 @@ spring:
   transaction:
     default-timeout: 10s
     rollback-on-commit-failure: true
+  
+  # OAuth2 Configuration for Tests (mocked)
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/auth/v1
+          jwk-set-uri: http://localhost:8080/auth/v1/.well-known/jwks.json
 
 # Logging Configuration for Tests
 logging:
