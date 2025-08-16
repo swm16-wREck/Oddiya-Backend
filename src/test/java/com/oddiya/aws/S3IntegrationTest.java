@@ -39,10 +39,10 @@ import static org.assertj.core.api.Assertions.*;
  * Tests file upload/download operations, presigned URLs, and mock virus scanning.
  */
 @SpringBootTest
-@ActiveProfiles("s3-test")
+@ActiveProfiles("test")
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@Disabled("Requires Docker environment for LocalStack - enable when Docker is available")
+@Disabled("Requires full ApplicationContext with S3 configuration - enable after fixing context loading issues")
 class S3IntegrationTest {
 
     @Container
@@ -65,7 +65,9 @@ class S3IntegrationTest {
         registry.add("app.aws.s3.enabled", () -> "true");
         registry.add("app.aws.s3.region", () -> "ap-northeast-2");
         registry.add("aws.region", () -> "ap-northeast-2");
-        registry.add("spring.profiles.active", () -> "s3-test");
+        registry.add("aws.accessKeyId", () -> "test");
+        registry.add("aws.secretKey", () -> "test");
+        registry.add("aws.s3.endpoint", () -> "http://localhost:" + localstack.getMappedPort(4566));
     }
 
     @BeforeAll
