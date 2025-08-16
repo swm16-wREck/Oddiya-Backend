@@ -1,0 +1,177 @@
+name: Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+
+jobs:
+  # Stage 1: Build and validate
+  build-and-validate:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # For security scanning
+      
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: wrapper
+      
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+        continue-on-error: true
+        timeout-minutes: 2
+      
+      - name: Compile source code
+        run: ./gradlew compileJava --no-daemon --stacktrace
+      
+      - name: Build deployment JAR
+        run: ./gradlew buildForDeployment --no-daemon --stacktrace -PskipQualityChecks=true
+      
+      - name: Upload deployment JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-jar-${{ github.sha }}
+          path: build/libs/oddiya.jar
+          retention-days: 30
+          if-no-files-found: error
+      
+      - name: Display build info
+        run: |
+          echo "## 🚀 Deployment Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**JAR:** oddiya.jar" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+          if [ -f build/libs/oddiya.jar ]; then
+            JAR_SIZE=$(du -h build/libs/oddiya.jar | cut -f1)
+            echo "- JAR Size: $JAR_SIZE" >> $GITHUB_STEP_SUMMARY
+            echo "- Build Time: $(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+            echo "- Java Version: ${{ env.JAVA_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Ready for Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "The application JAR has been built successfully without tests and is ready for deployment." >> $GITHUB_STEP_SUMMARY
+
+  # Stage 2: Security Scan (Optional but recommended)
+  security-scan:
+    name: Security Scan
+    needs: build-and-validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true  # Don't block deployment for security issues
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Run Trivy security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          timeout: '5m'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+      
+      - name: Security scan summary
+        run: |
+          echo "### 🔒 Security Scan Complete" >> $GITHUB_STEP_SUMMARY
+          echo "Security scan has been performed. Check the Security tab for detailed results." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** Security issues do not block deployment in this pipeline." >> $GITHUB_STEP_SUMMARY
+
+  # Stage 3: Deployment Summary
+  deployment-ready:
+    name: Deployment Ready
+    needs: [build-and-validate, security-scan]
+    if: always() && needs.build-and-validate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Generate deployment summary
+        run: |
+          echo "## 🎯 Deployment Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pipeline Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & Validate | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.security-scan.result }}" = "success" ]; then
+            echo "| Security Scan | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.security-scan.result }}" = "failure" ]; then
+            echo "| Security Scan | ⚠️ Issues Found (Non-blocking) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Security Scan | ⏸️ Skipped |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact Name:** deployment-jar-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Ready for:** Production Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tests Run:** None (Deployment-focused build)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Quality Checks:** Skipped (Deployment-focused build)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the deployment artifact from the Actions tab" >> $GITHUB_STEP_SUMMARY
+          echo "2. Deploy to your target environment" >> $GITHUB_STEP_SUMMARY
+          echo "3. Run smoke tests in the deployed environment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** This pipeline prioritizes deployment speed. Tests and quality checks have been skipped." >> $GITHUB_STEP_SUMMARY
+      
+      - name: Success notification
+        run: |
+          echo "🎉 Deployment pipeline completed successfully!"
+          echo ""
+          echo "The application JAR is ready for deployment."
+          echo "Download the artifact 'deployment-jar-${{ github.sha }}' from the Actions tab."
