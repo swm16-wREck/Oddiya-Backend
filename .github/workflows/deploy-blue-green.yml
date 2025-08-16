@@ -242,9 +242,9 @@ jobs:
                 healthCheck: {
                   command: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
                   interval: 30,
-                  timeout: 5,
-                  retries: 3,
-                  startPeriod: 60
+                  timeout: 10,
+                  retries: 5,
+                  startPeriod: 120
                 }
               }]' > current-task-definition.json
             
@@ -354,13 +354,74 @@ jobs:
           echo "⏳ Waiting for deployment to stabilize..."
           echo "This may take several minutes as tasks start and pass health checks..."
           
-          # Wait for service to stabilize with timeout
-          if timeout 20m aws ecs wait services-stable \
+          # Monitor deployment with detailed logging
+          TIMEOUT=1200  # 20 minutes
+          ELAPSED=0
+          INTERVAL=30
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            # Get service status
+            SERVICE_STATUS=$(aws ecs describe-services \
               --cluster ${{ steps.vars.outputs.cluster }} \
-              --services ${{ steps.vars.outputs.service }}; then
-            echo "✅ Deployment completed successfully!"
-          else
-            echo "❌ Deployment failed or timed out"
+              --services ${{ steps.vars.outputs.service }} \
+              --query 'services[0].{deployments:deployments,runningCount:runningCount,pendingCount:pendingCount,desiredCount:desiredCount}' \
+              --output json)
+            
+            DEPLOYMENT_STATUS=$(echo "$SERVICE_STATUS" | jq -r '.deployments[] | select(.status=="PRIMARY") | .rolloutState // "PENDING"')
+            RUNNING_COUNT=$(echo "$SERVICE_STATUS" | jq -r '.runningCount // 0')
+            PENDING_COUNT=$(echo "$SERVICE_STATUS" | jq -r '.pendingCount // 0')
+            DESIRED_COUNT=$(echo "$SERVICE_STATUS" | jq -r '.desiredCount // 1')
+            
+            echo "🔄 Deployment status: $DEPLOYMENT_STATUS | Tasks: $RUNNING_COUNT/$DESIRED_COUNT running, $PENDING_COUNT pending | Elapsed: ${ELAPSED}s"
+            
+            # Check deployment status
+            if [ "$DEPLOYMENT_STATUS" = "COMPLETED" ] && [ "$RUNNING_COUNT" = "$DESIRED_COUNT" ] && [ "$PENDING_COUNT" = "0" ]; then
+              echo "✅ Deployment completed successfully!"
+              break
+            elif [ "$DEPLOYMENT_STATUS" = "FAILED" ]; then
+              echo "❌ Deployment failed!"
+              echo "📋 Recent service events:"
+              aws ecs describe-services \
+                --cluster ${{ steps.vars.outputs.cluster }} \
+                --services ${{ steps.vars.outputs.service }} \
+                --query 'services[0].events[:5].[createdAt,message]' \
+                --output table
+              exit 1
+            fi
+            
+            # Check for stopped tasks (potential failures)
+            STOPPED_TASKS=$(aws ecs list-tasks \
+              --cluster ${{ steps.vars.outputs.cluster }} \
+              --service-name ${{ steps.vars.outputs.service }} \
+              --desired-status STOPPED \
+              --query 'length(taskArns)')
+            
+            if [ "$STOPPED_TASKS" -gt 0 ]; then
+              echo "⚠️ Found $STOPPED_TASKS stopped tasks, checking reasons..."
+              aws ecs list-tasks \
+                --cluster ${{ steps.vars.outputs.cluster }} \
+                --service-name ${{ steps.vars.outputs.service }} \
+                --desired-status STOPPED \
+                --query 'taskArns[:3]' \
+                --output text | head -3 | xargs -I {} aws ecs describe-tasks \
+                  --cluster ${{ steps.vars.outputs.cluster }} \
+                  --tasks {} \
+                  --query 'tasks[0].{TaskArn:taskArn,StoppedReason:stoppedReason,LastStatus:lastStatus,StoppedAt:stoppedAt}' \
+                  --output table || true
+            fi
+            
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "⏰ Deployment timed out after $TIMEOUT seconds"
+            echo "📋 Final service state:"
+            aws ecs describe-services \
+              --cluster ${{ steps.vars.outputs.cluster }} \
+              --services ${{ steps.vars.outputs.service }} \
+              --query 'services[0].{Status:status,RunningCount:runningCount,PendingCount:pendingCount,DesiredCount:desiredCount,Deployments:deployments[].{Status:status,RolloutState:rolloutState,CreatedAt:createdAt}}' \
+              --output json | jq .
             exit 1
           fi
 
