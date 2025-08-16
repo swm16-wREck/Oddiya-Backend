@@ -1,0 +1,59 @@
+# H2 Database Profile for Testing without PostgreSQL
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+        show_sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+    
+  flyway:
+    enabled: false
+    
+  redis:
+    host: localhost
+    port: 6379
+    password: 
+    
+  cache:
+    type: none
+    
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/auth/v1
+          jwk-set-uri: http://localhost:8080/auth/v1/.well-known/jwks.json
+
+app:
+  aws:
+    s3:
+      enabled: false
+    dynamodb:
+      enabled: false
+    sqs:
+      enabled: false
+    cloudwatch:
+      enabled: false
+      
+  supabase:
+    url: http://localhost:8080
+    anon-key: dummy-h2-key
+    service-key: dummy-h2-key
