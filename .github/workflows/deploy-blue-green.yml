@@ -209,8 +209,8 @@ jobs:
               '.family = $family |
               .networkMode = "awsvpc" |
               .requiresCompatibilities = ["FARGATE"] |
-              .cpu = "512" |
-              .memory = "1024" |
+              .cpu = "1024" |
+              .memory = "2048" |
               .taskRoleArn = "arn:aws:iam::501544476367:role/ecsTaskExecutionRole" |
               .executionRoleArn = "arn:aws:iam::501544476367:role/ecsTaskExecutionRole" |
               .containerDefinitions = [{
@@ -222,7 +222,8 @@ jobs:
                   protocol: "tcp"
                 }],
                 environment: [
-                  {name: "SPRING_PROFILES_ACTIVE", value: "postgresql,production"},
+                  {name: "SPRING_PROFILES_ACTIVE", value: "bootstrap"},
+                  {name: "JAVA_OPTS", value: "-Xmx1536m -Xms512m"},
                   {name: "DATABASE_HOST", value: $dbhost},
                   {name: "DATABASE_PORT", value: "5432"},
                   {name: "DATABASE_NAME", value: "oddiya"},
