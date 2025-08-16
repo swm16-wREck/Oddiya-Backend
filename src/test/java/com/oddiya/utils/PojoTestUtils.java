@@ -322,7 +322,9 @@ public class PojoTestUtils {
                     args[i] = getDefaultValue(paramTypes[i]);
                 }
                 
-                return (T) constructor.newInstance(args);
+                @SuppressWarnings("unchecked")
+                T instance = (T) constructor.newInstance(args);
+                return instance;
             }
         }
         

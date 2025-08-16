@@ -646,6 +646,7 @@ class GlobalExceptionHandlerTest {
             // Given
             int threadCount = 20;
             Thread[] threads = new Thread[threadCount];
+            @SuppressWarnings("unchecked")
             ResponseEntity<ApiResponse<Void>>[] responses = new ResponseEntity[threadCount];
             
             // When - Handle exceptions concurrently

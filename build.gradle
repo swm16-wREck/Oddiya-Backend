@@ -181,9 +181,7 @@ tasks.register('integrationTest', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     
-    useJUnitPlatform {
-        includeTags 'integration'
-    }
+    useJUnitPlatform()
     
     testLogging {
         events = ["passed", "skipped", "failed"]

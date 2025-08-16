@@ -454,6 +454,7 @@ class ComprehensiveSecurityTestSuite extends BaseIntegrationTest {
             int requestCount = 100;
             int rateLimitThreshold = 60; // Expected rate limit per minute
             
+            @SuppressWarnings("unchecked")
             CompletableFuture<Integer>[] futures = new CompletableFuture[requestCount];
             
             for (int i = 0; i < requestCount; i++) {
