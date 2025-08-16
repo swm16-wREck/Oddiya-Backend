@@ -1,18 +1,18 @@
 # Test Configuration
 # Profile: test
-# Database: PostgreSQL (TestContainers)
+# Database: PostgreSQL (Flexible - EC2 or Local)
 
 spring:
   config:
     activate:
       on-profile: test
       
-  # TestContainers PostgreSQL Configuration
+  # PostgreSQL Configuration (can be overridden with environment variables)
   datasource:
-    url: jdbc:tc:postgresql:15://localhost/testdb?TC_INITSCRIPT=test-init.sql&TC_DAEMON=true
-    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
-    username: test
-    password: test
+    url: ${DATABASE_URL:jdbc:postgresql://172.31.10.25:5432/oddiya}
+    driver-class-name: org.postgresql.Driver
+    username: ${DATABASE_USERNAME:oddiya_user}
+    password: ${DATABASE_PASSWORD:OddiyaSecure2025!}
     
     hikari:
       maximum-pool-size: 5

@@ -124,14 +124,27 @@ public class ProfileConfiguration {
      * Get datasource type for current profile
      */
     public DataSourceType getDataSourceType() {
-        if (isTestProfile()) {
-            return DataSourceType.POSTGRESQL_TESTCONTAINERS;
+        // Check for explicit datasource type property first
+        String dsType = environment.getProperty("app.datasource.type");
+        if (dsType != null) {
+            try {
+                return DataSourceType.valueOf(dsType.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid datasource type: {}, using default", dsType);
+            }
+        }
+        
+        // Default behavior based on profiles
+        if (isAwsProfile()) {
+            return DataSourceType.POSTGRESQL_AWS;
         } else if (isDockerProfile()) {
             return DataSourceType.POSTGRESQL_DOCKER;
+        } else if (isTestProfile()) {
+            // Use regular PostgreSQL for test instead of Testcontainers
+            // Can be overridden by setting app.datasource.type=POSTGRESQL_TESTCONTAINERS
+            return DataSourceType.POSTGRESQL_LOCAL;
         } else if (isLocalProfile()) {
             return DataSourceType.POSTGRESQL_LOCAL;
-        } else if (isAwsProfile()) {
-            return DataSourceType.POSTGRESQL_AWS;
         } else {
             return DataSourceType.POSTGRESQL_LOCAL;
         }
