@@ -21,6 +21,7 @@ import java.time.Duration;
 
 @Configuration
 @ConfigurationProperties(prefix = "app.aws")
+@Profile("!test")  // Exclude from test profile to avoid bean conflicts
 @Data
 @Slf4j
 public class AWSConfig {
@@ -160,7 +161,7 @@ class MockAWSConfig {
 
     @Bean
     @ConditionalOnProperty(name = "app.aws.mock.enabled", havingValue = "true", matchIfMissing = true)
-    public Region awsRegion() {
+    public Region mockAwsRegion() {  // Renamed to avoid conflict
         log.info("Using mock AWS Region: ap-northeast-2");
         return Region.of("ap-northeast-2");
     }

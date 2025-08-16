@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +74,7 @@ public class VideoProxyController {
             log.info("Video download request for ID: {}", videoId);
             
             // For demo, stream the sample video from CloudFront
-            URL url = new URL(SAMPLE_VIDEO_URL);
+            URL url = URI.create(SAMPLE_VIDEO_URL).toURL();
             InputStream inputStream = url.openStream();
             InputStreamResource resource = new InputStreamResource(inputStream);
             

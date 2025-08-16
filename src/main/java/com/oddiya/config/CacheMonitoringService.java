@@ -126,7 +126,7 @@ public class CacheMonitoringService {
             RedisConnectionFactory connectionFactory = redisTemplate.getConnectionFactory();
             if (connectionFactory != null) {
                 try (RedisConnection connection = connectionFactory.getConnection()) {
-                    Properties info = connection.info();
+                    Properties info = connection.serverCommands().info();
                     parseAndRecordRedisInfo(info);
                 }
             }
@@ -212,7 +212,7 @@ public class CacheMonitoringService {
             // Get basic Redis info
             Properties info = redisTemplate.getConnectionFactory()
                     .getConnection()
-                    .info();
+                    .serverCommands().info();
             
             health.put("redis_version", info.getProperty("redis_version"));
             health.put("connected_clients", info.getProperty("connected_clients"));
@@ -251,7 +251,7 @@ public class CacheMonitoringService {
         try {
             Properties info = redisTemplate.getConnectionFactory()
                     .getConnection()
-                    .info();
+                    .serverCommands().info();
             
             // Server info
             Map<String, Object> server = new HashMap<>();

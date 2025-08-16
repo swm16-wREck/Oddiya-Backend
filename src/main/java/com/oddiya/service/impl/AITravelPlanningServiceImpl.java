@@ -398,7 +398,8 @@ public class AITravelPlanningServiceImpl implements AITravelPlanningService {
     private List<TravelPlanSuggestion> parseSuggestionsResponse(String aiResponse) {
         try {
             String jsonPart = extractJsonFromResponse(aiResponse);
-            List<Map<String, Object>> suggestions = objectMapper.readValue(jsonPart, List.class);
+            List<Map<String, Object>> suggestions = objectMapper.readValue(jsonPart, 
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
             
             return suggestions.stream()
                     .map(this::mapToTravelPlanSuggestion)
@@ -413,7 +414,8 @@ public class AITravelPlanningServiceImpl implements AITravelPlanningService {
     private List<Map<String, Object>> parsePlaceRecommendations(String aiResponse) {
         try {
             String jsonPart = extractJsonFromResponse(aiResponse);
-            return objectMapper.readValue(jsonPart, List.class);
+            return objectMapper.readValue(jsonPart, 
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
         } catch (Exception e) {
             log.error("Error parsing place recommendations: {}", e.getMessage());
             return Collections.emptyList();
@@ -423,7 +425,8 @@ public class AITravelPlanningServiceImpl implements AITravelPlanningService {
     private Map<String, Object> parseItineraryOptimization(String aiResponse) {
         try {
             String jsonPart = extractJsonFromResponse(aiResponse);
-            return objectMapper.readValue(jsonPart, Map.class);
+            return objectMapper.readValue(jsonPart, 
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
         } catch (Exception e) {
             log.error("Error parsing itinerary optimization: {}", e.getMessage());
             return Collections.emptyMap();
@@ -433,20 +436,25 @@ public class AITravelPlanningServiceImpl implements AITravelPlanningService {
     private Map<String, Object> parseTravelInsights(String aiResponse) {
         try {
             String jsonPart = extractJsonFromResponse(aiResponse);
-            return objectMapper.readValue(jsonPart, Map.class);
+            return objectMapper.readValue(jsonPart, 
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
         } catch (Exception e) {
             log.error("Error parsing travel insights: {}", e.getMessage());
             return Collections.emptyMap();
         }
     }
 
+    @SuppressWarnings("unchecked")
     private TravelPlanSuggestion mapToTravelPlanSuggestion(Map<String, Object> suggestionData) {
+        Object highlightsObj = suggestionData.get("highlights");
+        List<String> highlights = highlightsObj instanceof List ? (List<String>) highlightsObj : Collections.emptyList();
+        
         return TravelPlanSuggestion.builder()
                 .title((String) suggestionData.get("title"))
                 .description((String) suggestionData.get("description"))
                 .duration((String) suggestionData.get("duration"))
                 .budgetRange((String) suggestionData.get("budgetRange"))
-                .highlights((List<String>) suggestionData.get("highlights"))
+                .highlights(highlights)
                 .build();
     }
 

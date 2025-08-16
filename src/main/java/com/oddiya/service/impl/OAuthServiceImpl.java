@@ -58,7 +58,7 @@ public class OAuthServiceImpl implements OAuthService {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {})
                 .onErrorResume(e -> {
                     log.error("Error verifying OAuth token: ", e);
                     return Mono.error(new UnauthorizedException("Invalid OAuth token"));
@@ -69,6 +69,7 @@ public class OAuthServiceImpl implements OAuthService {
                 throw new UnauthorizedException("Invalid OAuth token");
             }
             
+            @SuppressWarnings("unchecked")
             Map<String, Object> user = (Map<String, Object>) response.get("user");
             return user;
             

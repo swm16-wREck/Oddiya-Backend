@@ -54,6 +54,7 @@ public class PostgreSQLSpatialQueryRepository implements SpatialQueryRepository 
             .setFirstResult((int) pageable.getOffset())
             .setMaxResults(pageable.getPageSize());
         
+        @SuppressWarnings("unchecked")
         List<Object[]> results = query.getResultList();
         
         // Get total count
@@ -116,7 +117,9 @@ public class PostgreSQLSpatialQueryRepository implements SpatialQueryRepository 
             .setParameter("excludeCategories", excludeCategories)
             .setParameter("limit", limit);
         
-        return query.getResultList();
+        @SuppressWarnings("unchecked")
+        List<Object[]> result = query.getResultList();
+        return result;
     }
     
     @Override
@@ -126,7 +129,9 @@ public class PostgreSQLSpatialQueryRepository implements SpatialQueryRepository 
         Query query = entityManager.createNativeQuery(sql)
             .setParameter("placeIds", placeIds);
         
-        return query.getResultList();
+        @SuppressWarnings("unchecked")
+        List<Object[]> result = query.getResultList();
+        return result;
     }
     
     @Override
@@ -140,7 +145,9 @@ public class PostgreSQLSpatialQueryRepository implements SpatialQueryRepository 
             .setParameter("centerLng", centerLng)
             .setParameter("radiusMeters", radiusMeters);
         
-        return query.getResultList();
+        @SuppressWarnings("unchecked")
+        List<Object[]> result = query.getResultList();
+        return result;
     }
     
     @Override
@@ -180,6 +187,7 @@ public class PostgreSQLSpatialQueryRepository implements SpatialQueryRepository 
             .setFirstResult((int) pageable.getOffset())
             .setMaxResults(pageable.getPageSize());
         
+        @SuppressWarnings("unchecked")
         List<Place> results = query.getResultList();
         
         // Get total count
@@ -215,6 +223,7 @@ public class PostgreSQLSpatialQueryRepository implements SpatialQueryRepository 
             .setFirstResult((int) pageable.getOffset())
             .setMaxResults(pageable.getPageSize());
         
+        @SuppressWarnings("unchecked")
         List<Place> results = query.getResultList();
         
         // Get total count
