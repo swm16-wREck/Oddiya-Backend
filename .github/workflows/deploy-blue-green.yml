@@ -265,7 +265,7 @@ jobs:
                 }
               ]
             }
-EOF
+            EOF
             echo "✅ New task definition created"
           fi
 
