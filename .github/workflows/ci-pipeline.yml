@@ -81,9 +81,15 @@ jobs:
         if: steps.changes.outputs.should-run-tests == 'true'
         run: chmod +x gradlew
       
+      - name: Setup Gradle
+        if: steps.changes.outputs.should-run-tests == 'true'
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: wrapper
+      
       - name: Compile source code
         if: steps.changes.outputs.should-run-tests == 'true'
-        run: ./gradlew compileJava --no-daemon
+        run: ./gradlew compileJava --no-daemon --stacktrace
 
   # Stage 2: Unit Tests (Fast feedback)
   unit-tests:
