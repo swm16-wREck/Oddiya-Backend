@@ -136,7 +136,7 @@ jobs:
       # Unit Tests
       - name: Run Unit Entity Tests
         if: matrix.test-suite == 'unit-entity'
-        run: ./gradlew test --tests "com.oddiya.domain.*" --no-daemon
+        run: ./gradlew test --tests "com.oddiya.entity.*" --no-daemon
         env:
           SPRING_PROFILES_ACTIVE: test
           
