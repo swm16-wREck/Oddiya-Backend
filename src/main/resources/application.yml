@@ -18,7 +18,7 @@ spring:
       
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: ${JPA_DDL_AUTO:validate}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -33,9 +33,9 @@ spring:
     open-in-view: false
     
   flyway:
-    enabled: true
+    enabled: ${FLYWAY_ENABLED:true}
     baseline-on-migrate: true
-    validate-on-migrate: true
+    validate-on-migrate: false
     locations: classpath:db/migration
     table: flyway_schema_history
     schemas: public
