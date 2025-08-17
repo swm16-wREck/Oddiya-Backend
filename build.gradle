@@ -130,9 +130,8 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.security:spring-security-oauth2-jose'
     testImplementation 'org.springframework.security:spring-security-oauth2-resource-server'
-    // H2 database removed for Phase 1 (DynamoDB only)
-    // testRuntimeOnly 'com.h2database:h2'
-    // runtimeOnly 'com.h2database:h2'
+    // H2 database for bootstrap profile
+    runtimeOnly 'com.h2database:h2'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.junit.platform:junit-platform-suite-api:1.10.2'
     testImplementation 'org.junit.platform:junit-platform-suite-engine:1.10.2'

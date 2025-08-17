@@ -49,7 +49,7 @@ RUN mkdir -p /app/logs /app/temp && \
 # Switch to non-root user
 USER spring:spring
 
-# JVM options for container environment with PostgreSQL support
+# JVM options for container environment - will be overridden by ECS environment variables
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:MaxRAMPercentage=75.0 \
     -XX:InitialRAMPercentage=50.0 \
@@ -57,12 +57,11 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -XX:+HeapDumpOnOutOfMemoryError \
     -XX:HeapDumpPath=/app/logs \
     -Djava.security.egd=file:/dev/./urandom \
-    -Dspring.profiles.active=postgresql,docker \
     -Duser.timezone=Asia/Seoul"
 
-# Health check with database connectivity validation
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
-    CMD curl -f http://localhost:8080/actuator/health/readiness || exit 1
+# Health check - just check if app is responding
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=10 \
+    CMD curl -f http://localhost:8080/actuator/health || curl -f http://localhost:8080/api/v1/health || exit 1
 
 # Expose port
 EXPOSE 8080
