@@ -17,9 +17,9 @@ NC='\033[0m' # No Color
 
 # Configuration
 AWS_REGION="ap-northeast-2"
-ECS_CLUSTER="oddiya-cluster"
-ECS_SERVICE="oddiya-service"
-DB_HOST="172.31.10.25"
+ECS_CLUSTER="oddiya-prod-cluster"
+ECS_SERVICE="oddiya-prod-app"
+DB_HOST="oddiya-postgres.crumakwmu9au.ap-northeast-2.rds.amazonaws.com"
 ALB_DNS="oddiya-lb-1376928959.ap-northeast-2.elb.amazonaws.com"
 
 echo ""
@@ -104,7 +104,7 @@ echo ""
 echo "5. Checking CloudWatch Logs..."
 echo "------------------------------"
 # Get recent logs
-RECENT_LOGS=$(aws logs tail /ecs/oddiya \
+RECENT_LOGS=$(aws logs tail /ecs/oddiya-prod-app \
     --region $AWS_REGION \
     --since 5m \
     --format short 2>/dev/null | head -5)
