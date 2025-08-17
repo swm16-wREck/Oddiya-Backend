@@ -201,9 +201,9 @@ jobs:
             echo '{}' | jq \
               --arg family "${{ steps.vars.outputs.task-family }}" \
               --arg image "placeholder" \
-              --arg dbhost "${{ secrets.PROD_DATABASE_HOST || 'oddiya-db.c5qzkoxebfro.ap-northeast-2.rds.amazonaws.com' }}" \
+              --arg dbhost "${{ secrets.PROD_DATABASE_HOST || 'oddiya-postgres.crumakwmu9au.ap-northeast-2.rds.amazonaws.com' }}" \
               --arg dbuser "${{ secrets.PROD_DATABASE_USERNAME || 'oddiya_user' }}" \
-              --arg dbpass "${{ secrets.PROD_DATABASE_PASSWORD }}" \
+              --arg dbpass "${{ secrets.PROD_DATABASE_PASSWORD || 'OddiyaSecurePass2024!' }}" \
               --arg region "${{ env.AWS_REGION }}" \
               --arg logsgroup "/ecs/${{ steps.vars.outputs.task-family }}" \
               '.family = $family |
@@ -222,13 +222,14 @@ jobs:
                   protocol: "tcp"
                 }],
                 environment: [
-                  {name: "SPRING_PROFILES_ACTIVE", value: "bootstrap"},
+                  {name: "SPRING_PROFILES_ACTIVE", value: "production"},
                   {name: "JAVA_OPTS", value: "-Xmx1536m -Xms512m"},
                   {name: "DATABASE_HOST", value: $dbhost},
                   {name: "DATABASE_PORT", value: "5432"},
                   {name: "DATABASE_NAME", value: "oddiya"},
                   {name: "DATABASE_USERNAME", value: $dbuser},
                   {name: "DATABASE_PASSWORD", value: $dbpass},
+                  {name: "DATABASE_URL", value: ("jdbc:postgresql://" + $dbhost + ":5432/oddiya")},
                   {name: "SPRING_DATASOURCE_URL", value: ("jdbc:postgresql://" + $dbhost + ":5432/oddiya")}
                 ],
                 logConfiguration: {
